@@ -53,14 +53,15 @@ debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB)
 main.o: ../src/main.c
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
-	$(CC) $(JNI_INCLUDES) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
-
 bluetooth.o: ../src/bluetooth.c
 	$(CC) ${CFLAGS_DBUS} $(CFLAGS) -c ../src/bluetooth.c
 
 bluetooth: bluetooth.o
 	$(CC) -o bluetooth bluetooth.o -ldbus-1
+
+java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
+	mkdir -p java
+	$(CC) $(JNI_INCLUDES) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 clean:
 	rm -f $(OBJS) $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301
