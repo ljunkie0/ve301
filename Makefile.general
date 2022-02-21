@@ -25,6 +25,7 @@ CFLAGS=-Wall -O3 -DMPD_DEBUG -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
 CURL_LIB=/usr/lib/$(ARCH)/libcurl.so
 MPD_LIB=/usr/lib/$(ARCH)/libmpdclient.so
 SDL_LIB=/usr/lib/$(ARCH)/libSDL2.so
+DBUS_LIB=/usr/lib/$(ARCH)/libdbus-1.so
 
 all: ve301 libve301.so
 
@@ -45,7 +46,10 @@ $(SDL_LIB):
 $(CURL_LIB):
 	sudo apt-get -y install libcurl4-openssl-dev$(DPKG_ARCH)
 
-debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB)
+$(DBUS_LIB):
+	sudo apt-get -y install libdbus-1-dev$(DPKG_ARCH)
+
+debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB)
 
 %.o: ../src/%.c ../src/%.h
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
