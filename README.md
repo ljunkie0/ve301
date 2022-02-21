@@ -37,8 +37,11 @@ Usage:
   Copy the sample sample.config to ~/.ve301/config
   Make sure that MPD is running on the machine indicated as mpd_host in the config (default is localhost).
   The MPD server should have a playlist called [Radio Streams].m3u. Its content is shown in the Radio submenu.
+  The name is chosen because with the old MPD client MPDroid you can add Stations via you mobile.
 
   On the desktop, use the mouse wheel to scroll through a menu, left click to activate an item / open a sub menu,
   right click to go back. Arrow keys Up and Down are used to increase/decrease volume.
   On the raspberry pi, the first button (Button A) replaces the mouse and the second (Button B) changes the volume.
   
+  If you want the current weather conditions displayed you need to get a (free) api key from
+  http://api.openweathermap.org/data/2.5/weather and provide 
