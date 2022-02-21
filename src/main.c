@@ -732,6 +732,19 @@ void free_theme(theme *th) {
     free(th);
 }
 
+int weather_lstnr(weather *weather) {
+    if (weather) {
+
+        wthr.temp = weather->temp;
+        wthr.weather_icon = my_copystr((const char *) weather->weather_icon);
+        log_info(MAIN_CTX, "Received new weather: %.0f°C [%s]\n",weather->temp, weather->weather_icon);
+
+    }
+
+    return 1;
+
+}
+
 menu_ctrl *create_menu() {
 
     char *font = get_config_value("font", DEFAULT_STATION_FONT);
@@ -790,6 +803,7 @@ menu_ctrl *create_menu() {
             init_weather(120,weather_api_key,weather_location,weather_units);
             weather_item = menu_item_new(m->root[0], " ", NULL, UNKNOWN_OBJECT_TYPE, weather_font, weather_font_size, NULL, font, font_size);
             temperature_item = menu_item_new(m->root[0], "Weather", NULL, UNKNOWN_OBJECT_TYPE, font, temp_font_size, NULL, font, font_size);
+            start_weather_thread(&weather_lstnr);
         } else {
             weather_item = NULL;
         }
@@ -888,19 +902,6 @@ void sig_handler(int signo) {
     }
 }
 
-int weather_lstnr(weather *weather) {
-    if (weather) {
-
-        wthr.temp = weather->temp;
-        wthr.weather_icon = my_copystr((const char *) weather->weather_icon);
-        log_info(MAIN_CTX, "Received new weather: %.0f°C [%s]\n",weather->temp, weather->weather_icon);
-
-    }
-
-    return 1;
-
-}
-
 int main(int argc, char **argv) {
 
     base_init("ve301", stderr, IR_LOG_LEVEL_DEBUG);
@@ -914,8 +915,6 @@ int main(int argc, char **argv) {
 
     log_info(MAIN_CTX, "Creating menu\n");
     ctrl = create_menu();
-
-    start_weather_thread(&weather_lstnr);
 
     log_info(MAIN_CTX, "Entering main loop\n");
     if (ctrl) {
