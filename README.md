@@ -6,6 +6,10 @@ It runs on a raspberry pi as well as on a normal desktop (though for
 the latter there are better mpd clients).
 The project was inspired by https://amrhein.eu/Radio2.
 
+In addition to being an mpd client it can also display the current weather
+condition and reacts to the bluetooth daemon for devices that connect as
+audio source.
+
 It is still a work in progress and needs a lot of clean up. I also
 guess there are still memory leaks and I am not sure whether the way
 I use SDL is correct or optimal. On a Raspberry PI 3B (with SDL in framebuffer)
