@@ -25,3 +25,4 @@
 #define SDL_CTX 5
 #define WEATHER_CTX 6
 #define NUM_CTX 7
+#define BT_CTX 8

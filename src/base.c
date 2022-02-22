@@ -606,7 +606,7 @@ base_init (const char *appname, FILE *dflt_log_file, int log_level) {
 
     _log_levels[0] = 2;
     init_config_file(appname);
-    char *lls = get_config_value("log_levels", "1111111");
+    char *lls = get_config_value("log_levels", "11111111");
     int i = -1;
     while (lls[++i]) {
         char c[2];

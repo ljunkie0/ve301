@@ -18,6 +18,7 @@
  */
 
 #define DBUS_API_SUBJECT_TO_CHANGE
+#include "base.h"
 #include <dbus/dbus.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -79,21 +80,21 @@ void bt_init() {
     // connect to the bus and check for errors
     bt_conn = dbus_bus_get(DBUS_BUS_SYSTEM, &bt_err);
     if (dbus_error_is_set(&bt_err)) {
-       fprintf(stderr, "Connection Error (%s)\n", bt_err.message);
+       log_error(BT_CTX, "Connection Error (%s)\n", bt_err.message);
        dbus_error_free(&bt_err);
     }
 
     if (NULL == bt_conn) {
-       fprintf(stderr, "Connection Null\n");
+       log_error(BT_CTX, "Connection Null\n");
     } else {
         dbus_bus_add_match (bt_conn,MATCHING_RULE,&bt_err);
         if (dbus_error_is_set(&bt_err)) {
-           fprintf(stderr, "Connection Error (%s)\n", bt_err.message);
+           log_error(BT_CTX, "Connection Error (%s)\n", bt_err.message);
            dbus_error_free(&bt_err);
         }
         dbus_bus_add_match (bt_conn,MATCHING_RULE1,&bt_err);
         if (dbus_error_is_set(&bt_err)) {
-            fprintf(stderr, "Connection Error (%s)\n", bt_err.message);
+            log_error(BT_CTX, "Connection Error (%s)\n", bt_err.message);
             dbus_error_free(&bt_err);
         }
     }
@@ -176,11 +177,11 @@ void process_properties_chg_msg(DBusMessage *msg) {
 }
 
 void debug_bt_info() {
-    printf("Connected: %d\n", bt_info->connected);
-    printf("Track:\n");
-    printf("\tTitle:  %s\n", bt_info->title);
-    printf("\tArtist: %s\n", bt_info->artist);
-    printf("\tAlbum:  %s\n", bt_info->album);
+    log_info(BT_CTX, "Connected: %d\n", bt_info->connected);
+    log_info(BT_CTX, "Track:\n");
+    log_info(BT_CTX, "\tTitle:  %s\n", bt_info->title);
+    log_info(BT_CTX, "\tArtist: %s\n", bt_info->artist);
+    log_info(BT_CTX, "\tAlbum:  %s\n", bt_info->album);
 }
 
 /**
