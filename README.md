@@ -14,7 +14,7 @@ bump mapping slows down the most.
 Building:
 Go into the apropriate build folder (PC for desktop, Raspberry for Raspberry PI)
 and type make.
-This will probably fail as the are some dependencies to be installed. For convenience,
+This will probably fail as there are some dependencies to be installed. For convenience,
 if you are running a debian system, you can try "make debian-dependencies-install".
 This will install the dependencies
  - libsdl2-dev
@@ -44,4 +44,4 @@ Usage:
   On the raspberry pi, the first button (Button A) replaces the mouse and the second (Button B) changes the volume.
   
   If you want the current weather conditions displayed you need to get a (free) api key from
-  http://api.openweathermap.org/data/2.5/weather and provide 
+  http://api.openweathermap.org/data/2.5/weather and provide it in the config file together with the location and the units.
