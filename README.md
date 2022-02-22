@@ -4,6 +4,7 @@ other things.
 The display mimics the scale disk of a vintage radio like the ve301.
 It runs on a raspberry pi as well as on a normal desktop (though for
 the latter there are better mpd clients).
+The project was inspired by https://amrhein.eu/Radio2.
 
 It is still a work in progress and needs a lot of clean up. I also
 guess there are still memory leaks and I am not sure whether the way
