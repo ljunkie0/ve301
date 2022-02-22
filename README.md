@@ -27,6 +27,7 @@ This will install the dependencies
  - mpd-client-dev
 
 For Raspberry PI you additionally need
+ - The apropriate cross-compile tools for the architecture
  - the vc development files (I took them from the /opt directory of a raspbian install)
  - wiringPi library (2.60) (e.g. from http://wiringpi.com/download-and-install/)
  - You need two rotary encoders attached to the raspberry pi (one if you do not want to
