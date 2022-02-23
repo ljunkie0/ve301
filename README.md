@@ -51,3 +51,26 @@ Usage:
   
   If you want the current weather conditions displayed you need to get a (free) api key from
   http://api.openweathermap.org/data/2.5/weather and provide it in the config file together with the location and the units.
+  
+  Some screenshots:
+  
+  ![ve301_simple](https://user-images.githubusercontent.com/78250997/155371809-a7ecea0a-1084-4f5c-988e-6c57ba19ff94.png)
+  
+  Simplest configuration.
+  
+  ![ve301_bump_map](https://user-images.githubusercontent.com/78250997/155372011-b641c42e-25ce-42c7-848e-12acd63da0a4.png)
+  
+  With bump mapping on the font
+  
+  ![ve301_light_400_400](https://user-images.githubusercontent.com/78250997/155372896-d4bdbd4f-3727-4b23-be30-f52bf80ea1e5.png)
+  
+  With light source at 400x400
+  
+  ![ve301_bg_image](https://user-images.githubusercontent.com/78250997/155373027-3bfb94e5-89e0-477b-a570-4f04c057aca5.png)
+  
+  With background image
+  
+  ![ve301_orange](https://user-images.githubusercontent.com/78250997/155373084-b0607b43-d39f-46f1-ae80-b60472fabe6c.png)
+  
+  In orange
+
