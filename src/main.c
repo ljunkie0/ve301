@@ -134,12 +134,13 @@ static playlist *album_songs = NULL;
 
 static song *current_song;
 
-
 const char *get_vol_label(int volume) {
     char *vol_txt = malloc(13*sizeof(char));
     sprintf(vol_txt,"Volume: %d%%",volume);
     return vol_txt;
 }
+
+int item_action_update_directories_menu(menu_event evt, menu *m, menu_item *item);
 
 station *new_station(const char *label, const char *url) {
     station *s = malloc(sizeof(station));
@@ -181,7 +182,7 @@ void update_album_menu() {
         unsigned int r = 0;
         for (r = 0; r < a; r++) {
             log_info(MAIN_CTX, "Getting album %d\n", r);
-            menu_add_sub_menu(album_menu, albums[r], song_menu);
+            menu_add_sub_menu(album_menu, albums[r], song_menu, NULL);
         }
     } else {
         log_error(MAIN_CTX, "create_menu: playlist is NULL\n");
@@ -243,7 +244,7 @@ void update_directory_menu(menu_item *directory_item) {
                 char *name = get_name_from_path(path);
                 log_info(MAIN_CTX, "Directory %s\n", name);
                 menu *sub_sub_menu = menu_new(ctrl);
-                menu_item *sub_sub_menu_item = menu_add_sub_menu(sub_menu,name,sub_sub_menu);
+                menu_item *sub_sub_menu_item = menu_add_sub_menu(sub_menu,name,sub_sub_menu, item_action_update_directories_menu);
                 sub_sub_menu_item->object = (const void *) path;
                 sub_sub_menu_item->object_type = OBJ_TYPE_DIRECTORY;
             } else if (type == MPD_ENTITY_TYPE_SONG) {
@@ -286,6 +287,11 @@ int change_y_offset(menu_ctrl *ctrl, int c) {
     menu_ctrl_set_offset(ctrl,ctrl->x_offset,ctrl->y_offset + c);
     set_config_value_int("y_offset",ctrl->y_offset);
     menu_ctrl_draw(ctrl);
+    return 0;
+}
+
+int item_action_update_directories_menu(menu_event evt, menu *m, menu_item *item) {
+    update_directory_menu(item);
     return 0;
 }
 
@@ -775,7 +781,7 @@ menu_ctrl *create_menu() {
 
     if (m) {
 
-        menu_ctrl_set_light(m,light_x,light_y,light_radius,255);
+        menu_ctrl_set_light(m,light_x,light_y,light_radius,0);
 
         theme *th = get_config_theme ();
         menu_ctrl_apply_theme (m,th);
@@ -831,10 +837,10 @@ menu_ctrl *create_menu() {
 
         lib_menu = menu_new(m);
         album_menu = menu_new(m);
-        menu_add_sub_menu(lib_menu, "Alben", album_menu);
+        menu_add_sub_menu(lib_menu, "Alben", album_menu, NULL);
         nav_menu = menu_new_root(m);
-        menu_add_sub_menu(nav_menu, "Radio", radio_menu);
-        menu_add_sub_menu(nav_menu, "Bibliothek", lib_menu);
+        menu_add_sub_menu(nav_menu, "Radio", radio_menu, NULL);
+        menu_add_sub_menu(nav_menu, "Bibliothek", lib_menu, NULL);
 
         settings_menu = menu_new(m);
         menu_item_new(settings_menu, "X Offset", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_x_offset, NULL, -1);
@@ -842,7 +848,7 @@ menu_ctrl *create_menu() {
         menu_item_new(settings_menu, "Y Offset", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_y_offset, NULL, -1);
         menu_item_new(settings_menu, "Label Radius", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_label_radius, NULL, -1);
         menu_item_new(settings_menu, "Einstellungen Speichern", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_store_config, NULL, -1);
-        menu_add_sub_menu(nav_menu, "Einstellungen", settings_menu);
+        menu_add_sub_menu(nav_menu, "Einstellungen", settings_menu, NULL);
 
         menu *themes_menu = menu_new(m);
         menu_item_new(themes_menu, "Background", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_background_hue, NULL, -1);
@@ -850,11 +856,12 @@ menu_ctrl *create_menu() {
         menu_item_new(themes_menu, "Selected Foreground", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_selected_hue, NULL, -1);
         menu_item_new(themes_menu, "Active Foreground", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_active_hue, NULL, -1);
 
-        menu_add_sub_menu(settings_menu,"Theme", themes_menu);
+        menu_add_sub_menu(settings_menu,"Theme", themes_menu, NULL);
 
         root_dir_menu = menu_new(m);
-        menu_item *dir_menu_item = menu_add_sub_menu(nav_menu, "Verzeichnisse", root_dir_menu);
+        menu_item *dir_menu_item = menu_add_sub_menu(nav_menu, "Verzeichnisse", root_dir_menu, item_action_update_directories_menu);
         dir_menu_item->object = "/";
+        dir_menu_item->object_type = OBJ_TYPE_DIRECTORY;
         song_menu = menu_new(m);
 
         volume_menu = menu_new_root(m);

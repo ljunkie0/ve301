@@ -45,7 +45,7 @@ JNIEXPORT jobject JNICALL Java_org_ljunkie_ve301_Menu_menu_1add_1sub_1menu
     menu_jni *sub_m_jni = (menu_jni *) sub_menu_handle;
     menu *sub_m = sub_m_jni->m;
     const char *label_chr = (*env)->GetStringUTFChars(env,label,NULL);
-    menu_item *sub_menu_item = menu_add_sub_menu(m,label_chr,sub_m);
+    menu_item *sub_menu_item = menu_add_sub_menu(m,label_chr,sub_m,NULL);
     menu_item_jni *jni = malloc(sizeof(menu_item_jni));
     jni->item = sub_menu_item;
     jclass menu_item_class = (*env)->FindClass(env,MENU_ITEM_CLASS);

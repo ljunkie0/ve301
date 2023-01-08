@@ -196,8 +196,8 @@ menu_item *menu_item_next(menu *m, menu_item *item);
 
 menu *menu_new(menu_ctrl *ctrl);
 menu *menu_new_root(menu_ctrl *ctrl);
-menu_item *menu_new_sub_menu(menu *menu, const char*label);
-menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu);
+menu_item *menu_new_sub_menu(menu *menu, const char*label, item_action *action);
+menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_action *action);
 int menu_open_sub_menu(menu_ctrl *ctrl, menu_item *item);
 int menu_open(menu *m);
 int menu_clear(menu *m);
