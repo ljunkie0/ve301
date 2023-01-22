@@ -694,6 +694,8 @@ theme *get_config_theme() {
     th->activated_color = get_config_value("activated_color", "#00ffff");
     th->bg_image_path = get_config_value("bg_image_path", 0);
     th->font_bumpmap = get_config_value_int("font_bumpmap", 0);
+    th->shadow_offset = get_config_value_int("shadow_offset",0);
+    th->shadow_alpha = get_config_value_int("shadow_alpha", 0);
     th->bg_color_palette = NULL;
     th->bg_cp_colors = 0;
     th->fg_color_palette = NULL;
@@ -771,6 +773,8 @@ menu_ctrl *create_menu() {
     int light_x = get_config_value_int("light_x", (int) w/2);
     int light_y = get_config_value_int("light_y", 100);
     int light_radius = get_config_value_int("light_radius", 300);
+    int light_alpha = get_config_value_int("light_alpha", 0);
+    char *light_img = get_config_value("light_image_path",NULL);
     int radio_radius_labels = get_config_value_int("radio_radius_labels", radius_labels);
 
     info_menu_item_seconds = get_config_value_int("info_menu_item_seconds",INFO_MENU_ITEM_SECONDS);
@@ -781,7 +785,10 @@ menu_ctrl *create_menu() {
 
     if (m) {
 
-        menu_ctrl_set_light(m,light_x,light_y,light_radius,0);
+        menu_ctrl_set_light(m,light_x,light_y,light_radius,light_alpha);
+        if (light_img) {
+            menu_ctrl_set_light_img(m,light_img);
+        }
 
         theme *th = get_config_theme ();
         menu_ctrl_apply_theme (m,th);

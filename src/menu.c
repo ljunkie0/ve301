@@ -101,6 +101,8 @@ typedef struct glyph_obj {
     SDL_Rect *dst_rect;
     SDL_Point *rot_center;
     double current_angle;
+    double shadow_dx;
+    double shadow_dy;
 } glyph_obj;
 
 /**
@@ -132,6 +134,7 @@ int menu_ctrl_draw_scale(menu_ctrl *ctrl, double xc, double yc, double r, double
 int menu_ctrl_clear(menu_ctrl *ctrl, double angle);
 int menu_ctrl_process_events(menu_ctrl *ctrl);
 int menu_draw(menu *m, int clear, int render);
+int menu_ctrl_apply_light(menu_ctrl *ctrl);
 
 /**
  * Creates a texture that is blended over the background to create
@@ -149,7 +152,7 @@ int menu_draw(menu *m, int clear, int render);
 SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x, int light_y, int radius, int alpha) {
 
     SDL_Texture *light_texture = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STATIC,w,h);
-    SDL_SetTextureBlendMode(light_texture,SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(light_texture,SDL_BLENDMODE_MUL);
     SDL_PixelFormat *format = SDL_AllocFormat(DEFAULT_SDL_PIXELFORMAT);
 
     Uint32 pixels[w*h];
@@ -164,11 +167,9 @@ SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x
             if (l < 0.0) l = 0.0;
             if (l > 255.0) l = 255.0;
 
-            l = 255.0 - l;
-
             Uint32 pixel = alpha;
             if (l >= 0.0) {
-                pixel = SDL_MapRGBA(format,alpha,alpha,alpha,l);
+                pixel = SDL_MapRGBA(format,l,l,l,alpha);
             }
             pixels[x+o] = pixel;
 
@@ -179,6 +180,10 @@ SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x
     SDL_UpdateTexture(light_texture,NULL,pixels,4*w);
 
     return light_texture;
+}
+
+SDL_Texture *load_light_texture(SDL_Renderer *renderer, char *path) {
+    return IMG_LoadTexture(renderer,path);
 }
 
 void glyph_obj_free(glyph_obj *obj) {
@@ -218,7 +223,7 @@ void glyph_obj_free(glyph_obj *obj) {
     }
 }
 
-void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius) {
+void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius, int light_x, int light_y) {
 
     glyph_o->dst_rect->x = center.x - 0.5 * glyph_o->dst_rect->w;
     glyph_o->dst_rect->y = center.y - radius - 0.5 * glyph_o->dst_rect->h;
@@ -227,7 +232,7 @@ void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius) 
 
 }
 
-glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius) {
+glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius, int light_x, int light_y) {
 
     glyph_obj *glyph_o = calloc(1,sizeof(glyph_obj));
 
@@ -342,7 +347,7 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
     SDL_Point *rot_center = malloc(sizeof(SDL_Point));
     glyph_o->rot_center = rot_center;
 
-    glyph_obj_update_cnt_rad(glyph_o,center,radius);
+    glyph_obj_update_cnt_rad(glyph_o,center,radius, light_x, light_y);
 
     int minx = 0,maxx = 0,miny = 0,maxy = 0,advance = 0;
     TTF_GlyphMetrics(font,c,&minx,&maxx,&miny,&maxy,&advance);
@@ -370,21 +375,33 @@ void update_glyph_lighting(glyph_obj *glyph_o, double center_x, double center_y,
     Uint32 transparent = SDL_MapRGBA(format,0,0,0,0);
 
 
-    int y;
+    /*
+     * Update shadow offset direction
+     */
+
+    double c_x_rot = c * (glyph_o->dst_rect->x+0.5*glyph_o->dst_rect->w-center_x) - s * (glyph_o->dst_rect->y+0.5*glyph_o->dst_rect->h - center_y) + center_x;
+    double c_y_rot = s * (glyph_o->dst_rect->x+0.5*glyph_o->dst_rect->w-center_x) + c * (glyph_o->dst_rect->y+0.5*glyph_o->dst_rect->h - center_y) + center_y;
+
+    double light_x = c_x_rot - l_x;
+    double light_y = c_y_rot - l_y;
+    double light_d = (double) SDL_sqrtf((float)(light_x*light_x + light_y*light_y));
+    if (light_d > 0) {
+        glyph_o->shadow_dx = light_x / light_d;
+        glyph_o->shadow_dy = light_y / light_d;
+    }
 
     /* Normally, the texture would be locked here, but that takes too much time,
      * so the locking is done once and the pixels are stored in the glyph_o
      * That is not correct I guess but it works
      */
-
-    for (y = 0; y < glyph_o->surface->h; y++) {
+    for (int y = 0; y < glyph_o->surface->h; y++) {
 
         int o = glyph_o->surface->w * y;
         for (int x = 0; x < glyph_o->surface->w; x++) {
             SDL_Color color = glyph_o->colors[o+x];
-	    if (color.a > 1) {
+        if (color.a > 1) {
 
-		normal_vector df = glyph_o->normals[o+x];
+        normal_vector df = glyph_o->normals[o+x];
 
                 Uint8 r = color.r,g = color.g,b = color.b,a = color.a;
 
@@ -424,7 +441,7 @@ void update_glyph_lighting(glyph_obj *glyph_o, double center_x, double center_y,
                 /**
                  * Have to switch B and R, i don't know why
                  */
-		Uint32 lght = (r << format->Bshift) | (g << format->Gshift) | (b << format->Rshift) | (a << format->Ashift & format->Amask);
+                Uint32 lght = (r << format->Bshift) | (g << format->Gshift) | (b << format->Rshift) | (a << format->Ashift & format->Amask);
                 light_pixels[o + x] = lght;
 
             } else {
@@ -459,7 +476,7 @@ void text_obj_free(text_obj *obj) {
     }
 }
 
-void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int line, int n_lines) {
+void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int line, int n_lines, int light_x, int light_y) {
     if (obj) {
 
         if (obj->n_glyphs_2nd_line > 0) {
@@ -470,7 +487,7 @@ void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int li
 
         if (obj->glyphs_objs) {
             for (int g = 0; g < obj->n_glyphs; g++) {
-                glyph_obj_update_cnt_rad(obj->glyphs_objs[g], center, radius);
+                glyph_obj_update_cnt_rad(obj->glyphs_objs[g], center, radius, light_x, light_y);
             }
         }
 
@@ -478,14 +495,14 @@ void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int li
 
         if (obj->glyphs_objs_2nd_line) {
             for (int g = 0; g < obj->n_glyphs_2nd_line; g++) {
-                glyph_obj_update_cnt_rad(obj->glyphs_objs_2nd_line[g], center, radius_new);
+                glyph_obj_update_cnt_rad(obj->glyphs_objs_2nd_line[g], center, radius_new, light_x, light_y);
             }
         }
     }
 }
 
 
-text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Font *font_2nd_line, SDL_Color fg, SDL_Point center, int radius, int line, int n_lines) {
+text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Font *font_2nd_line, SDL_Color fg, SDL_Point center, int radius, int line, int n_lines, int light_x, int light_y) {
 
     if (txt) {
         Uint32 unicode_length = MAX_LABEL_LENGTH;
@@ -522,7 +539,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
 
         unsigned int i = 0;
         for (i = 0; i < unicode_length; i++) {
-            glyph_obj *glyph_o = glyph_obj_new(renderer,unicode_text[i],font,fg,center,radius);
+            glyph_obj *glyph_o = glyph_obj_new(renderer,unicode_text[i],font,fg,center,radius, light_x, light_y);
             if (!glyph_o) {
                 log_error(MENU_CTX, "Could not create glyph object for %c\n", unicode_text[i]);
                 return NULL;
@@ -549,7 +566,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
             unsigned int i = 0;
             int radius_new = radius - text_surface->h;
             for (i = 0; i < unicode_length_second_line; i++) {
-                t->glyphs_objs_2nd_line[i] = glyph_obj_new(renderer,unicode_text_2nd_line[i],font_2nd_line,fg,center,radius_new);
+                t->glyphs_objs_2nd_line[i] = glyph_obj_new(renderer,unicode_text_2nd_line[i],font_2nd_line,fg,center,radius_new, light_x, light_y);
             }
         }
 
@@ -567,7 +584,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
 }
 
 
-void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label, int radius, int center_x, int center_y, int angle, double light_x, double light_y, int font_bumpmap) {
+void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label, int radius, int center_x, int center_y, int angle, double light_x, double light_y, int font_bumpmap, int shadow_offset, int shadow_alpha) {
 
     if (target != NULL) {
         SDL_SetRenderTarget(renderer,target);
@@ -579,15 +596,61 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
     for (c = 0; c < label->n_glyphs; c++) {
         glyph_obj *glyph_obj = label->glyphs_objs[c];
         double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/circumference;
+
         if (font_bumpmap) {
-	    if (a != glyph_obj->current_angle) {
-		update_glyph_lighting(glyph_obj,center_x,center_y,a, light_x, light_y);
-	    }
+
+            if (a != glyph_obj->current_angle) {
+                update_glyph_lighting(glyph_obj,center_x,center_y,a, light_x, light_y);
+            }
+
+            if (shadow_offset > 0) {
+
+                SDL_Rect shadow_dst_rec;
+                shadow_dst_rec.w = glyph_obj->dst_rect->w;
+                shadow_dst_rec.h = glyph_obj->dst_rect->h;
+                shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
+                shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
+
+                Uint8 orig_a, orig_r, orig_g, orig_b;
+                SDL_GetTextureAlphaMod(glyph_obj->light, &orig_a);
+                SDL_GetTextureColorMod(glyph_obj->light, &orig_r, &orig_g, &orig_b);
+                SDL_SetTextureAlphaMod(glyph_obj->light,shadow_alpha);
+                SDL_SetTextureColorMod(glyph_obj->light,0,0,0);
+
+                SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
+                SDL_SetTextureAlphaMod(glyph_obj->light,orig_a);
+                SDL_SetTextureColorMod(glyph_obj->light,orig_r, orig_g, orig_b);
+            }
+
             SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
         } else {
+
+            if (shadow_offset > 0) {
+
+                SDL_Rect shadow_dst_rec;
+                shadow_dst_rec.w = glyph_obj->dst_rect->w;
+                shadow_dst_rec.h = glyph_obj->dst_rect->h;
+                shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
+                shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
+
+                Uint8 orig_a, orig_r, orig_g, orig_b;
+                SDL_GetTextureAlphaMod(glyph_obj->texture, &orig_a);
+                SDL_GetTextureColorMod(glyph_obj->texture, &orig_r, &orig_g, &orig_b);
+                SDL_SetTextureAlphaMod(glyph_obj->texture,shadow_alpha);
+                SDL_SetTextureColorMod(glyph_obj->texture,0,0,0);
+
+                SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
+                SDL_SetTextureAlphaMod(glyph_obj->texture,orig_a);
+                SDL_SetTextureColorMod(glyph_obj->texture,orig_r, orig_g, orig_b);
+            }
+
             SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
         }
-	glyph_obj->current_angle = a;
+        glyph_obj->current_angle = a;
         advance += glyph_obj->advance;
     }
 
@@ -597,10 +660,54 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
         for (c = 0; c < label->n_glyphs_2nd_line; c++) {
             glyph_obj *glyph_obj = label->glyphs_objs_2nd_line[c];
             double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/circumference;
+
             if (font_bumpmap) {
-                update_glyph_lighting(glyph_obj,center_x,center_y,a, light_x, light_y);
+
+                if (a != glyph_obj->current_angle) {
+                    update_glyph_lighting(glyph_obj,center_x,center_y,a, light_x, light_y);
+                }
+
+                if (shadow_offset > 0) {
+
+                    SDL_Rect shadow_dst_rec;
+                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
+                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
+                    shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
+                    shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
+
+                    Uint8 orig_a, orig_r, orig_g, orig_b;
+                    SDL_GetTextureAlphaMod(glyph_obj->light, &orig_a);
+                    SDL_GetTextureColorMod(glyph_obj->light, &orig_r, &orig_g, &orig_b);
+                    SDL_SetTextureAlphaMod(glyph_obj->light,shadow_alpha);
+                    SDL_SetTextureColorMod(glyph_obj->light,0,0,0);
+
+                    SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
+                    SDL_SetTextureAlphaMod(glyph_obj->light,orig_a);
+                    SDL_SetTextureColorMod(glyph_obj->light,orig_r, orig_g, orig_b);
+
+                }
                 SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
             } else {
+                if (shadow_offset > 0) {
+
+                    SDL_Rect shadow_dst_rec;
+                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
+                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
+                    shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
+                    shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
+
+                    Uint8 orig_a, orig_r, orig_g, orig_b;
+                    SDL_GetTextureAlphaMod(glyph_obj->texture, &orig_a);
+                    SDL_GetTextureColorMod(glyph_obj->texture, &orig_r, &orig_g, &orig_b);
+                    SDL_SetTextureAlphaMod(glyph_obj->texture,shadow_alpha);
+                    SDL_SetTextureColorMod(glyph_obj->texture,0,0,0);
+
+                    SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
+                    SDL_SetTextureAlphaMod(glyph_obj->texture,orig_a);
+                    SDL_SetTextureColorMod(glyph_obj->texture,orig_r, orig_g, orig_b);
+                }
                 SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
             }
             advance += glyph_obj->advance;
@@ -624,9 +731,9 @@ void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius) {
     int line;
     for (line = 0; line < lines; line++) {
 
-        text_obj_update_cnt_rad(item->label_default, center, radius, item->line, item->menu->n_o_lines);
-        text_obj_update_cnt_rad(item->label_active, center, radius, item->line, item->menu->n_o_lines);
-        text_obj_update_cnt_rad(item->label_current, center, radius, item->line, item->menu->n_o_lines);
+        text_obj_update_cnt_rad(item->label_default, center, radius, item->line, item->menu->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+        text_obj_update_cnt_rad(item->label_active, center, radius, item->line, item->menu->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+        text_obj_update_cnt_rad(item->label_current, center, radius, item->line, item->menu->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
 
     }
 
@@ -649,7 +756,7 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
             label = item->label_current;
         }
 
-        text_obj_draw(item->menu->ctrl->renderer,NULL,label,item->menu->radius_labels,item->menu->ctrl->center.x,item->menu->ctrl->center.y,angle,item->menu->ctrl->light_x,item->menu->ctrl->light_y, item->menu->ctrl->font_bumpmap);
+        text_obj_draw(item->menu->ctrl->renderer,NULL,label,item->menu->radius_labels,item->menu->ctrl->center.x,item->menu->ctrl->center.y,angle,item->menu->ctrl->light_x,item->menu->ctrl->light_y, item->menu->ctrl->font_bumpmap, item->menu->ctrl->shadow_offset, item->menu->ctrl->shadow_alpha);
     }
 
     return 0;
@@ -726,9 +833,9 @@ void menu_item_rebuild_glyphs(menu_item *item) {
     }
 
     SDL_Renderer *renderer = m->ctrl->renderer;
-    item->label_default = text_obj_new(renderer,item->label,font,font2,*m->ctrl->default_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines);
-    item->label_current = text_obj_new(renderer,item->label,font,font2,*m->ctrl->selected_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines);
-    item->label_active = text_obj_new(renderer,item->label,font,font2,*m->ctrl->activated_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines);
+    item->label_default = text_obj_new(renderer,item->label,font,font2,*m->ctrl->default_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_current = text_obj_new(renderer,item->label,font,font2,*m->ctrl->selected_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_active = text_obj_new(renderer,item->label,font,font2,*m->ctrl->activated_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
 
 }
 
@@ -932,13 +1039,13 @@ void menu_item_warp_to(menu_item *item) {
     if (dist_right < dist_left) {
         while (item->id != m->current_id && ctrl->warping) {
             menu_turn_right(m);
-            menu_ctrl_draw(ctrl);
+            //menu_ctrl_draw(ctrl);
             menu_ctrl_process_events(ctrl);
         }
     } else {
         while (item->id != m->current_id && ctrl->warping) {
             menu_turn_left(m);
-            menu_ctrl_draw(ctrl);
+            //menu_ctrl_draw(ctrl);
             menu_ctrl_process_events(ctrl);
         }
     }
@@ -946,17 +1053,19 @@ void menu_item_warp_to(menu_item *item) {
     // Lock in
     while (m->segment < 0 && ctrl->warping) {
         menu_turn_right(m);
-        menu_ctrl_draw(ctrl);
+        //menu_ctrl_draw(ctrl);
         menu_ctrl_process_events(ctrl);
     }
 
     while (m->segment > 0 && ctrl->warping) {
         menu_turn_left(m);
-        menu_ctrl_draw(ctrl);
+        //menu_ctrl_draw(ctrl);
         menu_ctrl_process_events(ctrl);
     }
+
     ctrl->warping = 0;
     log_config(MENU_CTX, "menu_item_warp_to: ctrl->object = %p->%p\n", ctrl, ctrl->object);
+
 }
 
 void menu_fade_out(menu *menu_frm, menu *menu_to) {
@@ -1210,6 +1319,10 @@ int menu_draw(menu *m, int clear, int render) {
     SDL_SetRenderDrawColor(ctrl->renderer, ctrl->indicator_color_dark->r,
                            ctrl->indicator_color_dark->g, ctrl->indicator_color_dark->b, ctrl->indicator_alpha * 180 / 255);
     SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 + 2, 0, xc_Sint16 + 2, (Sint16) ctrl->h);
+
+    menu_ctrl_apply_light(ctrl);
+
+
     if (render) {
         SDL_RenderPresent(ctrl->renderer);
     }
@@ -1582,6 +1695,20 @@ int menu_ctrl_draw_scale(menu_ctrl *ctrl, double xc, double yc, double r, double
     return 0;
 }
 
+int menu_ctrl_apply_light(menu_ctrl *ctrl) {
+    if (ctrl->light_texture) {
+        double w = ctrl->w;
+        double h = ctrl->h;
+        double xo = ctrl->center.x - 0.5 * ctrl->w;
+        double yo = 0;
+        const SDL_Rect dst_rect = {xo, yo, w, h};
+        SDL_RenderCopy(ctrl->renderer,ctrl->light_texture,NULL,&dst_rect);
+    }
+
+    return 0;
+
+}
+
 int menu_ctrl_clear(menu_ctrl *ctrl, double angle) {
     if (ctrl->background_color) {
         SDL_SetRenderDrawColor(ctrl->renderer,ctrl->background_color->r,
@@ -1609,15 +1736,7 @@ int menu_ctrl_clear(menu_ctrl *ctrl, double angle) {
         }
     }
 
-    if (ctrl->light_texture) {
-        double w = ctrl->w;
-        double h = ctrl->h;
-        double xo = ctrl->center.x - 0.5 * ctrl->w;
-        double yo = 0;
-        const SDL_Rect dst_rect = {xo, yo, w, h};
-        SDL_RenderCopy(ctrl->renderer,ctrl->light_texture,NULL,&dst_rect);
-    }
-
+    //menu_ctrl_apply_light(ctrl);
 
     return 1;
 }
@@ -1726,7 +1845,7 @@ int menu_ctrl_draw(menu_ctrl *ctrl) {
 }
 
 int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator,
-                        char *def, char *selected, char *activated, char *bgImagePath, int bg_from_time, int draw_scales, int font_bumpmap, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors) {
+                        char *def, char *selected, char *activated, char *bgImagePath, int bg_from_time, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors) {
     log_config(MENU_CTX, "START: menu_ctrl_set_style\n");
     if (ctrl->background_color) {
         free(ctrl->background_color);
@@ -1798,6 +1917,8 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
     }
 
     ctrl->font_bumpmap = font_bumpmap;
+    ctrl->shadow_offset = shadow_offset;
+    ctrl->shadow_alpha = shadow_alpha;
 
     log_info(MENU_CTX, "Colors:\n");
     html_print_color("Background", ctrl->background_color);
@@ -1816,7 +1937,7 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
 int menu_ctrl_apply_theme(menu_ctrl *ctrl, theme *theme) {
     return menu_ctrl_set_style(ctrl, theme->background_color, theme->scale_color,
                                theme->indicator_color, theme->default_color, theme->selected_color,
-                               theme->activated_color, theme->bg_image_path, theme->bg_color_of_time, 1, theme->font_bumpmap, theme->bg_color_palette, theme->bg_cp_colors, theme->fg_color_palette, theme->fg_cp_colors);
+                               theme->activated_color, theme->bg_image_path, theme->bg_color_of_time, 1, theme->font_bumpmap, theme->shadow_offset, theme->shadow_alpha, theme->bg_color_palette, theme->bg_cp_colors, theme->fg_color_palette, theme->fg_cp_colors);
 }
 
 void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha) {
@@ -1828,6 +1949,15 @@ void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double
     ctrl->light_y = light_y;
 
     ctrl->light_texture = new_light_texture(ctrl->renderer, ctrl->w, ctrl->h, light_x, light_y, radius, alpha);
+
+}
+
+void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path) {
+    if (ctrl->light_texture) {
+        SDL_DestroyTexture(ctrl->light_texture);
+    }
+
+    ctrl->light_texture = load_light_texture(ctrl->renderer,path);
 
 }
 
@@ -1983,11 +2113,11 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     }
 
 #ifdef RASPBERRY
-    menu_ctrl_set_style (ctrl, "#08081e", "#c8c8c8", "#ff0000", "#525239", "#c8c864", "#c8c864", 0, 0, 1, 0, NULL, 0, NULL, 0);
+    menu_ctrl_set_style (ctrl, "#08081e", "#c8c8c8", "#ff0000", "#525239", "#c8c864", "#c8c864", 0, 0, 1, 0, 0, 0, NULL, 0, NULL, 0);
 #else
     menu_ctrl_set_style(ctrl, "#08081e", "#c8c8c8", "#ff0000", "#525239", "#c8c864",
                         "#c8c864",
-                        0, 0, 1, 0, NULL, 0, NULL, 0);
+                        0, 0, 1, 0, 0, 0, NULL, 0, NULL, 0);
 #endif
 
     return ctrl;

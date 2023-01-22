@@ -120,6 +120,8 @@ typedef struct theme {
     char **fg_color_palette;
     int fg_cp_colors;
     int font_bumpmap;
+    int shadow_offset;
+    Uint8 shadow_alpha;
 } theme;
 
 struct menu_ctrl {
@@ -167,6 +169,8 @@ struct menu_ctrl {
     SDL_Color *indicator_color_light; /* The color of the vertical indicator line */
     SDL_Color *indicator_color_dark; /* The color of the vertical indicator line */
     int font_bumpmap; /* Apply bumpmap effect to font */
+    int shadow_offset; /* The offset of the drop shadow (0 -> no shadow) */
+    Uint8 shadow_alpha; /* The alpha of the drop shadow */
     Uint8 indicator_alpha;
     SDL_Window *display;
     SDL_Renderer *renderer;
@@ -217,8 +221,9 @@ int menu_ctrl_set_default_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 int menu_ctrl_set_active_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha);
+void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path);
 int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator,
-                        char *def, char *selected, char *activated, char *bgImagePath, int bg_from_time, int draw_scales, int font_bumpmap, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors);
+                        char *def, char *selected, char *activated, char *bgImagePath, int bg_from_time, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors);
 void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset);
 void menu_dispose(menu *menu);
 int menu_ctrl_draw(menu_ctrl *ctrl);
