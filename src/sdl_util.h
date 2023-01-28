@@ -24,6 +24,7 @@
 #define to_Uint16(d) (Uint16) (d >= 0.0 ? (d + 0.5) : (d - 0.5))
 #define to_Sint16(d) (Sint16) (d >= 0.0 ? (d + 0.5) : (d - 0.5))
 
+float Q_rsqrt( float number );
 SDL_Color *html_to_color_and_alpha(char *c, unsigned char *alpha);
 SDL_Color *html_to_color(char *c);
 SDL_Color *rgb_to_color(int r, int g, int b);

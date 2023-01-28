@@ -93,10 +93,13 @@ void set_config_value_int (char *key, int value);
 void set_config_value_double (char *key, double value);
 
 char *get_config_value(char *key, const char *dflt);
-
+char *get_config_value_group(char *key, const char *dflt, const char *group);
 int get_config_value_int(char *key, int dflt);
+int get_config_value_int_group(char *key, int dflt, const char *group);
 float get_config_value_float(char *key, float dflt);
+float get_config_value_float_group(char *key, float dflt, const char *group);
 double get_config_value_double(char *key, double dflt);
+double get_config_value_double_group(char *key, double dflt, const char *group);
 
 void base_close(void);
 void base_init(const char *appname, FILE *dflt_log_file, int log_level);

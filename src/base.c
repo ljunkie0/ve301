@@ -19,6 +19,7 @@
 
 #include "base.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <regex.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -41,6 +42,7 @@ static int _log_levels[NUM_CTX];
 typedef struct config_entry {
     char *key;
     char *value;
+    char *group;
     int id;
 } config_entry;
 
@@ -387,12 +389,14 @@ __log_trace (const int log_ctx, const char *__restrict __format, ...) {
 }
 
 config_entry *
-find_config_entry (char *key) {
+find_config_entry (char *key, char *group) {
     config_entry *entry = 0;
     int e = 0;
     while (!entry && e < __config->no_of_entries) {
         if (!strcmp (key, __config->entries[e]->key)) {
-            entry = __config->entries[e];
+            if ((!__config->entries[e]->group && !group) || (__config->entries[e]->group && group && !strcmp (group, __config->entries[e]->group))) {
+               entry = __config->entries[e];
+            }
         }
         e++;
     }
@@ -400,7 +404,7 @@ find_config_entry (char *key) {
 }
 
 config_entry *
-add_config_entry (const char *key, const char *value) {
+add_config_entry (const char *key, const char *value, const char *group) {
     config_entry *e = malloc (sizeof (config_entry));
     e->key = my_copystr (key);
     if (value) {
@@ -408,6 +412,13 @@ add_config_entry (const char *key, const char *value) {
     } else {
         e->value = NULL;
     }
+
+    if (group) {
+        e->group = my_copystr(group);
+    } else {
+        e->group = NULL;
+    }
+
     __config->no_of_entries++;
     __config->entries = realloc (__config->entries,
                                  __config->no_of_entries * sizeof (config_entry *));
@@ -415,24 +426,45 @@ add_config_entry (const char *key, const char *value) {
     return e;
 }
 
-void set_config_value (char *key, char *value) {
+void set_config_value_group (char *key, char *value, char *group) {
     if (__config) {
-        config_entry *config = find_config_entry (key);
+        config_entry *config = find_config_entry (key, group);
         if (!config) {
-            add_config_entry (key, value);
+            add_config_entry (key, value, group);
         } else {
             config->value = my_copystr(value);
         }
     }
 }
 
-void set_config_value_int (char *key, int value) {
+void set_config_value (char *key, char *value) {
+    set_config_value_group(key, value, NULL);
+}
+
+void set_config_value_int_group (char *key, int value, char *group) {
     if (__config) {
         char *value_chr = malloc(12*sizeof(char));
         sprintf(value_chr,"%d",value);
-        config_entry *config = find_config_entry (key);
+        config_entry *config = find_config_entry (key, group);
         if (!config) {
-            add_config_entry (key, value_chr);
+            add_config_entry (key, value_chr, group);
+        } else {
+            config->value = value_chr;
+        }
+    }
+}
+
+void set_config_value_int (char *key, int value) {
+    set_config_value_int_group(key,value,NULL);
+}
+
+void set_config_value_double_group (char *key, double value, char *group) {
+    if (__config) {
+        char *value_chr = malloc(12*sizeof(char));
+        sprintf(value_chr,"%.3f",value);
+        config_entry *config = find_config_entry (key, group);
+        if (!config) {
+            add_config_entry (key, value_chr, group);
         } else {
             config->value = value_chr;
         }
@@ -440,22 +472,13 @@ void set_config_value_int (char *key, int value) {
 }
 
 void set_config_value_double (char *key, double value) {
-    if (__config) {
-        char *value_chr = malloc(12*sizeof(char));
-        sprintf(value_chr,"%.3f",value);
-        config_entry *config = find_config_entry (key);
-        if (!config) {
-            add_config_entry (key, value_chr);
-        } else {
-            config->value = value_chr;
-        }
-    }
+    set_config_value_double_group(key,value,NULL);
 }
 
-char *get_config_value (char *key, const char *dflt) {
+char *get_config_value_group (char *key, const char *dflt, const char *group) {
     char *value = 0;
     if (__config) {
-        config_entry *entry = find_config_entry (key);
+        config_entry *entry = find_config_entry (key, group);
         if (entry) {
             value = entry->value;
         }
@@ -470,9 +493,12 @@ char *get_config_value (char *key, const char *dflt) {
     return value;
 }
 
-int get_config_value_int(char *key, int dflt) {
+char *get_config_value (char *key, const char *dflt) {
+    return get_config_value_group(key,dflt,NULL);
+}
 
-    char *value_string = get_config_value(key, NULL);
+int get_config_value_int_group(char *key, int dflt, const char *group) {
+    char *value_string = get_config_value(key, group);
     int value_int = 0;
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
@@ -485,9 +511,13 @@ int get_config_value_int(char *key, int dflt) {
 
 }
 
-float get_config_value_float(char *key, float dflt) {
+int get_config_value_int(char *key, int dflt) {
+    return get_config_value_int_group(key,dflt,NULL);
+}
 
-    char *value_string = get_config_value(key, NULL);
+float get_config_value_float_group(char *key, float dflt, const char *group) {
+
+    char *value_string = get_config_value(key, group);
     float value_float = 0;
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
@@ -500,9 +530,13 @@ float get_config_value_float(char *key, float dflt) {
 
 }
 
-double get_config_value_double(char *key, double dflt) {
+float get_config_value_float(char *key, float dflt) {
+    return get_config_value_float_group(key,dflt,NULL);
+}
 
-    char *value_string = get_config_value(key, NULL);
+double get_config_value_double_group(char *key, double dflt, const char *group) {
+
+    char *value_string = get_config_value(key, group);
     double value_double = 0;
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
@@ -515,11 +549,24 @@ double get_config_value_double(char *key, double dflt) {
 
 }
 
+double get_config_value_double(char *key, double dflt) {
+    return get_config_value_float_group(key,dflt,NULL);
+}
+
 void write_config () {
     if (__config) {
         FILE *f = fopen (__config->path, "w");
         int e = 0;
+        char *current_group = NULL;
         for (e = 0; e < __config->no_of_entries; e++) {
+
+            if (__config->entries[e]->group) {
+                if (!current_group || strcmp(current_group,__config->entries[e]->group)) {
+                    current_group = __config->entries[e]->group;
+                    fprintf (f, "[%s]\n", current_group);
+                }
+            }
+
             if (__config->entries[e]->value) {
                 fprintf (f, "%s=%s\n", __config->entries[e]->key,
                          __config->entries[e]->value);
@@ -531,8 +578,89 @@ void write_config () {
     }
 }
 
-void
-init_config_file(const char *appname) {
+FILE *read_config_file(const char *config_file_name) {
+    log_info (BASE_CTX, "Config file: %s\n", config_file_name);
+    FILE *config_file = fopen (config_file_name, "r");
+    if (!config_file) {
+        char *error_str = strerror (errno);
+        if (!error_str) {
+            log_error (BASE_CTX, "Could not open config file %s: %d\n",
+                       config_file_name, errno);
+        } else {
+            log_error (BASE_CTX, "Could not open config file %s: %s\n",
+                       config_file_name, error_str);
+        }
+    } else {
+        log_debug (BASE_CTX, "Config file: %p\n", config_file);
+        char *config_line = 0;
+        size_t c = 0;
+        char *current_group = NULL;
+
+        while (getline (&config_line, &c, config_file) != -1) {
+            if (c > 0) {
+                log_info (BASE_CTX, "%s", config_line);
+                if (config_line[0] == '[') {
+                    char *group = strtok (config_line, "[]\n");
+                    if (group) {
+                        current_group = my_copystr(group);
+                        log_info (BASE_CTX, "Group: %s\n", group);
+                    }
+                } else {
+                    char *key = strtok (config_line, "=\n");
+                    if (key) {
+                        char *value = strtok (0, "=\n");
+
+                        // value == null -> include?
+                        if (value == NULL && !strncmp(key,"include",7)) {
+                            strtok (key, " ");
+                            char *p = strtok(NULL, " ");
+                            if (p) {
+                                char *path = NULL;
+                                if (p[0] == '/') {
+                                    path = p;
+                                } else {
+                                    char *last_sep = strrchr(config_file_name,'/');
+                                    char *s = (char *) config_file_name;
+                                    char *config_path = NULL;
+                                    int pl = 0;
+                                    while (s != last_sep) {
+                                        pl = pl + 1;
+                                        config_path = (char *) realloc(config_path, pl * sizeof(char));
+                                        config_path[pl-1] = *s;
+                                        s = s + 1;
+                                    }
+                                    config_path = (char *) realloc(config_path, (pl+2) * sizeof(char));
+                                    config_path[pl] = '/';
+                                    config_path[pl+1] = 0;
+                                    path = my_catstr(config_path,p);
+                                }
+
+                                read_config_file(path);
+
+                            } else {
+                                log_error(BASE_CTX, "include without file");
+                            }
+                        } else {
+                            add_config_entry (key, value, current_group);
+                            log_info (BASE_CTX, "%s: %s\n", key, value);
+                        }
+                    }
+                }
+            }
+            free (config_line);
+            config_line = 0;
+            c = 0;
+        }
+
+        if (current_group) {
+            free(current_group);
+        }
+
+        fclose (config_file);
+    }
+}
+
+void init_config_file(const char *appname) {
     if (appname) {
 
         __config = malloc (sizeof (__config_rec));
@@ -549,7 +677,6 @@ init_config_file(const char *appname) {
         }
         log_info (BASE_CTX, "Config path: %s\n", config_path);
         char *config_file_name = my_catstr (config_path, "/config");
-        log_info (BASE_CTX, "Config file: %s\n", config_file_name);
         __config->path = config_file_name;
 
         int mkdir_res = mkdir (config_path, S_IRWXU | S_IRGRP | S_IROTH);
@@ -561,37 +688,7 @@ init_config_file(const char *appname) {
                 log_error (BASE_CTX, "Mkdir failed: %s\n", error_str);
             }
         } else {
-            config_file = fopen (config_file_name, "r");
-            if (!config_file) {
-                char *error_str = strerror (errno);
-                if (!error_str) {
-                    log_error (BASE_CTX, "Could not open config file %s: %d\n",
-                               config_file_name, errno);
-                } else {
-                    log_error (BASE_CTX, "Could not open config file %s: %s\n",
-                               config_file_name, error_str);
-                }
-            } else {
-                log_info (BASE_CTX, "Config file: %p\n", config_file);
-                char *config_line = 0;
-                size_t c = 0;
-
-                while (getline (&config_line, &c, config_file) != -1) {
-                    log_info (BASE_CTX, "%s", config_line);
-                    char *key = strtok (config_line, "=\n");
-                    if (key) {
-                        char *value = strtok (0, "=\n");
-//                        if (value) {
-                            add_config_entry (key, value);
-                            log_info (BASE_CTX, "%s: %s\n", key, value);
-//                        }
-                    }
-                    free (config_line);
-                    config_line = 0;
-                    c = 0;
-                }
-                fclose (config_file);
-            }
+            config_file = read_config_file(config_file_name);
         }
 
     }

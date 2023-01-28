@@ -134,6 +134,10 @@ static playlist *album_songs = NULL;
 
 static song *current_song;
 
+static theme *default_theme = NULL;
+static theme *bluetooth_theme = NULL;
+static theme *spotify_theme = NULL;
+
 const char *get_vol_label(int volume) {
     char *vol_txt = malloc(13*sizeof(char));
     sprintf(vol_txt,"Volume: %d%%",volume);
@@ -527,6 +531,74 @@ int item_action_scale_radius_decrease(menu_event evt, menu *m, menu_item *item) 
     return 0;
 }
 
+theme *get_config_theme(char *theme_name) {
+    theme *th = malloc (sizeof(theme));
+    th->background_color = get_config_value_group("background_color", get_config_value("background_color", "#ffffff"), theme_name);
+    th->bg_color_of_time = get_config_value_int_group("bg_color_from_time", get_config_value_int("bg_color_from_time", 0), theme_name);
+    th->scale_color = get_config_value_group("scale_color", get_config_value("scale_color", "#ff0000"), theme_name);
+    th->indicator_color = get_config_value_group("indicator_color", get_config_value("indicator_color", "#ff0000"), theme_name);
+    th->default_color = get_config_value_group("default_color", get_config_value("default_color", "#00ff00"), theme_name);
+    th->selected_color = get_config_value_group("selected_color", get_config_value("selected_color", "#0000ff"), theme_name);
+    th->activated_color = get_config_value_group("activated_color", get_config_value("activated_color", "#00ffff"), theme_name);
+    th->bg_image_path = get_config_value_group("bg_image_path", get_config_value("bg_image_path", 0), theme_name);
+    th->font_bumpmap = get_config_value_int_group("font_bumpmap", get_config_value_int("font_bumpmap", 0), theme_name);
+    th->shadow_offset = get_config_value_int_group("shadow_offset",get_config_value_int("shadow_offset",0), theme_name);
+    th->shadow_alpha = get_config_value_int_group("shadow_alpha", get_config_value_int("shadow_alpha", 0), theme_name);
+    th->bg_color_palette = NULL;
+    th->bg_cp_colors = 0;
+    th->fg_color_palette = NULL;
+    th->fg_cp_colors = 0;
+
+    char *bg_color_palette = get_config_value("bg_color_palette", 0);
+    if (bg_color_palette) {
+        th->bg_cp_colors = 0;
+        char *color = strtok(bg_color_palette,",");
+        while (color != NULL) {
+            th->bg_cp_colors = th->bg_cp_colors + 1;
+            th->bg_color_palette = realloc(th->bg_color_palette,th->bg_cp_colors*sizeof(char *));
+            th->bg_color_palette[th->bg_cp_colors-1] = color;
+            color = strtok(NULL,",");
+        }
+    }
+
+    char *fg_color_palette = get_config_value("fg_color_palette", 0);
+    if (fg_color_palette) {
+        th->fg_cp_colors = 0;
+        char *color = strtok(fg_color_palette,",");
+        while (color != NULL) {
+            th->fg_cp_colors = th->fg_cp_colors + 1;
+            th->fg_color_palette = realloc(th->fg_color_palette,th->fg_cp_colors*sizeof(char *));
+            th->fg_color_palette[th->fg_cp_colors-1] = color;
+            color = strtok(NULL,",");
+        }
+    }
+
+    return th;
+}
+
+void free_theme(theme *th) {
+    log_debug(MAIN_CTX, "free_theme(%p)\n",th);
+    if (th->background_color)
+        free(th->background_color);
+    if (th->scale_color)
+        free(th->scale_color);
+    if (th->indicator_color)
+        free(th->indicator_color);
+    if (th->default_color)
+        free(th->default_color);
+    if (th->selected_color)
+        free(th->selected_color);
+    if (th->activated_color)
+        free(th->activated_color);
+    if (th->bg_image_path)
+        free(th->bg_image_path);
+    if (th->bg_color_palette)
+        free(th->bg_color_palette);
+    if (th->fg_color_palette)
+        free(th->fg_color_palette);
+    free(th);
+}
+
 int call_back(menu_ctrl *m_ptr) {
 
     log_debug(MAIN_CTX, "Start: Callback\n");
@@ -562,16 +634,11 @@ int call_back(menu_ctrl *m_ptr) {
                 if (!bt_device_status) {
                     bt_device_status = 1;
                     stop();
-
-                    bg_color_backup = malloc(sizeof(SDL_Color));
-                    bg_color_backup->r = ctrl->background_color->r;
-                    bg_color_backup->g = ctrl->background_color->g;
-                    bg_color_backup->b = ctrl->background_color->b;
-
-                    SDL_Color *bg = html_to_color("#00abff");
-                    menu_ctrl_set_bg_color_rgb(ctrl,bg->r,bg->g,bg->b);
-                    free(bg);
-
+                    if (bluetooth_theme) {
+                        menu_ctrl_apply_theme(ctrl, bluetooth_theme);
+                    }
+                    menu_item_update_label(title_item, "Bluetooth");
+                    menu_item_update_label(name_item, "Bluetooth");
                 }
 
                 char *title = bt_get_title();
@@ -590,12 +657,9 @@ int call_back(menu_ctrl *m_ptr) {
 
             } else {
                 if (bt_device_status) {
-                    if (bg_color_backup) {
-                        menu_ctrl_set_bg_color_rgb(ctrl,bg_color_backup->r,bg_color_backup->g,bg_color_backup->b);
-                        free(bg_color_backup);
-                        menu_item_update_label(title_item, "VE301");
-                        menu_item_update_label(name_item, "VE301");
-                    }
+                    menu_ctrl_apply_theme(ctrl, default_theme);
+                    menu_item_update_label(title_item, "VE301");
+                    menu_item_update_label(name_item, "VE301");
                     bt_device_status = 0;
                 }
             }
@@ -649,8 +713,8 @@ int call_back(menu_ctrl *m_ptr) {
         }
 
         if (weather_item && temperature_item) {
-            char *temp_str = malloc(5*sizeof(char));
-            sprintf(temp_str,"%.0f°C",wthr.temp);
+            char *temp_str = malloc(7*sizeof(char));
+            sprintf(temp_str,"%.1f°C",((double)round(10.0*wthr.temp))/10);
             menu_item_update_label(temperature_item,temp_str);
 
             if (wthr.weather_icon) {
@@ -681,63 +745,6 @@ int call_back(menu_ctrl *m_ptr) {
 
     return 1;
 
-}
-
-theme *get_config_theme() {
-    theme *th = malloc (sizeof(theme));
-    th->background_color = get_config_value("background_color", "#ffffff");
-    th->bg_color_of_time = get_config_value_int("bg_color_from_time", 0);
-    th->scale_color = get_config_value("scale_color", "#ff0000");
-    th->indicator_color = get_config_value("indicator_color", "#ff0000");
-    th->default_color = get_config_value("default_color", "#00ff00");
-    th->selected_color = get_config_value("selected_color", "#0000ff");
-    th->activated_color = get_config_value("activated_color", "#00ffff");
-    th->bg_image_path = get_config_value("bg_image_path", 0);
-    th->font_bumpmap = get_config_value_int("font_bumpmap", 0);
-    th->shadow_offset = get_config_value_int("shadow_offset",0);
-    th->shadow_alpha = get_config_value_int("shadow_alpha", 0);
-    th->bg_color_palette = NULL;
-    th->bg_cp_colors = 0;
-    th->fg_color_palette = NULL;
-    th->fg_cp_colors = 0;
-
-    char *bg_color_palette = get_config_value("bg_color_palette", 0);
-    if (bg_color_palette) {
-        th->bg_cp_colors = 0;
-        char *color = strtok(bg_color_palette,",");
-        while (color != NULL) {
-            th->bg_cp_colors = th->bg_cp_colors + 1;
-            th->bg_color_palette = realloc(th->bg_color_palette,th->bg_cp_colors*sizeof(char *));
-            th->bg_color_palette[th->bg_cp_colors-1] = color;
-            color = strtok(NULL,",");
-        }
-    }
-
-    char *fg_color_palette = get_config_value("fg_color_palette", 0);
-    if (fg_color_palette) {
-        th->fg_cp_colors = 0;
-        char *color = strtok(fg_color_palette,",");
-        while (color != NULL) {
-            th->fg_cp_colors = th->fg_cp_colors + 1;
-            th->fg_color_palette = realloc(th->fg_color_palette,th->fg_cp_colors*sizeof(char *));
-            th->fg_color_palette[th->fg_cp_colors-1] = color;
-            color = strtok(NULL,",");
-        }
-    }
-
-    return th;
-}
-
-void free_theme(theme *th) {
-    log_debug(MAIN_CTX, "free_theme(%p)\n",th);
-    free(th->background_color);
-    free(th->scale_color);
-    free(th->indicator_color);
-    free(th->default_color);
-    free(th->selected_color);
-    free(th->activated_color);
-    free(th->bg_image_path);
-    free(th);
 }
 
 int weather_lstnr(weather *weather) {
@@ -776,10 +783,12 @@ menu_ctrl *create_menu() {
     int light_alpha = get_config_value_int("light_alpha", 0);
     char *light_img = get_config_value("light_image_path",NULL);
     int radio_radius_labels = get_config_value_int("radio_radius_labels", radius_labels);
-
     info_menu_item_seconds = get_config_value_int("info_menu_item_seconds",INFO_MENU_ITEM_SECONDS);
-
     hsv_style = get_config_value_int("hsv_style",0);
+
+    default_theme = get_config_theme ("Default");
+    bluetooth_theme = get_config_theme("Bluetooth");
+    spotify_theme = get_config_theme("Spotify");
 
     menu_ctrl *m = menu_ctrl_new(w, x_offset, y_offset, radius_labels, draw_scales, radius_scales_start, radius_scales_end, angle_offset, font, font_size, 0, &action, &call_back);
 
@@ -790,9 +799,7 @@ menu_ctrl *create_menu() {
             menu_ctrl_set_light_img(m,light_img);
         }
 
-        theme *th = get_config_theme ();
-        menu_ctrl_apply_theme (m,th);
-        free_theme (th);
+        menu_ctrl_apply_theme (m,default_theme);
 
         m->root[0]->current_id = 0;
 
@@ -889,7 +896,18 @@ void sig_handler(int signo) {
         case SIGHUP:
             log_info(MAIN_CTX, "SIGHUP received. Rereading config\n");
             init_config_file("ve301");
-            theme *th = get_config_theme ();
+            if (default_theme) {
+                free_theme(default_theme);
+            }
+            default_theme = get_config_theme ("Default");
+            if (bluetooth_theme) {
+                free_theme(bluetooth_theme);
+            }
+            bluetooth_theme = get_config_theme ("Bluetooth");
+            if (spotify_theme) {
+                free_theme(spotify_theme);
+            }
+            spotify_theme = get_config_theme ("Spotify");
 
             int y_offset = get_config_value_int("y_offset",DEFAULT_Y_OFFSET);
             int x_offset = get_config_value_int("x_offset",DEFAULT_Y_OFFSET);
@@ -904,8 +922,8 @@ void sig_handler(int signo) {
 
             menu_ctrl_set_radii(ctrl,radius_labels,radius_scales_start,radius_scales_end);
 
-            menu_ctrl_apply_theme (ctrl,th);
-            free_theme(th);
+            menu_ctrl_apply_theme (ctrl,default_theme);
+
             break;
         default:
             log_info(MAIN_CTX, "Bye with signal %d\n", signo);
