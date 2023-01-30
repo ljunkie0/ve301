@@ -1,6 +1,6 @@
 /*
  * Copyright 2022 LJunkie
- * http://www.???.??
+ * https://github.com/ljunkie0/ve301
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,11 +46,9 @@
 #define NO_OF_SCALES 60
 
 #ifdef RASPBERRY
-#define DEFAULT_STATION_FONT "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-#define BOLD_STATION_FONT "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+#define DEFAULT_FONT "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 #else
-#define DEFAULT_STATION_FONT "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-#define BOLD_STATION_FONT "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+#define DEFAULT_FONT "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 #endif
 #define DEFAULT_X_OFFSET 0
 #define DEFAULT_Y_OFFSET 0
@@ -762,10 +760,10 @@ int weather_lstnr(weather *weather) {
 
 menu_ctrl *create_menu() {
 
-    char *font = get_config_value("font", DEFAULT_STATION_FONT);
+    char *font = get_config_value("font", DEFAULT_FONT);
     int font_size = get_config_value_int("font_size",DEFAULT_FONT_SIZE);
     int info_font_size = get_config_value_int("info_font_size",DEFAULT_INFO_FONT_SIZE);
-    char *weather_font = get_config_value("weather_font", DEFAULT_STATION_FONT);
+    char *weather_font = get_config_value("weather_font", DEFAULT_FONT);
     int weather_font_size = get_config_value_int("weather_font_size", info_font_size);
     int temp_font_size = get_config_value_int("temperature_font_size", info_font_size);
     int time_font_size = get_config_value_int("time_font_size",info_font_size);
