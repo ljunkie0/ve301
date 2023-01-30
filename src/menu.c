@@ -434,7 +434,6 @@ void glyph_obj_update_light(glyph_obj *glyph_o, double center_x, double center_y
 
                 if (df.x != 0 || df.y != 0) {
 
-
                     // distance to light
                     double x_rot = c * (glyph_o->dst_rect->x+x-center_x) - s * (glyph_o->dst_rect->y+y - center_y) + center_x;
                     double y_rot = s * (glyph_o->dst_rect->x+x-center_x) + c * (glyph_o->dst_rect->y+y - center_y) + center_y;
@@ -443,15 +442,7 @@ void glyph_obj_update_light(glyph_obj *glyph_o, double center_x, double center_y
                     double light_y = y_rot - l_y;
 
                     double inv_light_d = Q_rsqrt((float)(light_x*light_x + light_y*light_y));
-/*                    float d_2f = (float)(light_x*light_x + light_y*light_y);
-                    int d_2i = (int) (10.0 * d_2f);
 
-                    double light_d = square_roots[d_2i];
-                    if (light_d == -100000.0) {
-                        light_d = (double) SDL_sqrtf(d_2f);
-                        square_roots[d_2i] = light_d;
-                    }
-*/
                     light_x = inv_light_d * light_x;
                     light_y = inv_light_d * light_y;
 
@@ -466,9 +457,9 @@ void glyph_obj_update_light(glyph_obj *glyph_o, double center_x, double center_y
                         g = g + (255.0 - g) * light;
                         b = b + (255.0 - b) * light;
                     } else {
-                        r = r * (1+light);
-                        g = g * (1+light);
-                        b = b * (1+light);
+                        r = r * (1.0+light);
+                        g = g * (1.0+light);
+                        b = b * (1.0+light);
                     }
 
                 }
@@ -488,6 +479,7 @@ void glyph_obj_update_light(glyph_obj *glyph_o, double center_x, double center_y
     }
 
     SDL_UnlockTexture(glyph_o->light);
+
 }
 
 
@@ -647,19 +639,22 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
 
                 if (shadow_offset > 0) {
 
-                    SDL_Rect shadow_dst_rec;
-                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
-                    shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
-                    shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
-
                     Uint8 orig_a, orig_r, orig_g, orig_b;
                     SDL_GetTextureAlphaMod(glyph_obj->light, &orig_a);
                     SDL_GetTextureColorMod(glyph_obj->light, &orig_r, &orig_g, &orig_b);
-                    SDL_SetTextureAlphaMod(glyph_obj->light,shadow_alpha);
                     SDL_SetTextureColorMod(glyph_obj->light,0,0,0);
 
-                    SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                    SDL_Rect shadow_dst_rec;
+                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
+                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
+
+                    for (int so = shadow_offset; so > 0; so--) {
+                        int sa = (shadow_offset - so + 1)*shadow_alpha / shadow_offset;
+                        SDL_SetTextureAlphaMod(glyph_obj->light,sa);
+                        shadow_dst_rec.x = glyph_obj->dst_rect->x+so*glyph_obj->shadow_dx;
+                        shadow_dst_rec.y = glyph_obj->dst_rect->y+so*glyph_obj->shadow_dy;
+                        SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                    }
 
                     SDL_SetTextureAlphaMod(glyph_obj->light,orig_a);
                     SDL_SetTextureColorMod(glyph_obj->light,orig_r, orig_g, orig_b);
