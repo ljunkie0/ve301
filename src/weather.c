@@ -36,8 +36,10 @@ typedef struct response {
 
 size_t write_fnc(char *ptr, size_t size, size_t nmemb, void *userdata) {
     response *r = (response *) userdata;
-    r->length = nmemb;
-    r->text = ptr;
+    r->text = realloc(r->text,(r->length+nmemb+1)*sizeof(char));
+    strncpy(r->text+r->length, ptr, nmemb);
+    r->length += nmemb;
+    r->text[r->length] = 0;
     return nmemb;
 }
 
@@ -454,6 +456,7 @@ weather *get_weather() {
     time(&timer);
 
     if (timer - __weather_last_update_t > __weather_update_interval) {
+        log_config(WEATHER_CTX, "Getting new weather from %s\n", WEATHER_BASE_URL);
 
         __weather_last_update_t = timer;
 
@@ -471,12 +474,15 @@ weather *get_weather() {
             curl_easy_setopt(__weather_curl, CURLOPT_HTTP_VERSION, (long)CURL_HTTP_VERSION_2_0);
             curl_easy_setopt(__weather_curl, CURLOPT_WRITEFUNCTION, &write_fnc);
             curl_easy_setopt(__weather_curl, CURLOPT_WRITEDATA, r);
+            if (log_level_enabled(WEATHER_CTX,IR_LOG_LEVEL_CONFIG)) {
+                curl_easy_setopt(__weather_curl, CURLOPT_VERBOSE, 1);
+            }
 
             /* Perform the request, res will get the return code */
             CURLcode res = curl_easy_perform(__weather_curl);
 
             if(res != CURLE_OK) {
-                fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+                log_error(WEATHER_CTX, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
             } else {
 
                 char *main_str = NULL;
@@ -515,6 +521,9 @@ weather *get_weather() {
                 }
 
                 cJSON_Delete(json);
+            }
+            if (r->text) {
+                free(r->text);
             }
             free(r);
             curl_easy_cleanup(__weather_curl);

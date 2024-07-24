@@ -59,7 +59,7 @@
 #define DEFAULT_FONT_SIZE 24
 #define DEFAULT_INFO_FONT_SIZE 24
 #define CALLBACK_SECONDS 5
-#define CHECK_INTERNET_SECONDS 60
+#define CHECK_INTERNET_SECONDS 5
 #define CHECK_BLUETOOTH_SECONDS 1
 #define INFO_MENU_SECONDS 14
 #define INFO_MENU_ITEM_SECONDS 5
@@ -70,6 +70,17 @@
 #define DAY_HUE   0.165
 #define DAY_SAT   0.227
 #define DAY_VAL   0.971
+
+#ifdef PERF_TEST
+/**
+ * Performance test
+ */
+#define MENU_ACTION_LISTENER menu_action_listener_dbg
+#define MENU_CALL_BACK menu_call_back_dbg
+#else
+#define MENU_ACTION_LISTENER menu_action_listener
+#define MENU_CALL_BACK menu_call_back
+#endif
 
 typedef enum {
     ACTIVE, STANDBY
@@ -119,7 +130,6 @@ static menu_item *weather_item;
 static menu_item *temperature_item;
 static menu *volume_menu;
 static menu_item *volume_menu_item;
-static SDL_Color *bg_color_backup = NULL;
 static menu *settings_menu;
 
 static weather wthr;
@@ -222,7 +232,7 @@ void update_directory_menu(menu_item *directory_item) {
     if (directory_item->sub_menu) {
         menu_clear((menu *)directory_item->sub_menu);
     } else {
-        directory_item->sub_menu = menu_new((menu_ctrl *)m->ctrl);
+        directory_item->sub_menu = menu_new((menu_ctrl *)m->ctrl, m->n_o_lines);
     }
     menu *sub_menu = (menu *) directory_item->sub_menu;
     struct mpd_connection *mpd_conn = get_mpd_connection();
@@ -245,7 +255,7 @@ void update_directory_menu(menu_item *directory_item) {
                 const char *path = mpd_directory_get_path(sub_dir);
                 char *name = get_name_from_path(path);
                 log_info(MAIN_CTX, "Directory %s\n", name);
-                menu *sub_sub_menu = menu_new(ctrl);
+                menu *sub_sub_menu = menu_new(ctrl,m->n_o_lines);
                 menu_item *sub_sub_menu_item = menu_add_sub_menu(sub_menu,name,sub_sub_menu, item_action_update_directories_menu);
                 sub_sub_menu_item->object = (const void *) path;
                 sub_sub_menu_item->object_type = OBJ_TYPE_DIRECTORY;
@@ -297,7 +307,11 @@ int item_action_update_directories_menu(menu_event evt, menu *m, menu_item *item
     return 0;
 }
 
-int action(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
+int menu_action_listener_dbg(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
+    return 0;
+}
+
+int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     log_config(MAIN_CTX, "action(%d)\n",evt);
     if (evt == ACTIVATE) {
         menu_item *item = (menu_item *) item_ptr;
@@ -375,7 +389,7 @@ int change_label_radius(menu_ctrl *ctrl, int c) {
 }
 
 int change_scale_radius(menu_ctrl *ctrl, int c) {
-    int scale_radius = ctrl->root[0]->radius_scales_start + c;
+    int scale_radius = ctrl->radius_scales_start + c;
     set_config_value_int("radius_scales_start",scale_radius);
     menu_ctrl_set_radii(ctrl, scale_radius, -1, -1);
     menu_ctrl_draw(ctrl);
@@ -597,14 +611,87 @@ void free_theme(theme *th) {
     free(th);
 }
 
-int call_back(menu_ctrl *m_ptr) {
+static time_t info_menu_t_dbg = -1;
+
+static long perf_timer_ms = 0;
+// #define SECS_IN_DAY (24 * 60 * 60)
+
+int menu_call_back_dbg(menu_ctrl *m_ptr) {
+
+    menu_ctrl *ctrl = (menu_ctrl *) m_ptr;
+
+    if (ctrl->current != radio_menu) {
+        menu_open(radio_menu);
+    }
+
+    if (ctrl && ctrl->current) {
+        int current_id = ctrl->current->current_id+1;
+        if (current_id > ctrl->current->max_id) {
+            current_id = 0;
+        }
+
+        struct timespec perf_timer_s, perf_timer_e;
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &perf_timer_s);
+        long msecs_s = perf_timer_s.tv_sec * 1000 + perf_timer_s.tv_nsec / 1000000;
+        menu_item_warp_to(ctrl->current->item[current_id]);
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &perf_timer_e);
+        long msecs_e = perf_timer_e.tv_sec * 1000 + perf_timer_e.tv_nsec / 1000000;
+
+        long msecs_p = msecs_e - msecs_s;
+        perf_timer_ms += msecs_p;
+
+/*        printf("%-15s: %10jd.%03ld (", "START",
+               (intmax_t) perf_timer_s.tv_sec, perf_timer_s.tv_nsec / 1000000);
+        long days = perf_timer_s.tv_sec / SECS_IN_DAY;
+        if (days > 0)
+            printf("%ld days + ", days);
+        printf("%2dh %2dm %2ds",
+               (int) (perf_timer_s.tv_sec % SECS_IN_DAY) / 3600,
+               (int) (perf_timer_s.tv_sec % 3600) / 60,
+               (int) perf_timer_s.tv_sec % 60);
+        printf(")\n");
+
+        printf("%-15s: %10jd.%03ld (", "END",
+               (intmax_t) perf_timer_e.tv_sec, perf_timer_e.tv_nsec / 1000000);
+        days = perf_timer_e.tv_sec / SECS_IN_DAY;
+        if (days > 0)
+            printf("%ld days + ", days);
+        printf("%2dh %2dm %2ds",
+               (int) (perf_timer_e.tv_sec % SECS_IN_DAY) / 3600,
+               (int) (perf_timer_e.tv_sec % 3600) / 60,
+               (int) perf_timer_e.tv_sec % 60);
+        printf(")\n");
+        perf_timer_ns += 1000000 * (perf_timer_e.tv_sec - perf_timer_s.tv_sec) + perf_timer_e.tv_nsec - perf_timer_s.tv_nsec;
+*/
+
+        time_t timer;
+        time(&timer);
+        current_tm_info = localtime(&timer);
+
+        if (info_menu_t_dbg < 0) {
+            info_menu_t_dbg = timer;
+        }
+
+        long time_diff = timer - info_menu_t_dbg;
+
+        if (time_diff > 30) {
+            printf("Time: %ld\n", perf_timer_ms);
+            menu_ctrl_quit(ctrl);
+            base_close();
+            exit(0);
+        }
+    }
+
+    return 1;
+}
+
+int menu_call_back(menu_ctrl *m_ptr) {
 
     log_debug(MAIN_CTX, "Start: Callback\n");
 
     menu_ctrl *ctrl = (menu_ctrl *) m_ptr;
 
     time_t timer;
-
     time(&timer);
     current_tm_info = localtime(&timer);
 
@@ -711,7 +798,7 @@ int call_back(menu_ctrl *m_ptr) {
         }
 
         if (weather_item && temperature_item) {
-            char *temp_str = malloc(7*sizeof(char));
+            char *temp_str = malloc(10*sizeof(char));
             sprintf(temp_str,"%.1f°C",((double)round(10.0*wthr.temp))/10);
             menu_item_update_label(temperature_item,temp_str);
 
@@ -732,7 +819,6 @@ int call_back(menu_ctrl *m_ptr) {
                 current_id = 0;
             }
             menu_item_warp_to(ctrl->root[0]->item[current_id]);
-            ctrl->warping = 0;
         } else {
             menu_item_update_label(title_item,"No internet");
             menu_item_warp_to(title_item);
@@ -761,6 +847,8 @@ int weather_lstnr(weather *weather) {
 menu_ctrl *create_menu() {
 
     char *font = get_config_value("font", DEFAULT_FONT);
+    char *info_font = get_config_value("info_font", font);
+    char *info_bg_image_path = get_config_value("info_bg_image_path", NULL);
     int font_size = get_config_value_int("font_size",DEFAULT_FONT_SIZE);
     int info_font_size = get_config_value_int("info_font_size",DEFAULT_INFO_FONT_SIZE);
     char *weather_font = get_config_value("weather_font", DEFAULT_FONT);
@@ -788,18 +876,18 @@ menu_ctrl *create_menu() {
     bluetooth_theme = get_config_theme("Bluetooth");
     spotify_theme = get_config_theme("Spotify");
 
-    menu_ctrl *m = menu_ctrl_new(w, x_offset, y_offset, radius_labels, draw_scales, radius_scales_start, radius_scales_end, angle_offset, font, font_size, 0, &action, &call_back);
+    menu_ctrl *ctrl = menu_ctrl_new(w, x_offset, y_offset, radius_labels, draw_scales, radius_scales_start, radius_scales_end, angle_offset, font, font_size, 0, &MENU_ACTION_LISTENER, &MENU_CALL_BACK);
 
-    if (m) {
+    if (ctrl) {
 
-        menu_ctrl_set_light(m,light_x,light_y,light_radius,light_alpha);
+        menu_ctrl_set_light(ctrl,light_x,light_y,light_radius,light_alpha);
         if (light_img) {
-            menu_ctrl_set_light_img(m,light_img);
+            menu_ctrl_set_light_img(ctrl,light_img);
         }
 
-        menu_ctrl_apply_theme (m,default_theme);
+        menu_ctrl_apply_theme (ctrl,default_theme);
 
-        m->root[0]->current_id = 0;
+        ctrl->root[0]->current_id = 0;
 
         time_t timer;
         time(&timer);
@@ -809,32 +897,37 @@ menu_ctrl *create_menu() {
         char *buffer = malloc(25 * sizeof(char));
         strftime(buffer, 25, time_menu_item_format, tm_info);
 
-        time_item = menu_item_new(m->root[0], buffer, NULL, OBJ_TYPE_TIME, font, time_font_size, NULL, NULL, -1);
+        time_item = menu_item_new(ctrl->root[0], buffer, NULL, OBJ_TYPE_TIME, info_font, time_font_size, NULL, NULL, -1);
         free(buffer);
-        title_item = menu_item_new(m->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, font, info_font_size, NULL, NULL, -1);
-        name_item = menu_item_new(m->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, font, info_font_size, NULL, NULL, -1);
+        title_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, info_font, info_font_size, NULL, NULL, -1);
+        name_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, info_font, info_font_size, NULL, NULL, -1);
 
         const char *weather_api_key = get_config_value("weather_api_key", "");
         const char *weather_location = get_config_value("weather_location", "");
         const char *weather_units = get_config_value("weather_units", "metric");
         if (strlen(weather_api_key) > 0 && strlen(weather_location) > 0) {
             init_weather(120,weather_api_key,weather_location,weather_units);
-            weather_item = menu_item_new(m->root[0], " ", NULL, UNKNOWN_OBJECT_TYPE, weather_font, weather_font_size, NULL, font, font_size);
-            temperature_item = menu_item_new(m->root[0], "Weather", NULL, UNKNOWN_OBJECT_TYPE, font, temp_font_size, NULL, font, font_size);
+            weather_item = menu_item_new(ctrl->root[0], " ", NULL, UNKNOWN_OBJECT_TYPE, weather_font, weather_font_size, NULL, font, font_size);
+            temperature_item = menu_item_new(ctrl->root[0], "Weather", NULL, UNKNOWN_OBJECT_TYPE, info_font, temp_font_size, NULL, font, font_size);
             start_weather_thread(&weather_lstnr);
         } else {
             weather_item = NULL;
         }
 
-        info_menu = m->root[0];
-        info_menu->transient = 1;
-        m->active = NULL;
+        info_menu = ctrl->root[0];
 
-        radio_menu = menu_new(m);
+        if (info_bg_image_path) {
+            menu_set_bg_image(info_menu, info_bg_image_path);
+        }
+
+        info_menu->transient = 1;
+        ctrl->active = NULL;
+
+        radio_menu = menu_new(ctrl, 3);
+        radio_menu->segments_per_item = 1;
+        radio_menu->n_o_items_on_scale = 4 * ctrl->n_o_items_on_scale;
         radio_menu->radius_labels = radio_radius_labels;
-        radio_menu->n_o_lines = 3;
-        radio_menu->n_o_items_on_scale = 16;
-        radio_menu->n_o_segments = 1;
+
         playlist *internet_radios = get_internet_radios();
         if (internet_radios != NULL) {
             Uint32 r = 0;
@@ -847,14 +940,14 @@ menu_ctrl *create_menu() {
             menu_item_new(radio_menu, "FEHLER", NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
         }
 
-        lib_menu = menu_new(m);
-        album_menu = menu_new(m);
+        lib_menu = menu_new(ctrl,1);
+        album_menu = menu_new(ctrl,1);
         menu_add_sub_menu(lib_menu, "Alben", album_menu, NULL);
-        nav_menu = menu_new_root(m);
+        nav_menu = menu_new_root(ctrl, 1);
         menu_add_sub_menu(nav_menu, "Radio", radio_menu, NULL);
         menu_add_sub_menu(nav_menu, "Bibliothek", lib_menu, NULL);
 
-        settings_menu = menu_new(m);
+        settings_menu = menu_new(ctrl,1);
         menu_item_new(settings_menu, "X Offset", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_x_offset, NULL, -1);
         //menu_item_new(settings_menu, "X Offset-", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_offset_left, NULL, -1);
         menu_item_new(settings_menu, "Y Offset", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_y_offset, NULL, -1);
@@ -862,7 +955,7 @@ menu_ctrl *create_menu() {
         menu_item_new(settings_menu, "Einstellungen Speichern", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_store_config, NULL, -1);
         menu_add_sub_menu(nav_menu, "Einstellungen", settings_menu, NULL);
 
-        menu *themes_menu = menu_new(m);
+        menu *themes_menu = menu_new(ctrl,1);
         menu_item_new(themes_menu, "Background", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_background_hue, NULL, -1);
         menu_item_new(themes_menu, "Default Foreground", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_default_hue, NULL, -1);
         menu_item_new(themes_menu, "Selected Foreground", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_selected_hue, NULL, -1);
@@ -870,23 +963,28 @@ menu_ctrl *create_menu() {
 
         menu_add_sub_menu(settings_menu,"Theme", themes_menu, NULL);
 
-        root_dir_menu = menu_new(m);
+        root_dir_menu = menu_new(ctrl,1);
         menu_item *dir_menu_item = menu_add_sub_menu(nav_menu, "Verzeichnisse", root_dir_menu, item_action_update_directories_menu);
         dir_menu_item->object = "/";
         dir_menu_item->object_type = OBJ_TYPE_DIRECTORY;
-        song_menu = menu_new(m);
+        song_menu = menu_new(ctrl,1);
 
-        volume_menu = menu_new_root(m);
+        volume_menu = menu_new_root(ctrl,1);
         volume_menu->transient = 1;
         volume_menu->draw_only_active = 1;
+        if (info_bg_image_path) {
+            menu_set_bg_image(volume_menu, info_bg_image_path);
+        }
         int volume = get_volume();
-        volume_menu_item = menu_item_new(volume_menu,get_vol_label(volume),NULL,UNKNOWN_OBJECT_TYPE,font,info_font_size,NULL, NULL, -1);
+        volume_menu_item = menu_item_new(volume_menu,get_vol_label(volume),NULL,UNKNOWN_OBJECT_TYPE,info_font,info_font_size,NULL, NULL, -1);
 
     }
 
-    free(font);
+    if (font != DEFAULT_FONT) {
+        free(font);
+    }
 
-    return m;
+    return ctrl;
 }
 
 void sig_handler(int signo) {

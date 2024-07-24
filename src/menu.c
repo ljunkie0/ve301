@@ -22,10 +22,7 @@
 #include <time.h>
 #include <signal.h>
 #include <execinfo.h>
-#include <SDL2/SDL.h>
 #include <SDL2/SDL2_rotozoom.h>
-#include <SDL2/SDL_ttf.h>
-#include <SDL2/SDL_image.h>
 #include <unistd.h>
 #include "menu.h"
 #include "base.h"
@@ -60,7 +57,24 @@
 #define M_PI_2 1.57079632679489661923132
 #endif
 
+// the number of possible angles. Don't know yet
+#define N_ANGLES 180
+
 #define VISIBLE_ANGLE 72.0
+
+#define USE_UNICODE
+
+static double *cosinuses = NULL;
+static double *sinuses = NULL;
+static double *square_roots = NULL;
+
+static SDL_Color black = { 0, 0, 0, 255 };
+static SDL_Color white = { 255, 255, 255, 255 };
+
+static int current_hour = -1;
+
+/* For FPS measuring */
+static Uint32 render_start_ticks;
 
 /**
 * Menu item state:
@@ -90,7 +104,8 @@ typedef struct normal_vector {
 typedef struct glyph_obj {
     SDL_Texture *texture;
     SDL_Surface *surface;
-    SDL_Texture *light;
+    SDL_Texture *bumpmap_overlay;
+    SDL_Texture **bumpmap_textures;
     Uint32 *light_pixels;
     int pitch;
     SDL_Color *colors;
@@ -108,11 +123,11 @@ typedef struct glyph_obj {
 } glyph_obj;
 
 /**
-* Represents one text (menu item  label)
+* Represents one text (menu item label)
 **/
 typedef struct text_obj {
-    int n_glyphs;
-    int n_glyphs_2nd_line;
+    int n_glyphs; // The number of characters
+    int n_glyphs_2nd_line; // The number of characters on the seconds line if there is any
     glyph_obj **glyphs_objs;
     glyph_obj **glyphs_objs_2nd_line;
     int width;
@@ -120,18 +135,6 @@ typedef struct text_obj {
     int height;
     int height_2nd_line;
 } text_obj;
-
-static double *cosinuses = NULL;
-static double *sinuses = NULL;
-static double *square_roots = NULL;
-
-static SDL_Color black = { 0, 0, 0, 255 };
-static SDL_Color white = { 255, 255, 255, 255 };
-
-static int current_hour = -1;
-
-/* For FPS measuring */
-static Uint32 render_start_ticks;
 
 void menu_turn_left(menu *m);
 void menu_turn_right(menu *m);
@@ -193,7 +196,7 @@ SDL_Texture *load_light_texture(SDL_Renderer *renderer, char *path) {
 }
 
 void glyph_obj_free(glyph_obj *obj) {
-    log_debug(MENU_CTX, "free_glyph_obj(%p)\n", obj);
+    log_debug(MENU_CTX, "glyph_obj_free (%p)\n", obj);
     if (obj) {
 
         if (obj->colors) {
@@ -212,8 +215,8 @@ void glyph_obj_free(glyph_obj *obj) {
             SDL_DestroyTexture(obj->texture);
         }
 
-        if (obj->light) {
-            SDL_DestroyTexture(obj->light);
+        if (obj->bumpmap_overlay) {
+            SDL_DestroyTexture(obj->bumpmap_overlay);
         }
 
         if (obj->rot_center) {
@@ -222,6 +225,15 @@ void glyph_obj_free(glyph_obj *obj) {
 
         if (obj->dst_rect) {
             free(obj->dst_rect);
+        }
+
+        if (obj->bumpmap_textures) {
+            for (int a = 0; a < N_ANGLES; a++) {
+                if (obj->bumpmap_textures[a]) {
+                    SDL_DestroyTexture(obj->bumpmap_textures[a]);
+                }
+                //free(obj->lights);
+            }
         }
 
         free(obj);
@@ -254,12 +266,17 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
     glyph_o->colors = calloc(glyph_o->surface->w * glyph_o->surface->h , sizeof(SDL_Color));
 
     Uint32 *pixels = (Uint32 *) glyph_o->surface->pixels;
-    for (int y = 1; y < glyph_o->surface->h-1; y++) {
-        int o = glyph_o->surface->w * y;
-        int op = glyph_o->surface->w * (y-1);
-        int on = glyph_o->surface->w * (y+1);
-        for (int x = 1; x < glyph_o->surface->w-1; x++) {
-            Uint32 pixel = pixels[o + x];
+
+    int bpp = glyph_o->surface->format->BytesPerPixel;
+    int pitch = glyph_o->surface->pitch / bpp;
+
+    for (int y = 0; y < glyph_o->surface->h; y++) {
+        int o = glyph_o->surface->w*y;
+        int p = pitch*y;
+        int pop = pitch * (y-1);
+        int pon = pitch * (y+1);
+        for (int x = 0; x < glyph_o->surface->w; x++) {
+            Uint32 pixel = pixels[p + x];
             SDL_Color color;
             SDL_GetRGBA(pixel,glyph_o->surface->format,&(color.r),&(color.g),&(color.b),&(color.a));
 
@@ -270,31 +287,39 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
 
             if (color.a) {
 
-                Uint8 r,g,b;
+                Uint8 r,g,b; // actually only needed for the call to SDL_GetRGBA
 
-                Uint32 p_x_pixel = pixels[o + x - 1];
-                Uint8 pax;
-                SDL_GetRGBA(p_x_pixel,glyph_o->surface->format,&r,&g,&b,&pax);
+                Uint8 pax = 0;
+                if (x > 0) {
+                    Uint32 p_x_pixel = pixels[p + (x - 1)];
+                    SDL_GetRGBA(p_x_pixel,glyph_o->surface->format,&r,&g,&b,&pax);
+                }
 
-                Uint32 p_y_pixel = pixels[op + x];
                 Uint8 pay;
-                SDL_GetRGBA(p_y_pixel,glyph_o->surface->format,&r,&g,&b,&pay);
+                if (y > 0) {
+                    Uint32 p_y_pixel = pixels[pop + x];
+                    SDL_GetRGBA(p_y_pixel,glyph_o->surface->format,&r,&g,&b,&pay);
+                }
 
-                Uint32 n_x_pixel = pixels[o + x + 1];
                 Uint8 nax;
-                SDL_GetRGBA(n_x_pixel,glyph_o->surface->format,&r,&g,&b,&nax);
+                if (x < glyph_o->surface->w) {
+                    Uint32 n_x_pixel = pixels[p + (x + 1)];
+                    SDL_GetRGBA(n_x_pixel,glyph_o->surface->format,&r,&g,&b,&nax);
+                }
 
-                Uint32 n_y_pixel = pixels[on + x];
                 Uint8 nay;
-                SDL_GetRGBA(n_y_pixel,glyph_o->surface->format,&r,&g,&b,&nay);
+                if (y < glyph_o->surface->h) {
+                    Uint32 n_y_pixel = pixels[pon + x];
+                    SDL_GetRGBA(n_y_pixel,glyph_o->surface->format,&r,&g,&b,&nay);
+                }
 
-                dx = 0.5 * (nax - pax);
-                dy = 0.5 * (nay - pay);
+                dx = (nax - pax);
+                dy = (nay - pay);
 
                 if (dx != 0 || dy != 0) {
-                    double dn = SDL_sqrt(dx * dx + dy * dy);
-                    dx = dx / dn;
-                    dy = dy / dn;
+                    double inv_dn = Q_rsqrt(dx * dx + dy * dy);
+                    dx = dx * inv_dn;
+                    dy = dy * inv_dn;
                 } else {
                     dx = 0.0;
                     dy = 0.0;
@@ -336,12 +361,7 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
         glyph_o->colors[glyph_o->surface->w * (glyph_o->surface->h-1) + x] = transparent;
     }
 
-    glyph_o->light = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STREAMING,glyph_o->surface->w,glyph_o->surface->h);
-    /* We lock the texture here to get the pixels
-       locking the texture each time the glyph is drawn is too slow
-       Not sure if this is correct but it works */
-    SDL_LockTexture(glyph_o->light,NULL,(void **) &(glyph_o->light_pixels),&(glyph_o->pitch));
-    SDL_SetTextureBlendMode(glyph_o->light,SDL_BLENDMODE_BLEND);
+    glyph_o->bumpmap_overlay = NULL;
 
     glyph_o->texture = SDL_CreateTextureFromSurface(renderer,glyph_o->surface);
     if (!glyph_o->texture) {
@@ -372,11 +392,17 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
 
 }
 
-void glyph_obj_update_light(glyph_obj *glyph_o, double center_x, double center_y, double angle, double l_x, double l_y) {
+void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o, double center_x, double center_y, int angle, double l_x, double l_y) {
 
-    log_info(MENU_CTX, "Angle: %f\n", angle);
+    Uint32 *bumpmap_pixels;
+    int pitch;
 
-    Uint32 *light_pixels = glyph_o->light_pixels;
+    if (!glyph_o->bumpmap_overlay) {
+        glyph_o->bumpmap_overlay = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STREAMING,glyph_o->surface->w,glyph_o->surface->h);
+        SDL_SetTextureBlendMode(glyph_o->bumpmap_overlay,SDL_BLENDMODE_BLEND);
+    }
+
+    SDL_LockTexture(glyph_o->bumpmap_overlay,NULL,(void **) &bumpmap_pixels, &pitch);
 
     if (cosinuses == NULL) {
         cosinuses = malloc(10000*sizeof(double));
@@ -401,50 +427,56 @@ void glyph_obj_update_light(glyph_obj *glyph_o, double center_x, double center_y
     }
 
     SDL_PixelFormat *format = glyph_o->surface->format;
-    Uint32 transparent = SDL_MapRGBA(format,0,0,0,0);
+    Uint32 transparent = 0;
 
     /*
      * Update shadow offset direction
      */
-
-    double c_x_rot = c * (glyph_o->dst_rect->x+0.5*glyph_o->dst_rect->w-center_x) - s * (glyph_o->dst_rect->y+0.5*glyph_o->dst_rect->h - center_y) + center_x;
-    double c_y_rot = s * (glyph_o->dst_rect->x+0.5*glyph_o->dst_rect->w-center_x) + c * (glyph_o->dst_rect->y+0.5*glyph_o->dst_rect->h - center_y) + center_y;
+    double x = glyph_o->dst_rect->x+0.5*glyph_o->dst_rect->w-center_x;
+    double y = glyph_o->dst_rect->y+0.5*glyph_o->dst_rect->h-center_y;
+    double c_x_rot = c * x - s * y + center_x;
+    double c_y_rot = s * x + c * y + center_y;
 
     double light_x = c_x_rot - l_x;
     double light_y = c_y_rot - l_y;
     double light_d = (double) Q_rsqrt((float)(light_x*light_x + light_y*light_y));
+
     glyph_o->shadow_dx = light_d * light_x;
     glyph_o->shadow_dy = light_d * light_y;
 
-    /* Normally, the texture would be locked here, but that takes too much time,
-     * so the locking is done once and the pixels are stored in the glyph_o
-     * That is not correct I guess but it works
+    /**
+     * See below. Usually, the distance to the light source should be taken for each pixel (to be adjusted)
+     * in the glyph. For performance, only take the distance from the top left pixel
      */
+    double x_rot = c * (glyph_o->dst_rect->x-center_x) - s * (glyph_o->dst_rect->y - center_y) + center_x;
+    double y_rot = s * (glyph_o->dst_rect->x-center_x) + c * (glyph_o->dst_rect->y - center_y) + center_y;
+
+    light_x = x_rot - l_x;
+    light_y = y_rot - l_y;
+
+    double inv_light_d = Q_rsqrt((float)(light_x*light_x + light_y*light_y));
+
+    light_x = inv_light_d * light_x;
+    light_y = inv_light_d * light_y;
+
+    /**
+     * <<
+     */
+
     for (int y = 0; y < glyph_o->surface->h; y++) {
 
-        int o = glyph_o->surface->w * y;
+        int o = pitch * y / 4;
+
         for (int x = 0; x < glyph_o->surface->w; x++) {
+
             SDL_Color color = glyph_o->colors[o+x];
 
             if (color.a > 1) {
 
+                Uint8 r = color.r,g = color.g,b = color.b,a = color.a;
                 normal_vector df = glyph_o->normals[o+x];
 
-                Uint8 r = color.r,g = color.g,b = color.b,a = color.a;
-
                 if (df.x != 0 || df.y != 0) {
-
-                    // distance to light
-                    double x_rot = c * (glyph_o->dst_rect->x+x-center_x) - s * (glyph_o->dst_rect->y+y - center_y) + center_x;
-                    double y_rot = s * (glyph_o->dst_rect->x+x-center_x) + c * (glyph_o->dst_rect->y+y - center_y) + center_y;
-
-                    double light_x = x_rot - l_x;
-                    double light_y = y_rot - l_y;
-
-                    double inv_light_d = Q_rsqrt((float)(light_x*light_x + light_y*light_y));
-
-                    light_x = inv_light_d * light_x;
-                    light_y = inv_light_d * light_y;
 
                     // angle to light
                     double dx_rot = c * df.x - s * df.y;
@@ -467,18 +499,17 @@ void glyph_obj_update_light(glyph_obj *glyph_o, double center_x, double center_y
                 /**
                  * Have to switch B and R, i don't know why
                  */
-                Uint32 lght = (r << format->Bshift) | (g << format->Gshift) | (b << format->Rshift) | (a << format->Ashift & format->Amask);
-                light_pixels[o + x] = lght;
+                Uint32 lght = (b << format->Rshift) | (g << format->Gshift) | (r << format->Bshift) | (a << format->Ashift & format->Amask);
+                bumpmap_pixels[o + x] = lght;
 
             } else {
-                light_pixels[o + x] = transparent;
+                bumpmap_pixels[o + x] = transparent;
             }
-
         }
 
     }
 
-    SDL_UnlockTexture(glyph_o->light);
+    SDL_UnlockTexture(glyph_o->bumpmap_overlay);
 
 }
 
@@ -612,9 +643,12 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
 }
 
 
-void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label, int radius, int center_x, int center_y, int angle, double light_x, double light_y, int font_bumpmap, int shadow_offset, int shadow_alpha) {
-
+void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label, int radius, int center_x, int center_y, double angle, int line, double light_x, double light_y, int font_bumpmap, int shadow_offset, int shadow_alpha) {
+    double circumference = M_2_X_PI * radius;
+    double advance = - 0.5 * label->width;
+    log_config(MENU_CTX,"text_obj_draw: angle: %f, radius: %d, circumference: %f, advance: %f\n", angle, radius, circumference, advance);
     if (radius == 0) {
+        log_config(MENU_CTX,"text_obj_draw: radius = 0, returning\n");
         return;
     }
 
@@ -623,8 +657,6 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
     }
 
     int c;
-    double circumference = M_2_X_PI * radius;
-    double advance = - 0.5 * label->width;
     for (c = 0; c < label->n_glyphs; c++) {
         glyph_obj *glyph_obj = label->glyphs_objs[c];
         double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/circumference;
@@ -634,15 +666,18 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
             if (font_bumpmap) {
 
                 if (a != glyph_obj->current_angle) {
-                    glyph_obj_update_light(glyph_obj,center_x,center_y,a, light_x, light_y);
+                    glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
                 }
+
+                SDL_Texture *texture = glyph_obj->bumpmap_overlay;
+                log_debug(MENU_CTX,"texture: %p\n", texture);
 
                 if (shadow_offset > 0) {
 
                     Uint8 orig_a, orig_r, orig_g, orig_b;
-                    SDL_GetTextureAlphaMod(glyph_obj->light, &orig_a);
-                    SDL_GetTextureColorMod(glyph_obj->light, &orig_r, &orig_g, &orig_b);
-                    SDL_SetTextureColorMod(glyph_obj->light,0,0,0);
+                    SDL_GetTextureAlphaMod(texture, &orig_a);
+                    SDL_GetTextureColorMod(texture, &orig_r, &orig_g, &orig_b);
+                    SDL_SetTextureColorMod(texture,0,0,0);
 
                     SDL_Rect shadow_dst_rec;
                     shadow_dst_rec.w = glyph_obj->dst_rect->w;
@@ -650,17 +685,18 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
 
                     for (int so = shadow_offset; so > 0; so--) {
                         int sa = (shadow_offset - so + 1)*shadow_alpha / shadow_offset;
-                        SDL_SetTextureAlphaMod(glyph_obj->light,sa);
+                        SDL_SetTextureAlphaMod(texture,sa);
                         shadow_dst_rec.x = glyph_obj->dst_rect->x+so*glyph_obj->shadow_dx;
                         shadow_dst_rec.y = glyph_obj->dst_rect->y+so*glyph_obj->shadow_dy;
-                        SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                        SDL_RenderCopyEx(renderer,texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
                     }
 
-                    SDL_SetTextureAlphaMod(glyph_obj->light,orig_a);
-                    SDL_SetTextureColorMod(glyph_obj->light,orig_r, orig_g, orig_b);
+                    SDL_SetTextureAlphaMod(texture,orig_a);
+                    SDL_SetTextureColorMod(texture,orig_r, orig_g, orig_b);
+
                 }
 
-                SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                SDL_RenderCopyEx(renderer,texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
 
             } else {
 
@@ -706,7 +742,7 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
                 if (font_bumpmap) {
 
                     if (a != glyph_obj->current_angle) {
-                        glyph_obj_update_light(glyph_obj,center_x,center_y,a, light_x, light_y);
+                        glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
                     }
 
                     if (shadow_offset > 0) {
@@ -718,18 +754,18 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
                         shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
 
                         Uint8 orig_a, orig_r, orig_g, orig_b;
-                        SDL_GetTextureAlphaMod(glyph_obj->light, &orig_a);
-                        SDL_GetTextureColorMod(glyph_obj->light, &orig_r, &orig_g, &orig_b);
-                        SDL_SetTextureAlphaMod(glyph_obj->light,shadow_alpha);
-                        SDL_SetTextureColorMod(glyph_obj->light,0,0,0);
+                        SDL_GetTextureAlphaMod(glyph_obj->bumpmap_overlay, &orig_a);
+                        SDL_GetTextureColorMod(glyph_obj->bumpmap_overlay, &orig_r, &orig_g, &orig_b);
+                        SDL_SetTextureAlphaMod(glyph_obj->bumpmap_overlay,shadow_alpha);
+                        SDL_SetTextureColorMod(glyph_obj->bumpmap_overlay,0,0,0);
 
-                        SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                        SDL_RenderCopyEx(renderer,glyph_obj->bumpmap_overlay,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
 
-                        SDL_SetTextureAlphaMod(glyph_obj->light,orig_a);
-                        SDL_SetTextureColorMod(glyph_obj->light,orig_r, orig_g, orig_b);
+                        SDL_SetTextureAlphaMod(glyph_obj->bumpmap_overlay,orig_a);
+                        SDL_SetTextureColorMod(glyph_obj->bumpmap_overlay,orig_r, orig_g, orig_b);
 
                     }
-                    SDL_RenderCopyEx(renderer,glyph_obj->light,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                    SDL_RenderCopyEx(renderer,glyph_obj->bumpmap_overlay,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
                 } else {
                     if (shadow_offset > 0) {
 
@@ -785,6 +821,8 @@ void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius) {
 
 int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
 
+    log_config(MENU_CTX, "menu_item_draw: label = %s, line = %d, state = %d, angle = %f\n", item->label, item->line, st, angle);
+
     int lines = 1;
     if (item->num_label_chars2 > 0) {
         lines = 2;
@@ -800,7 +838,8 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
             label = item->label_current;
         }
 
-        text_obj_draw(item->menu->ctrl->renderer,NULL,label,item->menu->radius_labels,item->menu->ctrl->center.x,item->menu->ctrl->center.y,angle,item->menu->ctrl->light_x,item->menu->ctrl->light_y, item->menu->ctrl->font_bumpmap, item->menu->ctrl->shadow_offset, item->menu->ctrl->shadow_alpha);
+        text_obj_draw(item->menu->ctrl->renderer,NULL,label,item->menu->radius_labels,item->menu->ctrl->center.x,item->menu->ctrl->center.y,angle,item->line,item->menu->ctrl->light_x,item->menu->ctrl->light_y, item->menu->ctrl->font_bumpmap, item->menu->ctrl->shadow_offset, item->menu->ctrl->shadow_alpha);
+
     }
 
     return 0;
@@ -885,15 +924,20 @@ void menu_item_rebuild_glyphs(menu_item *item) {
 
 int menu_item_set_label(menu_item *item, const char *label) {
 
-    const char *llabel = (label ? label : "");
-    if (item->label) {
-        free(item->label);
-        item->label = NULL;
+    if (!item->label || strcmp(item->label, label)) {
+        const char *llabel = (label ? label : "");
+        if (item->label) {
+            free(item->label);
+            item->label = NULL;
+        }
+
+        item->label = my_copystr(llabel);
+
+        menu_item_rebuild_glyphs(item);
+
+        item->menu->dirty = 1;
+
     }
-
-    item->label = my_copystr(llabel);
-
-    menu_item_rebuild_glyphs(item);
 
     return 1;
 }
@@ -1083,13 +1127,11 @@ void menu_item_warp_to(menu_item *item) {
     if (dist_right < dist_left) {
         while (item->id != m->current_id && ctrl->warping) {
             menu_turn_right(m);
-            //menu_ctrl_draw(ctrl);
             menu_ctrl_process_events(ctrl);
         }
     } else {
         while (item->id != m->current_id && ctrl->warping) {
             menu_turn_left(m);
-            //menu_ctrl_draw(ctrl);
             menu_ctrl_process_events(ctrl);
         }
     }
@@ -1097,19 +1139,52 @@ void menu_item_warp_to(menu_item *item) {
     // Lock in
     while (m->segment < 0 && ctrl->warping) {
         menu_turn_right(m);
-        //menu_ctrl_draw(ctrl);
         menu_ctrl_process_events(ctrl);
     }
 
     while (m->segment > 0 && ctrl->warping) {
         menu_turn_left(m);
-        //menu_ctrl_draw(ctrl);
         menu_ctrl_process_events(ctrl);
     }
 
     ctrl->warping = 0;
+    //menu_ctrl_draw(ctrl);
     log_config(MENU_CTX, "menu_item_warp_to: ctrl->object = %p->%p\n", ctrl, ctrl->object);
 
+}
+
+int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Texture *bg_image) {
+    if (background_color) {
+        SDL_SetRenderDrawColor(ctrl->renderer,background_color->r,
+                               background_color->g,
+                               background_color->b, 255);
+        if (SDL_RenderClear(ctrl->renderer) < 0) {
+            log_error(MENU_CTX, "Failed to render background: %s\n", SDL_GetError());
+            return 0;
+        }
+    }
+
+    if (!bg_image) {
+        bg_image = ctrl->bg_image;
+    }
+
+    if (bg_image) {
+        int w, h;
+        SDL_QueryTexture(bg_image,NULL,NULL,&w,&h);
+        double xo = ctrl->center.x - 0.5 * w;
+        double yo = ctrl->center.y - 0.5 * h;
+        const SDL_FRect dst_rect = {xo, yo, w, h};
+        double xc = 0.5 * dst_rect.w;
+        double yc = 0.5 * dst_rect.h;
+        const SDL_FPoint center = {xc,yc};
+
+        if (SDL_RenderCopyExF(ctrl->renderer, bg_image, NULL, &dst_rect, angle, &center, SDL_FLIP_NONE) == -1) {
+            log_error(MENU_CTX, "Failed to render background: %s\n", SDL_GetError());
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 void menu_fade_out(menu *menu_frm, menu *menu_to) {
@@ -1135,12 +1210,15 @@ void menu_fade_out(menu *menu_frm, menu *menu_to) {
         if (menu_frm) {
             menu_frm->radius_labels = to_int(inv_ds * (x * R_frm + x_1 * r_frm));
             menu_frm->radius_scales_end = to_int(inv_ds * (x * (R_frm + d_frm) + x_1 * R_frm));
+            menu_frm->dirty = 1;
             menu_draw(menu_frm, 1, 0);
         }
         menu_to->radius_labels = to_int(inv_ds * (x * r_frm + x_1 * r_to));
         menu_to->radius_scales_end = to_int(inv_ds * (x * R_frm + x_1 * R_to));
+        menu_to->dirty = 1;
         menu_draw(menu_to, 0, 1);
     }
+    menu_to->dirty = 1;
     menu_draw(menu_to, 1, 1);
     if (!menu_to->transient) {
         ctrl->active = menu_to;
@@ -1171,9 +1249,12 @@ void menu_fade_in(menu *menu_frm, menu *menu_to) {
         menu_frm->radius_scales_end = to_int(inv_ds * (x * r_frm + x_1 * R_frm));
         menu_to->radius_labels = to_int(inv_ds * (x * r_frm + x_1 * r_to));
         menu_to->radius_scales_end = to_int(inv_ds * (x * R_frm + x_1 * R_to));
+        menu_frm->dirty = 1;
         menu_draw(menu_frm, 1, 0);
+        menu_to->dirty = 1;
         menu_draw(menu_to, 0, 1);
     }
+    menu_to->dirty = 1;
     menu_draw(menu_to, 1, 1);
     if (!menu_to->transient) {
         ctrl->active = menu_to;
@@ -1213,15 +1294,59 @@ menu_item *menu_get_item(menu *m, int id) {
     return m->item[id];
 }
 
+int menu_draw_scales(menu *m, double xc, double yc, double angle) {
+
+    menu_ctrl *ctrl = m->ctrl;
+
+    int no_of_mini_scales = 2;
+
+    double a = angle;
+    double angle_step = 360.0 / ((no_of_mini_scales+1) * ctrl->no_of_scales);
+    double fr = m->radius_scales_start;
+    double fR = m->radius_scales_end;
+
+    /* Draw the scales */
+
+    for (int s = 0; s < ctrl->no_of_scales; s++) {
+
+        menu_ctrl_draw_scale(ctrl, xc, yc, fr-20, fR, a, 255, 0);
+
+        a += angle_step;
+
+        int sd;
+        for (sd = 0; sd < no_of_mini_scales; sd++) {
+
+            menu_ctrl_draw_scale(ctrl,xc,yc,fr,fR,a, 255, 0);
+
+            a += angle_step;
+
+        }
+
+    }
+
+    return 0;
+
+}
+
+int menu_wipe(menu *m, double angle) {
+    return do_clear(m->ctrl, angle, m->ctrl->background_color, m->bg_image);
+}
+
 int menu_draw(menu *m, int clear, int render) {
 
-    log_debug(MENU_CTX, "START: menu_draw\n");
-    render_start_ticks = SDL_GetTicks();
 
     if (!m) {
         return 0;
     }
 
+    if (!m->dirty) {
+        return 0;
+    }
+
+    m->dirty = 0;
+
+    log_debug(MENU_CTX, "START: menu_draw\n");
+    render_start_ticks = SDL_GetTicks();
 
     menu_ctrl *ctrl = (menu_ctrl *) m->ctrl;
 
@@ -1262,63 +1387,24 @@ int menu_draw(menu *m, int clear, int render) {
         }
     }
 
-    double angle = ctrl->angle_offset + m->segment * 360.0 / (m->n_o_items_on_scale*(2*m->n_o_segments+1));
-
+    double angle = ctrl->angle_offset + m->segment * 360.0 / (m->n_o_items_on_scale*(2.0*m->segments_per_item+1));
+    log_debug(MENU_CTX,"segment: %f, angle: %f\n", m->segment, angle);
     if (clear) {
-        double bg_angle = ctrl->angle_offset + ctrl->bg_segment * 360.0 / (m->n_o_items_on_scale*(2*m->n_o_segments+1));
-        menu_ctrl_clear(ctrl,bg_angle);
+        double bg_angle = ctrl->angle_offset + ctrl->bg_segment * 360.0 / (m->n_o_items_on_scale*(2.0*m->segments_per_item+1));
+        menu_wipe(m,bg_angle);
     }
 
     if (ctrl->draw_scales) {
-        int no_of_mini_scales = 5;
-        char draw_inner_mini_scales = 0;
-
-        double a = angle;
-        double angle_step = 360.0 / (no_of_mini_scales * (ctrl->no_of_scales));
-        double cos_a;
-        double sin_a;
-        double fr = m->radius_scales_start;
-        double fR = m->radius_scales_end;
-        cos_a = cos(a);
-        sin_a = sin(a);
-
-        /* Draw the scales */
-
-        for (int s = 0; s < ctrl->no_of_scales; s++) {
-
-            menu_ctrl_draw_scale(ctrl, xc, yc, fr-20, fR, a, 255, 1);
-
-            a += angle_step;
-
-            int sd;
-            for (sd = 0; sd < no_of_mini_scales; sd++) {
-
-                menu_ctrl_draw_scale(ctrl,xc,yc,fr,fR,a, 255, 0);
-
-                if (draw_inner_mini_scales) {
-                    Sint16 x1 = to_Sint16(xc + (fr + 50) * cos_a);
-                    Sint16 y1 = to_Sint16(yc - (fr + 50) * sin_a);
-                    Sint16 x2 = to_Sint16(xc + (fr + 70) * cos_a);
-                    Sint16 y2 = to_Sint16(yc - (fr + 70) * sin_a);
-
-                    SDL_SetRenderDrawColor(ctrl->renderer, ctrl->scale_color->r,
-                                           ctrl->scale_color->g, ctrl->scale_color->b, 100);
-                    SDL_RenderDrawLine(ctrl->renderer, x1, y1, x2, y2);
-                }
-
-                a += angle_step;
-
-            }
-
-        }
-
-
+        menu_draw_scales(m, xc, yc, angle);
     }
 
     if (m->max_id >= 0) {
 
         int i;
         int count_drawn_items = (ctrl->warping && !m->draw_only_active) ? 0.5 * m->n_o_items_on_scale : 0;
+
+        double item_angle_steps = 360 / m->n_o_items_on_scale;
+
         for (i = -count_drawn_items; i <= count_drawn_items; i++) {
 
             int current_item = m->current_id + i;
@@ -1336,14 +1422,14 @@ int menu_draw(menu *m, int clear, int render) {
             }
 
 
-            double item_angle = angle + 360 * i / m->n_o_items_on_scale;
+            double item_angle = angle + i * item_angle_steps;
 
-            if (item_angle > 360) {
-                item_angle -= 360;
+            if (item_angle > 360.0) {
+                item_angle -= 360.0;
             }
 
-            if (item_angle < - 360) {
-                item_angle += 360;
+            if (item_angle < - 360.0) {
+                item_angle += 360.0;
             }
 
             menu_item_draw(m->item[current_item],st,item_angle);
@@ -1400,7 +1486,7 @@ int menu_clear(menu *m) {
     return 0;
 }
 
-menu *menu_new(menu_ctrl *ctrl) {
+menu *menu_new(menu_ctrl *ctrl, int lines) {
 
     menu *m = malloc(sizeof(menu));
 
@@ -1418,21 +1504,22 @@ menu *menu_new(menu_ctrl *ctrl) {
     m->segment = 0;
     m->label = 0;
     m->object = 0;
+    m->bg_image = NULL;
 
     m->ctrl = ctrl;
 
     m->transient = 0;
     m->draw_only_active = 0;
-    m->n_o_lines = 1;
-    m->n_o_items_on_scale = ctrl->n_o_items_on_scale;
-    m->n_o_segments = ctrl->n_o_segments;
+    m->n_o_lines = lines;
+    m->n_o_items_on_scale = lines * ctrl->n_o_items_on_scale;
+    m->segments_per_item = ctrl->segments_per_item;
 
     return m;
 
 }
 
-menu *menu_new_root(menu_ctrl *ctrl) {
-    menu *m = menu_new(ctrl);
+menu *menu_new_root(menu_ctrl *ctrl, int lines) {
+    menu *m = menu_new(ctrl,lines);
     ctrl->n_roots = ctrl->n_roots + 1;
     ctrl->root = realloc(ctrl->root,ctrl->n_roots * sizeof(menu *));
     ctrl->root[ctrl->n_roots-1] = m;
@@ -1448,7 +1535,7 @@ void menu_dispose(menu *menu) {
 
 }
 
-menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_action *action) {
+menu_item *menu_add_sub_menu(menu *m, const char *label, menu *sub_menu, item_action *action) {
 
     menu_item *item = menu_item_new(m, label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, action, NULL, -1);
     item->sub_menu = sub_menu;
@@ -1459,7 +1546,7 @@ menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_act
 
 }
 
-menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action) {
+menu_item *menu_new_sub_menu(menu *m, const char *label, item_action *action) {
 
     menu *sub_menu = malloc(sizeof(menu));
 
@@ -1480,7 +1567,6 @@ menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action) {
 
     sub_menu->ctrl = m->ctrl;
     sub_menu->n_o_items_on_scale = m->n_o_items_on_scale;
-    sub_menu->n_o_segments = m->n_o_segments;
 
     menu_item *item = menu_item_new(m, label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, action, NULL, -1);
     item->sub_menu = sub_menu;
@@ -1490,35 +1576,53 @@ menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action) {
 
 }
 
+int menu_set_bg_image(menu *m, char *bgImagePath) {
+
+    if (m->bg_image) {
+        SDL_DestroyTexture(m->bg_image);
+        m->bg_image = NULL;
+    }
+
+    if (bgImagePath) {
+        m->bg_image = IMG_LoadTexture(m->ctrl->renderer,bgImagePath);
+        if (!m->bg_image) {
+            log_error(MENU_CTX, "Could not load background image %s: %s\n", bgImagePath, SDL_GetError());
+        }
+    } else {
+        m->bg_image = NULL;
+    }
+
+    return 1;
+
+}
+
 void menu_turn(menu *m, int direction) {
     menu_ctrl *ctrl = (menu_ctrl *) m->ctrl;
     ctrl->warping = 1;
-    unsigned int i = 0;
-    unsigned int total_n_o_segments = m->n_o_items_on_scale * (2.0*m->n_o_segments+1);
-    for (i = 0; i < 1; i++) {
-        m->segment = m->segment + direction;
-        if (m->segment > m->n_o_segments) {
-            m->segment = -m->n_o_segments;
-            m->current_id = m->current_id - 1;
-            if (m->current_id < 0) {
-                m->current_id = m->max_id;
-            }
-        } else if (m->segment < -m->n_o_segments) {
-            m->segment = m->n_o_segments;
-            m->current_id = m->current_id + 1;
-            if (m->current_id > m->max_id) {
-                m->current_id = 0;
-            }
+    unsigned int total_n_o_segments = m->n_o_items_on_scale * (2.0*m->segments_per_item+1);
+    m->segment = m->segment + direction;
+    m->dirty = 1;
+    if (m->segment > m->segments_per_item) {
+        m->segment = -m->segments_per_item;
+        m->current_id = m->current_id - 1;
+        if (m->current_id < 0) {
+            m->current_id = m->max_id;
         }
-        ctrl->bg_segment = ctrl->bg_segment + direction;
-        if (ctrl->bg_segment >= total_n_o_segments) {
-            ctrl->bg_segment = 0;
-        } else if (ctrl->bg_segment < 0) {
-            ctrl->bg_segment = total_n_o_segments - 1;
-
+    } else if (m->segment < -m->segments_per_item) {
+        m->segment = m->segments_per_item;
+        m->current_id = m->current_id + 1;
+        if (m->current_id > m->max_id) {
+            m->current_id = 0;
         }
-        menu_ctrl_draw(m->ctrl);
     }
+    ctrl->bg_segment = ctrl->bg_segment + direction;
+    if (ctrl->bg_segment >= total_n_o_segments) {
+        ctrl->bg_segment = 0;
+    } else if (ctrl->bg_segment < 0) {
+        ctrl->bg_segment = total_n_o_segments - 1;
+
+    }
+    menu_ctrl_draw(m->ctrl);
 }
 
 void menu_turn_right(menu *m) {
@@ -1727,15 +1831,33 @@ int menu_ctrl_draw_scale(menu_ctrl *ctrl, double xc, double yc, double r, double
     double fy1 = yc - r * sin_a;
     double fx2 = xc + R * cos_a;
     double fy2 = yc - R * sin_a;
-    if (lines == 1) {
-        SDL_SetRenderDrawBlendMode(ctrl->renderer,SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(ctrl->renderer, ctrl->scale_color->r, ctrl->scale_color->g, ctrl->scale_color->b, alpha/2);
-        SDL_RenderDrawLineF(ctrl->renderer, fx1-1, fy1, fx2-1, fy2);
-        SDL_RenderDrawLineF(ctrl->renderer, fx1+1, fy1, fx2+1, fy2);
+
+    /**
+     * Decide whether we have to draw
+     */
+    int doDraw = 1;
+    if (fx1 > ctrl->w && fx2 > ctrl->w) {
+        doDraw = 0;
+    } else if (fx1 < 0 && fx2 < 0) {
+        doDraw = 0;
+    } else if (fy1 > ctrl->h && fx2 > ctrl->h) {
+        doDraw = 0;
+    } else if (fy1 < 0 && fx2 < 0) {
+        doDraw = 0;
     }
-    SDL_SetRenderDrawBlendMode(ctrl->renderer,SDL_BLENDMODE_NONE);
-    SDL_SetRenderDrawColor(ctrl->renderer, ctrl->scale_color->r, ctrl->scale_color->g, ctrl->scale_color->b, alpha);
-    SDL_RenderDrawLineF(ctrl->renderer, fx1, fy1, fx2, fy2);
+
+    if (doDraw) {
+        if (lines == 1) {
+            SDL_SetRenderDrawBlendMode(ctrl->renderer,SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(ctrl->renderer, ctrl->scale_color->r, ctrl->scale_color->g, ctrl->scale_color->b, alpha/2);
+            SDL_RenderDrawLineF(ctrl->renderer, fx1-1, fy1, fx2-1, fy2);
+            SDL_RenderDrawLineF(ctrl->renderer, fx1+1, fy1, fx2+1, fy2);
+        }
+        SDL_SetRenderDrawBlendMode(ctrl->renderer,SDL_BLENDMODE_NONE);
+        SDL_SetRenderDrawColor(ctrl->renderer, ctrl->scale_color->r, ctrl->scale_color->g, ctrl->scale_color->b, alpha);
+        SDL_RenderDrawLineF(ctrl->renderer, fx1, fy1, fx2, fy2);
+    }
+
     return 0;
 }
 
@@ -1754,34 +1876,7 @@ int menu_ctrl_apply_light(menu_ctrl *ctrl) {
 }
 
 int menu_ctrl_clear(menu_ctrl *ctrl, double angle) {
-    if (ctrl->background_color) {
-        SDL_SetRenderDrawColor(ctrl->renderer,ctrl->background_color->r,
-                               ctrl->background_color->g,
-                               ctrl->background_color->b, 255);
-        if (SDL_RenderClear(ctrl->renderer) < 0) {
-            log_error(MENU_CTX, "Failed to render background: %s\n", SDL_GetError());
-            return 0;
-        }
-    }
-
-    if (ctrl->bg_image) {
-        int w, h;
-        SDL_QueryTexture(ctrl->bg_image,NULL,NULL,&w,&h);
-        double xo = ctrl->center.x - 0.5 * w;
-        double yo = ctrl->center.y - 0.5 * h;
-        const SDL_FRect dst_rect = {xo, yo, w, h};
-        double xc = 0.5 * dst_rect.w;
-        double yc = 0.5 * dst_rect.h;
-        const SDL_FPoint center = {xc,yc};
-
-        if (SDL_RenderCopyExF(ctrl->renderer, ctrl->bg_image, NULL, &dst_rect, angle, &center, SDL_FLIP_NONE) == -1) {
-            log_error(MENU_CTX, "Failed to render background: %s\n", SDL_GetError());
-            return 0;
-        }
-    }
-
-    //menu_ctrl_apply_light(ctrl);
-
+    do_clear(ctrl, angle, ctrl->background_color, ctrl->bg_image);
     return 1;
 }
 
@@ -2026,9 +2121,9 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     ctrl->radius_scales_start = radius_scales_start;
     ctrl->radius_scales_end = radius_scales_end;
     ctrl->draw_scales = draw_scales;
-    ctrl->no_of_scales = 32;
+    ctrl->no_of_scales = 36;
     ctrl->n_o_items_on_scale = 4;
-    ctrl->n_o_segments = 3;
+    ctrl->segments_per_item = 3;
 
     ctrl->w = w;
     ctrl->h = to_int(0.65 * w);
@@ -2050,7 +2145,7 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     root->object = 0;
     root->n_o_lines = 1;
     root->n_o_items_on_scale = ctrl->n_o_items_on_scale;
-    root->n_o_segments = ctrl->n_o_segments;
+    root->segments_per_item = ctrl->segments_per_item;
 
     ctrl->root[0] = root;
 
@@ -2083,43 +2178,9 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     ctrl->bg_color_palette = NULL;
     ctrl->bg_cp_colors = 0;
 
-    log_info(MENU_CTX, "Initializing SDL2");
-    if (SDL_Init(SDL_INIT_TIMER|SDL_INIT_VIDEO|SDL_INIT_EVENTS) == -1) {
-        log_error(MENU_CTX, "...SDL init failed: %s\n", SDL_GetError());
+    if (!init_SDL()) {
+        log_error(MENU_CTX, "Failed to initialize SDL\n");
         return 0;
-    } else {
-        log_info(MENU_CTX, "...SDL init succeeded\n");
-    }
-
-    int v = 0;
-    log_info(MENU_CTX, "Available video drivers:\n");
-    for (v = 0; v < SDL_GetNumVideoDrivers(); v++) {
-        log_info(MENU_CTX, "%s\n", SDL_GetVideoDriver(v));
-    }
-    log_info(MENU_CTX, "Available video renderers:\n");
-    int r = 0;
-    for (r = 0; r < SDL_GetNumRenderDrivers(); r++) {
-        SDL_RendererInfo rendererInfo;
-        SDL_GetRenderDriverInfo(r, &rendererInfo);
-        log_info(MENU_CTX, "%d ", r );
-        log_info(MENU_CTX, "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
-                  rendererInfo.name,
-                  (rendererInfo.flags & SDL_RENDERER_SOFTWARE) != 0,
-                  (rendererInfo.flags & SDL_RENDERER_ACCELERATED) != 0,
-                  (rendererInfo.flags & SDL_RENDERER_PRESENTVSYNC) != 0,
-                  (rendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) != 0 );
-    }
-
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"1");
-
-    IMG_Init(IMG_INIT_JPG|IMG_INIT_PNG|IMG_INIT_TIF);
-
-    log_info(MENU_CTX, "Initializing TTF");
-    if (TTF_Init() == -1) {
-        log_error(MENU_CTX, "...TTF init failed: %s\n", SDL_GetError());
-        return 0;
-    } else {
-        log_info(MENU_CTX, "...TTF init succeeded\n");
     }
 
     if (font) {
@@ -2144,11 +2205,19 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
         log_config(MENU_CTX, "Font %s successfully opened\n", font);
     }
 
-    log_info(MENU_CTX, "Creating window...\n");
-    ctrl->display = SDL_CreateWindow("VE301 (SDL2)", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ctrl->w, ctrl->h, 0);
+    log_info(MENU_CTX, "Creating window...");
+    ctrl->display = SDL_CreateWindow("VE301", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ctrl->w, ctrl->h, 0);
+    log_info(MENU_CTX, "Done\n");
     if (ctrl->display) {
+        log_info(MENU_CTX, "Creating renderer...");
+#ifdef RASPBERRY
         ctrl->renderer = SDL_CreateRenderer(ctrl->display, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+#else
+        ctrl->renderer = SDL_CreateRenderer(ctrl->display, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+#endif
+        log_info(MENU_CTX, "Done\n");
         SDL_RendererInfo rendererInfo;
+        log_info(MENU_CTX, "Getting renderer info...\n");
         SDL_GetRendererInfo(ctrl->renderer, &rendererInfo);
         log_info(MENU_CTX, "SDL chose the following renderer:\n");
         log_info(MENU_CTX, "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",

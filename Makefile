@@ -1,5 +1,6 @@
-CC=$(ARCH)-gcc-10
+CC=$(ARCH)-gcc-11
 CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
+LDFLAGS=
 STRIP=$(ARCH)-strip
 
 OBJS=base.o sdl_util.o menu.o audio.o main.o weather.o bluetooth.o
@@ -31,12 +32,10 @@ DBUS_LIB=/usr/lib/$(ARCH)/libdbus-1.so
 all: ve301 libve301.so
 
 ve301: $(OBJS) $(ADDITIONAL_OBJS)
-	$(CC) -o ve301 $(OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
-        #$(STRIP) ve301
+	$(CC) -o ve301 $(LDFLAGS) $(OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
 
 libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o menu.o
 	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o menu.o $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
-        #$(STRIP) libve301.so
 
 $(MPD_LIB):
 	sudo apt-get -y install libmpdclient-dev$(DPKG_ARCH)

@@ -22,6 +22,7 @@
 
 #include<SDL2/SDL.h>
 #include<SDL2/SDL_ttf.h>
+#include<SDL2/SDL_image.h>
 
 #include"audio.h"
 
@@ -91,13 +92,15 @@ typedef struct menu {
     int radius_scales_start;
     int radius_scales_end;
     int pos;
-    int n_o_lines;
-    int n_o_segments;
-    int n_o_items_on_scale;
+    int dirty; /* boolean indicating whether the menu state has changes and must be redrawn */
+    int n_o_lines; /* The number of lines to show the menu items */
+    int n_o_items_on_scale; /* The number of items on the scale at the same time. Default is taken from menu_ctrl */
+    int segments_per_item; /* The number of segments left and right that belong to a menu item. Default is taken from menu_ctrl */
     double segment;
     menu_item **item;
     menu *parent;
     menu_ctrl *ctrl;
+    SDL_Texture *bg_image;
     uint8_t transient;
     uint8_t draw_only_active;
     /**
@@ -149,8 +152,8 @@ struct menu_ctrl {
     menu *active;
     double offset;
     int no_of_scales;
-    int n_o_segments;
-    int n_o_items_on_scale;
+    int segments_per_item; /* The number of segments left and right that belong to a menu item */
+    int n_o_items_on_scale; /* The number of items on the scale at the same time */
     int draw_scales;
     int radius_labels;
     int radius_scales_start;
@@ -198,9 +201,10 @@ void menu_item_show(menu_item *item);
 menu_item *menu_item_update_label(menu_item *item, const char *label);
 menu_item *menu_item_next(menu *m, menu_item *item);
 
-menu *menu_new(menu_ctrl *ctrl);
-menu *menu_new_root(menu_ctrl *ctrl);
-menu_item *menu_new_sub_menu(menu *menu, const char*label, item_action *action);
+menu *menu_new(menu_ctrl *ctrl, int lines);
+menu *menu_new_root(menu_ctrl *ctrl, int lines);
+int menu_set_bg_image(menu *m, char *bgImagePath);
+menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action);
 menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_action *action);
 int menu_open_sub_menu(menu_ctrl *ctrl, menu_item *item);
 int menu_open(menu *m);

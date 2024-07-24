@@ -18,6 +18,7 @@
  */
 
 #include<pthread.h>
+#include<stdlib.h>
 #include "menu_jni.h"
 #include"org_ljunkie_ve301_MenuItem.h"
 /* Header for class org_ljunkie_ve301_MenuItem */

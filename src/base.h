@@ -86,6 +86,8 @@ void __log_trace(const int log_ctx, const char *__restrict __format, ...);
 #define log_trace(...)
 #endif
 
+int log_level_enabled(const int log_ctx, const int lvl);
+
 int check_internet (void);
 
 void set_config_value(char *key, char *value);

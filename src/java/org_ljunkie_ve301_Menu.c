@@ -26,7 +26,8 @@ JNIEXPORT jlong JNICALL Java_org_ljunkie_ve301_Menu_menu_1new
 
     menu_ctrl_jni *ctrl_jni = (menu_ctrl_jni *) menu_ctrl_handle;
     menu_ctrl *ctrl = ctrl_jni->ctrl;
-    menu *m = menu_new(ctrl);
+    // TODO: make lines part of menu_new
+    menu *m = menu_new(ctrl,1);
     menu_jni *m_jni = malloc(sizeof(menu_jni));
     m_jni->m = m;
     m_jni->j_menu = (*env)->NewGlobalRef(env,obj);

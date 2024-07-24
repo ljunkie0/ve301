@@ -18,6 +18,8 @@
  */
 
 #include<SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 
 #define to_int(d) (int) (d >= 0.0 ? (d + 0.5) : (d - 0.5))
 #define to_Uint8(d) (Uint8) (d >= 0.0 ? (d + 0.5) : (d - 0.5))
@@ -38,3 +40,4 @@ void rgb_to_hsv(Uint8 r, Uint8 g, Uint8 b, double *h, double *s, double *v);
 void html_print_color(char *name, SDL_Color *c);
 void apply_background_alpha(SDL_Color *fg_color, SDL_Color *bg_color, int alpha);
 SDL_Texture *create_light_texture(SDL_Renderer *renderer, int w, int h, int x, int y, int radius, int alpha);
+int init_SDL();

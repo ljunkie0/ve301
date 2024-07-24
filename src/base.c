@@ -33,7 +33,6 @@
 
 FILE *log_file;
 char *user_home;
-static FILE *config_file;
 static char *__app;
 static char *__log_prefix;
 
@@ -298,10 +297,14 @@ int check_internet() {
     const char *hostname = INTERNET_CHECK_HOST;
     struct addrinfo *result;
     int s = getaddrinfo(hostname,0,0,&result);
+    int reply = 0;
     if (!s) {
-        return 1;
+        reply = 1;
     }
-    return 0;
+
+    log_info(BASE_CTX, "Internet available: %d\n", reply);
+
+    return reply;
 }
 
 void
@@ -320,6 +323,10 @@ init_log_file (const char *appname, FILE *dflt_log_file) {
         }
         free (logfile_path);
     }
+}
+
+int log_level_enabled(const int log_ctx, const int lvl) {
+    return log_file && (_log_levels[log_ctx] >= lvl);
 }
 
 void
@@ -389,7 +396,7 @@ __log_trace (const int log_ctx, const char *__restrict __format, ...) {
 }
 
 config_entry *
-find_config_entry (char *key, char *group) {
+find_config_entry (const char *key, const char *group) {
     config_entry *entry = 0;
     int e = 0;
     while (!entry && e < __config->no_of_entries) {
@@ -405,7 +412,10 @@ find_config_entry (char *key, char *group) {
 
 config_entry *
 add_config_entry (const char *key, const char *value, const char *group) {
-    config_entry *e = malloc (sizeof (config_entry));
+    config_entry *e = find_config_entry(key, group);
+    if (e == NULL) {
+        e = malloc (sizeof (config_entry));
+    }
     e->key = my_copystr (key);
     if (value) {
         e->value = my_copystr (value);
@@ -503,6 +513,7 @@ int get_config_value_int_group(char *key, int dflt, const char *group) {
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
         value_int = atoi(value_string);
+        free(value_string);
     } else {
         value_int = dflt;
     }
@@ -522,6 +533,7 @@ float get_config_value_float_group(char *key, float dflt, const char *group) {
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
         value_float = (float) atof(value_string);
+        free(value_string);
     } else {
         value_float = dflt;
     }
@@ -541,6 +553,7 @@ double get_config_value_double_group(char *key, double dflt, const char *group) 
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
         value_double = atof(value_string);
+        free(value_string);
     } else {
         value_double = dflt;
     }
@@ -578,7 +591,7 @@ void write_config () {
     }
 }
 
-FILE *read_config_file(const char *config_file_name) {
+void read_config_file(const char *config_file_name) {
     log_info (BASE_CTX, "Config file: %s\n", config_file_name);
     FILE *config_file = fopen (config_file_name, "r");
     if (!config_file) {
@@ -688,7 +701,7 @@ void init_config_file(const char *appname) {
                 log_error (BASE_CTX, "Mkdir failed: %s\n", error_str);
             }
         } else {
-            config_file = read_config_file(config_file_name);
+            read_config_file(config_file_name);
         }
 
     }
@@ -711,6 +724,7 @@ base_init (const char *appname, FILE *dflt_log_file, int log_level) {
         c[1] = 0;
         _log_levels[i] = atoi(c);
     }
+    free(lls);
 
     while (i < NUM_CTX) {
         _log_levels[i++] = 1;

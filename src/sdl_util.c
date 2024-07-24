@@ -21,7 +21,7 @@
 #include"sdl_util.h"
 #include"base.h"
 
-float Q_rsqrt( float number ) {
+inline float Q_rsqrt( float number ) {
     long i;
     float x2, y;
     const float threehalfs = 1.5F;
@@ -305,4 +305,49 @@ SDL_Texture *create_light_texture(SDL_Renderer *renderer, int w, int h, int ligh
     SDL_UpdateTexture(light_texture,NULL,pixels,4*w);
 
     return light_texture;
+}
+
+int init_SDL() {
+
+    log_info(SDL_CTX, "Initializing SDL2");
+    if (SDL_Init(/*SDL_INIT_TIMER|*/SDL_INIT_VIDEO|SDL_INIT_EVENTS) == -1) {
+        log_error(SDL_CTX, "...SDL init failed: %s\n", SDL_GetError());
+        return 0;
+    } else {
+        log_info(SDL_CTX, "...SDL init succeeded\n");
+    }
+
+    int v = 0;
+    log_info(SDL_CTX, "Available video drivers:\n");
+    for (v = 0; v < SDL_GetNumVideoDrivers(); v++) {
+        log_info(SDL_CTX, "%s\n", SDL_GetVideoDriver(v));
+    }
+    log_info(SDL_CTX, "Available video renderers:\n");
+    int r = 0;
+    for (r = 0; r < SDL_GetNumRenderDrivers(); r++) {
+        SDL_RendererInfo rendererInfo;
+        SDL_GetRenderDriverInfo(r, &rendererInfo);
+        log_info(MENU_CTX, "%d ", r );
+        log_info(MENU_CTX, "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
+                 rendererInfo.name,
+                 (rendererInfo.flags & SDL_RENDERER_SOFTWARE) != 0,
+                 (rendererInfo.flags & SDL_RENDERER_ACCELERATED) != 0,
+                 (rendererInfo.flags & SDL_RENDERER_PRESENTVSYNC) != 0,
+                 (rendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) != 0 );
+    }
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"1");
+
+    IMG_Init(IMG_INIT_JPG|IMG_INIT_PNG|IMG_INIT_TIF);
+
+    log_info(SDL_CTX, "Initializing TTF");
+    if (TTF_Init() == -1) {
+        log_error(SDL_CTX, "...TTF init failed: %s\n", SDL_GetError());
+        return 0;
+    } else {
+        log_info(SDL_CTX, "...TTF init succeeded\n");
+    }
+
+    return 1;
+
 }
