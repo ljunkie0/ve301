@@ -613,6 +613,7 @@ int menu_draw_scales(menu *m, double xc, double yc, double angle) {
 }
 
 int menu_wipe(menu *m, double angle) {
+    log_debug(MENU_CTX, "START menu_wipe\n");
     return do_clear(m->ctrl, angle, m->ctrl->background_color, m->bg_image);
 }
 
@@ -1273,7 +1274,9 @@ int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b)
 }
 
 int menu_ctrl_draw(menu_ctrl *ctrl) {
-    return menu_draw(ctrl->current, 1, 1);
+    if (ctrl->current) {
+        return menu_draw(ctrl->current, 1, 1);
+    }
 }
 
 int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator,
@@ -1424,7 +1427,7 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     ctrl->root = malloc(sizeof(menu *));
     ctrl->n_roots = 1;
 
-    menu *root = malloc(sizeof(menu));
+    menu *root = menu_new(ctrl, 1);
 
     root->max_id = -1;
     root->item = 0x0;
