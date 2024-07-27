@@ -55,7 +55,10 @@ debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB)
 %.o: ../src/%.c ../src/%.h
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-menu/%.o: ../src/menu/%.c ../src/menu/%.h
+menu:
+	mkdir menu
+
+menu/%.o: ../src/menu/%.c ../src/menu/%.h menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 main.o: ../src/main.c
