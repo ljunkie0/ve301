@@ -76,3 +76,4 @@ java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 
 clean:
 	rm -f $(OBJS) $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301
+	rm -rf menu

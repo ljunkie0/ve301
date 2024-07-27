@@ -8,3 +8,4 @@ sdl_util.o
 text_obj.o
 weather.o
 java/
+menu/
