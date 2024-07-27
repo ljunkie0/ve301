@@ -316,7 +316,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     if (evt == ACTIVATE) {
         menu_item *item = (menu_item *) item_ptr;
         log_debug(MAIN_CTX, "Action: %s\n", item->unicode_label);
-        if (item->is_sub_menu) {
+        if (item->sub_menu) {
             log_info(MAIN_CTX, "Sub menu: %s\n", item->unicode_label);
             if (item->sub_menu == radio_menu) {
                 update_radio_menu();
@@ -328,6 +328,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
                 update_directory_menu(item);
             }
         } else if (item->object && item->object_type == OBJ_TYPE_SONG) {
+            m_ptr->active_id = item->id;
             song *s = (song *) item->object;
             song *p = get_playing_song();
             if (!p || (p->id != s->id)) {
@@ -873,6 +874,7 @@ menu_ctrl *create_menu() {
     hsv_style = get_config_value_int("hsv_style",0);
 
     default_theme = get_config_theme ("Default");
+    char *info_color = get_config_value_group("info_color", NULL, "Default");
     bluetooth_theme = get_config_theme("Bluetooth");
     spotify_theme = get_config_theme("Spotify");
 
@@ -888,6 +890,17 @@ menu_ctrl *create_menu() {
         menu_ctrl_apply_theme (ctrl,default_theme);
 
         ctrl->root[0]->current_id = 0;
+
+        info_menu = ctrl->root[0];
+        if (info_color != NULL) {
+            menu_set_colors(info_menu, html_to_color(info_color), html_to_color(info_color));
+        }
+
+        if (info_bg_image_path) {
+            menu_set_bg_image(info_menu, info_bg_image_path);
+        }
+
+        info_menu->transient = 1;
 
         time_t timer;
         time(&timer);
@@ -914,13 +927,6 @@ menu_ctrl *create_menu() {
             weather_item = NULL;
         }
 
-        info_menu = ctrl->root[0];
-
-        if (info_bg_image_path) {
-            menu_set_bg_image(info_menu, info_bg_image_path);
-        }
-
-        info_menu->transient = 1;
         ctrl->active = NULL;
 
         radio_menu = menu_new(ctrl, 3);

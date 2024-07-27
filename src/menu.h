@@ -24,7 +24,7 @@
 #include<SDL2/SDL_ttf.h>
 #include<SDL2/SDL_image.h>
 
-#include"audio.h"
+#include "glyph_obj.h"
 
 #define UNKNOWN_OBJECT_TYPE -1
 #define OBJECT_TYPE_ACTION -2
@@ -58,7 +58,6 @@ typedef struct menu_item {
     int num_label_chars2;
     int w;
     int h;
-    int is_sub_menu;
     void *sub_menu;
     TTF_Font *font;
     TTF_Font *font2;
@@ -91,7 +90,6 @@ typedef struct menu {
     int radius_labels;
     int radius_scales_start;
     int radius_scales_end;
-    int pos;
     int dirty; /* boolean indicating whether the menu state has changes and must be redrawn */
     int n_o_lines; /* The number of lines to show the menu items */
     int n_o_items_on_scale; /* The number of items on the scale at the same time. Default is taken from menu_ctrl */
@@ -101,6 +99,8 @@ typedef struct menu {
     menu *parent;
     menu_ctrl *ctrl;
     SDL_Texture *bg_image;
+    SDL_Color *default_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */
+    SDL_Color *selected_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */
     uint8_t transient;
     uint8_t draw_only_active;
     /**
@@ -204,6 +204,7 @@ menu_item *menu_item_next(menu *m, menu_item *item);
 menu *menu_new(menu_ctrl *ctrl, int lines);
 menu *menu_new_root(menu_ctrl *ctrl, int lines);
 int menu_set_bg_image(menu *m, char *bgImagePath);
+int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color);
 menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action);
 menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_action *action);
 int menu_open_sub_menu(menu_ctrl *ctrl, menu_item *item);

@@ -24,9 +24,10 @@
 #include <execinfo.h>
 #include <SDL2/SDL2_rotozoom.h>
 #include <unistd.h>
-#include "menu.h"
 #include "base.h"
 #include "sdl_util.h"
+#include "text_obj.h"
+#include "menu.h"
 
 #ifdef RASPBERRY
 #include"rotaryencoder.h"
@@ -44,7 +45,6 @@
 #endif
 
 #define get_kerning TTF_GetFontKerningSizeGlyphs
-#define DEFAULT_SDL_PIXELFORMAT SDL_PIXELFORMAT_RGBA32
 
 #define MAX_LABEL_LENGTH 25
 #define FONT_DEFAULT "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
@@ -52,21 +52,11 @@
 
 #define Y_OFFSET 35
 
-#define M_2_X_PI 6.28318530718
 #ifndef M_PI_2
 #define M_PI_2 1.57079632679489661923132
 #endif
 
-// the number of possible angles. Don't know yet
-#define N_ANGLES 180
-
-#define VISIBLE_ANGLE 72.0
-
 #define USE_UNICODE
-
-static double *cosinuses = NULL;
-static double *sinuses = NULL;
-static double *square_roots = NULL;
 
 static SDL_Color black = { 0, 0, 0, 255 };
 static SDL_Color white = { 255, 255, 255, 255 };
@@ -86,56 +76,6 @@ typedef enum {
     ACTIVE, SELECTED, DEFAULT
 } menu_item_state;
 
-typedef struct double_rect {
-    double w,h,x,y;
-} double_rect;
-
-/**
-* For bump mapping
-**/
-typedef struct normal_vector {
-    double x;
-    double y;
-} normal_vector;
-
-/**
-* Represents one glyph
-**/
-typedef struct glyph_obj {
-    SDL_Texture *texture;
-    SDL_Surface *surface;
-    SDL_Texture *bumpmap_overlay;
-    SDL_Texture **bumpmap_textures;
-    Uint32 *light_pixels;
-    int pitch;
-    SDL_Color *colors;
-    normal_vector *normals;
-    int advance;
-    int minx;
-    int maxx;
-    int miny;
-    int maxy;
-    SDL_Rect *dst_rect;
-    SDL_Point *rot_center;
-    double current_angle;
-    double shadow_dx;
-    double shadow_dy;
-} glyph_obj;
-
-/**
-* Represents one text (menu item label)
-**/
-typedef struct text_obj {
-    int n_glyphs; // The number of characters
-    int n_glyphs_2nd_line; // The number of characters on the seconds line if there is any
-    glyph_obj **glyphs_objs;
-    glyph_obj **glyphs_objs_2nd_line;
-    int width;
-    int width_2nd_line;
-    int height;
-    int height_2nd_line;
-} text_obj;
-
 void menu_turn_left(menu *m);
 void menu_turn_right(menu *m);
 void menu_fade_out(menu *menu_frm, menu *menu_to);
@@ -144,662 +84,6 @@ int menu_ctrl_clear(menu_ctrl *ctrl, double angle);
 int menu_ctrl_process_events(menu_ctrl *ctrl);
 int menu_draw(menu *m, int clear, int render);
 int menu_ctrl_apply_light(menu_ctrl *ctrl);
-
-/**
- * Creates a texture that is blended over the background to create
- * the illusion of a light
- * @brief new_light_texture
- * @param renderer The SDL renderer
- * @param w width of the texture
- * @param h height of the texture
- * @param light_x x position of the lightt
- * @param light_y y position of the light
- * @param radius radius of the light
- * @param alpha alpha value of the texture
- * @return The SDL_Texture representing the light
- */
-SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x, int light_y, int radius, int alpha) {
-
-    SDL_Texture *light_texture = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STATIC,w,h);
-    SDL_SetTextureBlendMode(light_texture,SDL_BLENDMODE_MUL);
-    SDL_PixelFormat *format = SDL_AllocFormat(DEFAULT_SDL_PIXELFORMAT);
-
-    Uint32 pixels[w*h];
-
-    for (int y = 0; y < h; y++) {
-        int o = w * y;
-        int sq_y = (y - light_y)*(y - light_y);
-        for (int x = 0; x < w; x++) {
-
-            double d = SDL_sqrt((x - light_x)*(x - light_x) + sq_y);
-            double l = 255.0 - 255.0 * d / radius;
-            if (l < 0.0) l = 0.0;
-            if (l > 255.0) l = 255.0;
-
-            Uint32 pixel = alpha;
-            if (l >= 0.0) {
-                pixel = SDL_MapRGBA(format,l,l,l,alpha);
-            }
-            pixels[x+o] = pixel;
-
-        }
-    }
-
-    SDL_FreeFormat(format);
-    SDL_UpdateTexture(light_texture,NULL,pixels,4*w);
-
-    return light_texture;
-}
-
-SDL_Texture *load_light_texture(SDL_Renderer *renderer, char *path) {
-    return IMG_LoadTexture(renderer,path);
-}
-
-void glyph_obj_free(glyph_obj *obj) {
-    log_debug(MENU_CTX, "glyph_obj_free (%p)\n", obj);
-    if (obj) {
-
-        if (obj->colors) {
-            free(obj->colors);
-        }
-
-        if (obj->normals) {
-            free(obj->normals);
-        }
-
-        if (obj->surface) {
-            SDL_FreeSurface(obj->surface);
-        }
-
-        if (obj->texture) {
-            SDL_DestroyTexture(obj->texture);
-        }
-
-        if (obj->bumpmap_overlay) {
-            SDL_DestroyTexture(obj->bumpmap_overlay);
-        }
-
-        if (obj->rot_center) {
-            free(obj->rot_center);
-        }
-
-        if (obj->dst_rect) {
-            free(obj->dst_rect);
-        }
-
-        if (obj->bumpmap_textures) {
-            for (int a = 0; a < N_ANGLES; a++) {
-                if (obj->bumpmap_textures[a]) {
-                    SDL_DestroyTexture(obj->bumpmap_textures[a]);
-                }
-                //free(obj->lights);
-            }
-        }
-
-        free(obj);
-
-    }
-}
-
-void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius, int light_x, int light_y) {
-
-    glyph_o->dst_rect->x = center.x - 0.5 * glyph_o->dst_rect->w;
-    glyph_o->dst_rect->y = center.y - radius - 0.5 * glyph_o->dst_rect->h;
-    glyph_o->rot_center->x = 0.5 * glyph_o->dst_rect->w;
-    glyph_o->rot_center->y = radius + 0.5 * glyph_o->dst_rect->h;
-
-}
-
-glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius, int light_x, int light_y) {
-
-    glyph_obj *glyph_o = calloc(1,sizeof(glyph_obj));
-
-    glyph_o->surface = TTF_RenderGlyph_Blended(font,c,fg);
-    if (glyph_o->surface == NULL) {
-        log_error(MENU_CTX, "Could not render glyph %c: %s\n", c, TTF_GetError());
-        return NULL;
-    }
-
-    glyph_o->current_angle = -2000.0;
-
-    glyph_o->normals = calloc(glyph_o->surface->w * glyph_o->surface->h , sizeof(normal_vector));
-    glyph_o->colors = calloc(glyph_o->surface->w * glyph_o->surface->h , sizeof(SDL_Color));
-
-    Uint32 *pixels = (Uint32 *) glyph_o->surface->pixels;
-
-    int bpp = glyph_o->surface->format->BytesPerPixel;
-    int pitch = glyph_o->surface->pitch / bpp;
-
-    for (int y = 0; y < glyph_o->surface->h; y++) {
-        int o = glyph_o->surface->w*y;
-        int p = pitch*y;
-        int pop = pitch * (y-1);
-        int pon = pitch * (y+1);
-        for (int x = 0; x < glyph_o->surface->w; x++) {
-            Uint32 pixel = pixels[p + x];
-            SDL_Color color;
-            SDL_GetRGBA(pixel,glyph_o->surface->format,&(color.r),&(color.g),&(color.b),&(color.a));
-
-            glyph_o->colors[o + x] = color;
-
-            double dx = 0.0;
-            double dy = 0.0;
-
-            if (color.a) {
-
-                Uint8 r,g,b; // actually only needed for the call to SDL_GetRGBA
-
-                Uint8 pax = 0;
-                if (x > 0) {
-                    Uint32 p_x_pixel = pixels[p + (x - 1)];
-                    SDL_GetRGBA(p_x_pixel,glyph_o->surface->format,&r,&g,&b,&pax);
-                }
-
-                Uint8 pay;
-                if (y > 0) {
-                    Uint32 p_y_pixel = pixels[pop + x];
-                    SDL_GetRGBA(p_y_pixel,glyph_o->surface->format,&r,&g,&b,&pay);
-                }
-
-                Uint8 nax;
-                if (x < glyph_o->surface->w) {
-                    Uint32 n_x_pixel = pixels[p + (x + 1)];
-                    SDL_GetRGBA(n_x_pixel,glyph_o->surface->format,&r,&g,&b,&nax);
-                }
-
-                Uint8 nay;
-                if (y < glyph_o->surface->h) {
-                    Uint32 n_y_pixel = pixels[pon + x];
-                    SDL_GetRGBA(n_y_pixel,glyph_o->surface->format,&r,&g,&b,&nay);
-                }
-
-                dx = (nax - pax);
-                dy = (nay - pay);
-
-                if (dx != 0 || dy != 0) {
-                    double inv_dn = Q_rsqrt(dx * dx + dy * dy);
-                    dx = dx * inv_dn;
-                    dy = dy * inv_dn;
-                } else {
-                    dx = 0.0;
-                    dy = 0.0;
-                }
-
-            }
-
-            normal_vector df;
-            df.x = dx;
-            df.y = dy;
-            glyph_o->normals[o + x] = df;
-
-        }
-    }
-
-    normal_vector df;
-    df.x = 0;
-    df.y = 0;
-    SDL_Color transparent;
-    transparent.r = 0;
-    transparent.g = 0;
-    transparent.b = 0;
-    transparent.a = 0;
-
-    glyph_o->normals[0] = df;
-    glyph_o->colors[0] = transparent;
-
-    for (int y = 1; y < glyph_o->surface->h; y++) {
-        glyph_o->normals[glyph_o->surface->w * y] = df;
-        glyph_o->normals[glyph_o->surface->w * y - 1] = df;
-        glyph_o->colors[glyph_o->surface->w * y] = transparent;
-        glyph_o->colors[glyph_o->surface->w * y - 1] = transparent;
-    }
-
-    for (int x = 0; x < glyph_o->surface->w; x++) {
-        glyph_o->normals[x] = df;
-        glyph_o->normals[glyph_o->surface->w * (glyph_o->surface->h-1) + x] = df;
-        glyph_o->colors[x] = transparent;
-        glyph_o->colors[glyph_o->surface->w * (glyph_o->surface->h-1) + x] = transparent;
-    }
-
-    glyph_o->bumpmap_overlay = NULL;
-
-    glyph_o->texture = SDL_CreateTextureFromSurface(renderer,glyph_o->surface);
-    if (!glyph_o->texture) {
-        log_error(MENU_CTX, "Could not generate texture from surface: %s\n", SDL_GetError());
-    }
-    SDL_SetTextureBlendMode(glyph_o->texture,SDL_BLENDMODE_BLEND);
-
-    Uint32 format;
-    int access;
-    SDL_Rect *dst = malloc(sizeof(SDL_Rect));
-    SDL_QueryTexture(glyph_o->texture,&format,&access,&(dst->w),&(dst->h));
-    glyph_o->dst_rect = dst;
-
-    SDL_Point *rot_center = malloc(sizeof(SDL_Point));
-    glyph_o->rot_center = rot_center;
-
-    glyph_obj_update_cnt_rad(glyph_o,center,radius, light_x, light_y);
-
-    int minx = 0,maxx = 0,miny = 0,maxy = 0,advance = 0;
-    TTF_GlyphMetrics(font,c,&minx,&maxx,&miny,&maxy,&advance);
-    glyph_o->minx = minx;
-    glyph_o->maxx = maxx;
-    glyph_o->miny = miny;
-    glyph_o->maxy = maxy;
-    glyph_o->advance = advance;
-
-    return glyph_o;
-
-}
-
-void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o, double center_x, double center_y, int angle, double l_x, double l_y) {
-
-    Uint32 *bumpmap_pixels;
-    int pitch;
-
-    if (!glyph_o->bumpmap_overlay) {
-        glyph_o->bumpmap_overlay = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STREAMING,glyph_o->surface->w,glyph_o->surface->h);
-        SDL_SetTextureBlendMode(glyph_o->bumpmap_overlay,SDL_BLENDMODE_BLEND);
-    }
-
-    SDL_LockTexture(glyph_o->bumpmap_overlay,NULL,(void **) &bumpmap_pixels, &pitch);
-
-    if (cosinuses == NULL) {
-        cosinuses = malloc(10000*sizeof(double));
-        sinuses = malloc(10000*sizeof(double));
-        square_roots = malloc(10000*sizeof(double));
-        for (int i = 0; i < 10000; i++) {
-            cosinuses[i] = 2.0;
-            sinuses[i] = 2.0;
-            square_roots[i] = -100000.0;
-        }
-    }
-
-    int idx = (int) (10.0 * (angle + 360.0));
-    double c = cosinuses[idx];
-    double s = sinuses[idx];
-    if (c > 1.0) {
-        double angle_rad = M_PI * angle / 180.0;
-        c = cosf(angle_rad);
-        cosinuses[idx] = c;
-        s = sinf(angle_rad);
-        sinuses[idx] = s;
-    }
-
-    SDL_PixelFormat *format = glyph_o->surface->format;
-    Uint32 transparent = 0;
-
-    /*
-     * Update shadow offset direction
-     */
-    double x = glyph_o->dst_rect->x+0.5*glyph_o->dst_rect->w-center_x;
-    double y = glyph_o->dst_rect->y+0.5*glyph_o->dst_rect->h-center_y;
-    double c_x_rot = c * x - s * y + center_x;
-    double c_y_rot = s * x + c * y + center_y;
-
-    double light_x = c_x_rot - l_x;
-    double light_y = c_y_rot - l_y;
-    double light_d = (double) Q_rsqrt((float)(light_x*light_x + light_y*light_y));
-
-    glyph_o->shadow_dx = light_d * light_x;
-    glyph_o->shadow_dy = light_d * light_y;
-
-    /**
-     * See below. Usually, the distance to the light source should be taken for each pixel (to be adjusted)
-     * in the glyph. For performance, only take the distance from the top left pixel
-     */
-    double x_rot = c * (glyph_o->dst_rect->x-center_x) - s * (glyph_o->dst_rect->y - center_y) + center_x;
-    double y_rot = s * (glyph_o->dst_rect->x-center_x) + c * (glyph_o->dst_rect->y - center_y) + center_y;
-
-    light_x = x_rot - l_x;
-    light_y = y_rot - l_y;
-
-    double inv_light_d = Q_rsqrt((float)(light_x*light_x + light_y*light_y));
-
-    light_x = inv_light_d * light_x;
-    light_y = inv_light_d * light_y;
-
-    /**
-     * <<
-     */
-
-    for (int y = 0; y < glyph_o->surface->h; y++) {
-
-        int o = pitch * y / 4;
-
-        for (int x = 0; x < glyph_o->surface->w; x++) {
-
-            SDL_Color color = glyph_o->colors[o+x];
-
-            if (color.a > 1) {
-
-                Uint8 r = color.r,g = color.g,b = color.b,a = color.a;
-                normal_vector df = glyph_o->normals[o+x];
-
-                if (df.x != 0 || df.y != 0) {
-
-                    // angle to light
-                    double dx_rot = c * df.x - s * df.y;
-                    double dy_rot = s * df.x + c * df.y;
-
-                    double light = light_x * dx_rot + light_y * dy_rot;
-
-                    if (light >= 0.0) {
-                        r = r + (255.0 - r) * light;
-                        g = g + (255.0 - g) * light;
-                        b = b + (255.0 - b) * light;
-                    } else {
-                        r = r * (1.0+light);
-                        g = g * (1.0+light);
-                        b = b * (1.0+light);
-                    }
-
-                }
-
-                /**
-                 * Have to switch B and R, i don't know why
-                 */
-                Uint32 lght = (b << format->Rshift) | (g << format->Gshift) | (r << format->Bshift) | (a << format->Ashift & format->Amask);
-                bumpmap_pixels[o + x] = lght;
-
-            } else {
-                bumpmap_pixels[o + x] = transparent;
-            }
-        }
-
-    }
-
-    SDL_UnlockTexture(glyph_o->bumpmap_overlay);
-
-}
-
-
-void text_obj_free(text_obj *obj) {
-    if (obj) {
-        if (obj->glyphs_objs) {
-            for (int g = 0; g < obj->n_glyphs; g++) {
-                glyph_obj_free(obj->glyphs_objs[g]);
-            }
-            free(obj->glyphs_objs);
-        }
-
-        if (obj->glyphs_objs_2nd_line) {
-            for (int g = 0; g < obj->n_glyphs_2nd_line; g++) {
-                glyph_obj_free(obj->glyphs_objs_2nd_line[g]);
-            }
-            free(obj->glyphs_objs_2nd_line);
-        }
-
-        free(obj);
-
-    }
-}
-
-void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int line, int n_lines, int light_x, int light_y) {
-    if (obj) {
-
-        if (obj->n_glyphs_2nd_line > 0) {
-            radius = radius + obj->height * 0.5;
-        }
-
-        radius = radius + 0.8 * obj->height * (line + 0.5 * (n_lines-1));
-
-        if (obj->glyphs_objs) {
-            for (int g = 0; g < obj->n_glyphs; g++) {
-                glyph_obj_update_cnt_rad(obj->glyphs_objs[g], center, radius, light_x, light_y);
-            }
-        }
-
-        int radius_new = radius - obj->height;
-
-        if (obj->glyphs_objs_2nd_line) {
-            for (int g = 0; g < obj->n_glyphs_2nd_line; g++) {
-                glyph_obj_update_cnt_rad(obj->glyphs_objs_2nd_line[g], center, radius_new, light_x, light_y);
-            }
-        }
-    }
-}
-
-
-text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Font *font_2nd_line, SDL_Color fg, SDL_Point center, int radius, int line, int n_lines, int light_x, int light_y) {
-
-    if (txt) {
-        Uint32 unicode_length = MAX_LABEL_LENGTH;
-        Uint16 *unicode_text_2nd_line = NULL;
-        Uint32 unicode_length_second_line = MAX_LABEL_LENGTH;
-        Uint16 *unicode_text = NULL;
-        unicode_text = to_unicode(txt,&unicode_length,&unicode_text_2nd_line,&unicode_length_second_line);
-
-        if (!unicode_text) {
-            return NULL;
-        }
-
-        text_obj *t = malloc(sizeof(text_obj));
-        t->n_glyphs = unicode_length;
-        t->glyphs_objs = malloc(unicode_length * sizeof(glyph_obj *));
-        log_debug(MENU_CTX, "Rendering surface for %s\n",unicode_text);
-        SDL_Surface *text_surface = TTF_RenderUNICODE_Blended(font,unicode_text,fg);
-
-        if (text_surface == NULL) {
-            log_error(MENU_CTX, "Could not create glyph surface for %s: %s\n", txt, TTF_GetError());
-            return NULL;
-        }
-
-        t->width = text_surface->w;
-        t->height = text_surface->h;
-
-        if (unicode_length_second_line > 0 && unicode_text_2nd_line != NULL) {
-            radius = radius + text_surface->h * 0.5;
-        }
-
-        radius = radius + 0.8 * text_surface->h * (line + 0.5 * (n_lines-1));
-
-        SDL_FreeSurface(text_surface);
-
-        unsigned int i = 0;
-        for (i = 0; i < unicode_length; i++) {
-            glyph_obj *glyph_o = glyph_obj_new(renderer,unicode_text[i],font,fg,center,radius, light_x, light_y);
-            if (!glyph_o) {
-                log_error(MENU_CTX, "Could not create glyph object for %c\n", unicode_text[i]);
-                return NULL;
-            }
-            t->glyphs_objs[i] = glyph_o;
-        }
-
-        t->glyphs_objs_2nd_line = NULL;
-        t->n_glyphs_2nd_line = unicode_length_second_line;
-        if (unicode_length_second_line > 0 && unicode_text_2nd_line != NULL) {
-            t->n_glyphs_2nd_line = unicode_length_second_line;
-            t->glyphs_objs_2nd_line = malloc(unicode_length_second_line * sizeof(glyph_obj *));
-
-            text_surface = TTF_RenderUNICODE_Blended(font_2nd_line,unicode_text_2nd_line,fg);
-            if (text_surface == NULL) {
-                log_error(MENU_CTX, "Could not create glyph surface for %s: %s\n", txt, TTF_GetError());
-                return NULL;
-            }
-
-            t->width_2nd_line = text_surface->w;
-            t->height_2nd_line = text_surface->h;
-            SDL_FreeSurface(text_surface);
-
-            unsigned int i = 0;
-            int radius_new = radius - text_surface->h;
-            for (i = 0; i < unicode_length_second_line; i++) {
-                t->glyphs_objs_2nd_line[i] = glyph_obj_new(renderer,unicode_text_2nd_line[i],font_2nd_line,fg,center,radius_new, light_x, light_y);
-            }
-        }
-
-        free(unicode_text);
-        if (unicode_text_2nd_line) {
-            free(unicode_text_2nd_line);
-        }
-
-        return t;
-
-    }
-
-    return NULL;
-
-}
-
-
-void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label, int radius, int center_x, int center_y, double angle, int line, double light_x, double light_y, int font_bumpmap, int shadow_offset, int shadow_alpha) {
-    double circumference = M_2_X_PI * radius;
-    double advance = - 0.5 * label->width;
-    log_config(MENU_CTX,"text_obj_draw: angle: %f, radius: %d, circumference: %f, advance: %f\n", angle, radius, circumference, advance);
-    if (radius == 0) {
-        log_config(MENU_CTX,"text_obj_draw: radius = 0, returning\n");
-        return;
-    }
-
-    if (target != NULL) {
-        SDL_SetRenderTarget(renderer,target);
-    }
-
-    int c;
-    for (c = 0; c < label->n_glyphs; c++) {
-        glyph_obj *glyph_obj = label->glyphs_objs[c];
-        double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/circumference;
-
-        if (a >= -VISIBLE_ANGLE && a <= VISIBLE_ANGLE) {
-
-            if (font_bumpmap) {
-
-                if (a != glyph_obj->current_angle) {
-                    glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
-                }
-
-                SDL_Texture *texture = glyph_obj->bumpmap_overlay;
-                log_debug(MENU_CTX,"texture: %p\n", texture);
-
-                if (shadow_offset > 0) {
-
-                    Uint8 orig_a, orig_r, orig_g, orig_b;
-                    SDL_GetTextureAlphaMod(texture, &orig_a);
-                    SDL_GetTextureColorMod(texture, &orig_r, &orig_g, &orig_b);
-                    SDL_SetTextureColorMod(texture,0,0,0);
-
-                    SDL_Rect shadow_dst_rec;
-                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
-
-                    for (int so = shadow_offset; so > 0; so--) {
-                        int sa = (shadow_offset - so + 1)*shadow_alpha / shadow_offset;
-                        SDL_SetTextureAlphaMod(texture,sa);
-                        shadow_dst_rec.x = glyph_obj->dst_rect->x+so*glyph_obj->shadow_dx;
-                        shadow_dst_rec.y = glyph_obj->dst_rect->y+so*glyph_obj->shadow_dy;
-                        SDL_RenderCopyEx(renderer,texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-                    }
-
-                    SDL_SetTextureAlphaMod(texture,orig_a);
-                    SDL_SetTextureColorMod(texture,orig_r, orig_g, orig_b);
-
-                }
-
-                SDL_RenderCopyEx(renderer,texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-            } else {
-
-                if (shadow_offset > 0) {
-
-                    SDL_Rect shadow_dst_rec;
-                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
-                    shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
-                    shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
-
-                    Uint8 orig_a, orig_r, orig_g, orig_b;
-                    SDL_GetTextureAlphaMod(glyph_obj->texture, &orig_a);
-                    SDL_GetTextureColorMod(glyph_obj->texture, &orig_r, &orig_g, &orig_b);
-                    SDL_SetTextureAlphaMod(glyph_obj->texture,shadow_alpha);
-                    SDL_SetTextureColorMod(glyph_obj->texture,0,0,0);
-
-                    SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-                    SDL_SetTextureAlphaMod(glyph_obj->texture,orig_a);
-                    SDL_SetTextureColorMod(glyph_obj->texture,orig_r, orig_g, orig_b);
-                }
-
-                SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-            }
-        }
-
-        glyph_obj->current_angle = a;
-        advance += glyph_obj->advance;
-
-    }
-
-    if (label->glyphs_objs_2nd_line > 0) {
-        circumference = M_2_X_PI * (radius - label->height);
-        advance = - 0.5 * label->width_2nd_line;
-        for (c = 0; c < label->n_glyphs_2nd_line; c++) {
-            glyph_obj *glyph_obj = label->glyphs_objs_2nd_line[c];
-            double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/circumference;
-
-            if (a >= -VISIBLE_ANGLE || a <= VISIBLE_ANGLE) {
-
-                if (font_bumpmap) {
-
-                    if (a != glyph_obj->current_angle) {
-                        glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
-                    }
-
-                    if (shadow_offset > 0) {
-
-                        SDL_Rect shadow_dst_rec;
-                        shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                        shadow_dst_rec.h = glyph_obj->dst_rect->h;
-                        shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
-                        shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
-
-                        Uint8 orig_a, orig_r, orig_g, orig_b;
-                        SDL_GetTextureAlphaMod(glyph_obj->bumpmap_overlay, &orig_a);
-                        SDL_GetTextureColorMod(glyph_obj->bumpmap_overlay, &orig_r, &orig_g, &orig_b);
-                        SDL_SetTextureAlphaMod(glyph_obj->bumpmap_overlay,shadow_alpha);
-                        SDL_SetTextureColorMod(glyph_obj->bumpmap_overlay,0,0,0);
-
-                        SDL_RenderCopyEx(renderer,glyph_obj->bumpmap_overlay,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-                        SDL_SetTextureAlphaMod(glyph_obj->bumpmap_overlay,orig_a);
-                        SDL_SetTextureColorMod(glyph_obj->bumpmap_overlay,orig_r, orig_g, orig_b);
-
-                    }
-                    SDL_RenderCopyEx(renderer,glyph_obj->bumpmap_overlay,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-                } else {
-                    if (shadow_offset > 0) {
-
-                        SDL_Rect shadow_dst_rec;
-                        shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                        shadow_dst_rec.h = glyph_obj->dst_rect->h;
-                        shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
-                        shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
-
-                        Uint8 orig_a, orig_r, orig_g, orig_b;
-                        SDL_GetTextureAlphaMod(glyph_obj->texture, &orig_a);
-                        SDL_GetTextureColorMod(glyph_obj->texture, &orig_r, &orig_g, &orig_b);
-                        SDL_SetTextureAlphaMod(glyph_obj->texture,shadow_alpha);
-                        SDL_SetTextureColorMod(glyph_obj->texture,0,0,0);
-
-                        SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-                        SDL_SetTextureAlphaMod(glyph_obj->texture,orig_a);
-                        SDL_SetTextureColorMod(glyph_obj->texture,orig_r, orig_g, orig_b);
-                    }
-                    SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-                }
-            }
-            glyph_obj->current_angle = a;
-            advance += glyph_obj->advance;
-        }
-    }
-
-    if (target != NULL) {
-        SDL_SetRenderTarget(renderer,NULL);
-        SDL_RenderCopy(renderer,target,NULL,NULL);
-    }
-
-}
 
 void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius) {
 
@@ -867,7 +151,7 @@ menu *menu_item_get_menu(menu_item *item) {
 }
 
 int menu_item_is_sub_menu(menu_item *item) {
-    return item->sub_menu != 0;
+    return item->sub_menu != NULL;
 }
 
 void menu_item_set_sub_menu(menu_item *item, menu *sub_menu) {
@@ -916,9 +200,9 @@ void menu_item_rebuild_glyphs(menu_item *item) {
     }
 
     SDL_Renderer *renderer = m->ctrl->renderer;
-    item->label_default = text_obj_new(renderer,item->label,font,font2,*m->ctrl->default_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-    item->label_current = text_obj_new(renderer,item->label,font,font2,*m->ctrl->selected_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-    item->label_active = text_obj_new(renderer,item->label,font,font2,*m->ctrl->activated_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_default = text_obj_new(renderer,item->label,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->default_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_current = text_obj_new(renderer,item->label,font,font2,m->selected_color != NULL ? *m->selected_color : *m->ctrl->selected_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_active = text_obj_new(renderer,item->label,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->activated_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
 
 }
 
@@ -951,8 +235,8 @@ menu_item *menu_item_new(menu *m, const char *label, void *object, int object_ty
     item->utf8_label = NULL;
     item->label = NULL;
     item->object = object;
+    item->sub_menu = NULL;
     item->object_type = object_type;
-    item->is_sub_menu = 0;
     item->menu = m;
     item->action = action;
     m->max_id++;
@@ -1036,7 +320,7 @@ int menu_item_dispose(menu_item *item) {
         ctrl->action(DISPOSE,m,item);
     }
 
-    if (item->is_sub_menu && item->sub_menu) {
+    if (item->sub_menu) {
         menu_clear((menu *)item->sub_menu);
         log_config(MENU_CTX, "free(item->sub_menu -> %p)\n", item->sub_menu);
         free(item->sub_menu);
@@ -1505,6 +789,8 @@ menu *menu_new(menu_ctrl *ctrl, int lines) {
     m->label = 0;
     m->object = 0;
     m->bg_image = NULL;
+    m->default_color = NULL;
+    m->selected_color = NULL;
 
     m->ctrl = ctrl;
 
@@ -1539,7 +825,6 @@ menu_item *menu_add_sub_menu(menu *m, const char *label, menu *sub_menu, item_ac
 
     menu_item *item = menu_item_new(m, label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, action, NULL, -1);
     item->sub_menu = sub_menu;
-    item->is_sub_menu = 1;
     sub_menu->parent = m;
 
     return item;
@@ -1570,29 +855,8 @@ menu_item *menu_new_sub_menu(menu *m, const char *label, item_action *action) {
 
     menu_item *item = menu_item_new(m, label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, action, NULL, -1);
     item->sub_menu = sub_menu;
-    item->is_sub_menu = 1;
 
     return item;
-
-}
-
-int menu_set_bg_image(menu *m, char *bgImagePath) {
-
-    if (m->bg_image) {
-        SDL_DestroyTexture(m->bg_image);
-        m->bg_image = NULL;
-    }
-
-    if (bgImagePath) {
-        m->bg_image = IMG_LoadTexture(m->ctrl->renderer,bgImagePath);
-        if (!m->bg_image) {
-            log_error(MENU_CTX, "Could not load background image %s: %s\n", bgImagePath, SDL_GetError());
-        }
-    } else {
-        m->bg_image = NULL;
-    }
-
-    return 1;
 
 }
 
@@ -1660,7 +924,7 @@ void menu_set_radius(menu *m, int radius_labels, int radius_scales_start, int ra
 
     int i = 0;
     for (i = 0; i < m->max_id; i++) {
-        if (m->item[i] && m->item[i]->is_sub_menu) {
+        if (m->item[i] && m->item[i]->sub_menu) {
             menu_set_radius((menu *) m->item[i]->sub_menu, radius_labels, radius_scales_start, radius_scales_end);
         }
     }
@@ -1670,7 +934,7 @@ void menu_set_radius(menu *m, int radius_labels, int radius_scales_start, int ra
 void menu_update_cnt_rad(menu *m, SDL_Point center, int radius) {
     for (int i = 0; i < m->max_id; i++) {
         if (m->item[i]) {
-            if (m->item[i]->is_sub_menu) {
+            if (m->item[i]->sub_menu) {
                 menu_update_cnt_rad((menu *) m->item[i]->sub_menu, center, radius);
             } else {
                 menu_item_update_cnt_rad(m->item[i],center,radius);
@@ -1682,13 +946,42 @@ void menu_update_cnt_rad(menu *m, SDL_Point center, int radius) {
 void menu_rebuild_glyphs(menu *m) {
     for (int i = 0; i < m->max_id; i++) {
         if (m->item[i]) {
-            if (m->item[i]->is_sub_menu) {
+            if (m->item[i]->sub_menu) {
                 menu_rebuild_glyphs((menu *) m->item[i]->sub_menu);
             } else {
                 menu_item_rebuild_glyphs(m->item[i]);
             }
         }
     }
+}
+
+int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color) {
+    m->default_color = default_color;
+    m->selected_color = selected_color;
+    menu_rebuild_glyphs(m);
+
+    return 1;
+
+}
+
+int menu_set_bg_image(menu *m, char *bgImagePath) {
+
+    if (m->bg_image) {
+        SDL_DestroyTexture(m->bg_image);
+        m->bg_image = NULL;
+    }
+
+    if (bgImagePath) {
+        m->bg_image = IMG_LoadTexture(m->ctrl->renderer,bgImagePath);
+        if (!m->bg_image) {
+            log_error(MENU_CTX, "Could not load background image %s: %s\n", bgImagePath, SDL_GetError());
+        }
+    } else {
+        m->bg_image = NULL;
+    }
+
+    return 1;
+
 }
 
 int open_parent_menu(void *ctrl_ptr) {
@@ -1710,7 +1003,7 @@ int open_parent_menu(void *ctrl_ptr) {
 
 int menu_action(menu_event evt, menu_ctrl *ctrl, menu_item *item) {
     if (item) {
-        if(item->is_sub_menu) {
+        if(item->sub_menu) {
 
             if (item->action) {
                 ((item_action*)item->action)(evt, item->menu, item);
@@ -2105,7 +1398,7 @@ void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path) {
         SDL_DestroyTexture(ctrl->light_texture);
     }
 
-    ctrl->light_texture = load_light_texture(ctrl->renderer,path);
+    ctrl->light_texture = IMG_LoadTexture(ctrl->renderer, path);
 
 }
 
@@ -2373,7 +1666,7 @@ void menu_item_free(menu_item *item) {
             text_obj_free(item->label_default);
         }
         if (item->object) {
-            if (item->is_sub_menu) {
+            if (item->sub_menu) {
                 menu_free((menu *)item->object);
             } else {
                 free((void *) item->object);
@@ -2393,6 +1686,12 @@ void menu_free(menu *m) {
         }
         if (m->object) {
             free((void *) m->object);
+        }
+        if (m->default_color) {
+            free(m->default_color);
+        }
+        if (m->selected_color) {
+            free(m->selected_color);
         }
         free(m);
     }

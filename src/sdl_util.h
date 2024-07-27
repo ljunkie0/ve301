@@ -26,6 +26,8 @@
 #define to_Uint16(d) (Uint16) (d >= 0.0 ? (d + 0.5) : (d - 0.5))
 #define to_Sint16(d) (Sint16) (d >= 0.0 ? (d + 0.5) : (d - 0.5))
 
+#define DEFAULT_SDL_PIXELFORMAT SDL_PIXELFORMAT_RGBA32
+
 float Q_rsqrt( float number );
 SDL_Color *html_to_color_and_alpha(char *c, unsigned char *alpha);
 SDL_Color *html_to_color(char *c);
@@ -39,5 +41,5 @@ void hsv_to_rgb(double h, double s, double v, Uint8 *r, Uint8 *g, Uint8 *b);
 void rgb_to_hsv(Uint8 r, Uint8 g, Uint8 b, double *h, double *s, double *v);
 void html_print_color(char *name, SDL_Color *c);
 void apply_background_alpha(SDL_Color *fg_color, SDL_Color *bg_color, int alpha);
-SDL_Texture *create_light_texture(SDL_Renderer *renderer, int w, int h, int x, int y, int radius, int alpha);
+SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x, int light_y, int radius, int alpha);
 int init_SDL();

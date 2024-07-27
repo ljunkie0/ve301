@@ -29,8 +29,8 @@ typedef struct weather_struct {
 int init_weather(time_t update_interval, const char *api_key, const char *location, const char *units);
 int cleanup_weather();
 weather *get_weather();
-void start_weather_thread();
-
 typedef int weather_listener(weather *weather);
+void start_weather_thread(weather_listener *listener);
+
 
 #endif

@@ -284,24 +284,34 @@ void apply_background_alpha(SDL_Color *fg_color, SDL_Color *bg_color, int alpha)
     fg_color->b = to_Uint8(alpha * fg_color->b / 255 + (255 - alpha) * bg_color->b / 255);
 }
 
-SDL_Texture *create_light_texture(SDL_Renderer *renderer, int w, int h, int light_x, int light_y, int radius, int alpha) {
-    SDL_Texture *light_texture = SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_STATIC,w,h);
+SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x, int light_y, int radius, int alpha) {
+
+    SDL_Texture *light_texture = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STATIC,w,h);
+    SDL_SetTextureBlendMode(light_texture,SDL_BLENDMODE_MUL);
+    SDL_PixelFormat *format = SDL_AllocFormat(DEFAULT_SDL_PIXELFORMAT);
 
     Uint32 pixels[w*h];
+
     for (int y = 0; y < h; y++) {
         int o = w * y;
+        int sq_y = (y - light_y)*(y - light_y);
         for (int x = 0; x < w; x++) {
 
-            double d = SDL_sqrt((x - light_x)*(x - light_x) + (y - light_y)*(y - light_y));
-            double l = 255 - 255 * d / radius;
-            if (l < 0) l = 0;
-            if (l > 255) l = 255;
+            double d = SDL_sqrt((x - light_x)*(x - light_x) + sq_y);
+            double l = 255.0 - 255.0 * d / radius;
+            if (l < 0.0) l = 0.0;
+            if (l > 255.0) l = 255.0;
 
-            pixels[x+o] = SDL_MapRGBA(SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888),l,l,l,alpha);
+            Uint32 pixel = alpha;
+            if (l >= 0.0) {
+                pixel = SDL_MapRGBA(format,l,l,l,alpha);
+            }
+            pixels[x+o] = pixel;
 
         }
     }
 
+    SDL_FreeFormat(format);
     SDL_UpdateTexture(light_texture,NULL,pixels,4*w);
 
     return light_texture;

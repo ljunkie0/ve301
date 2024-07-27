@@ -136,6 +136,6 @@ JNIEXPORT jint JNICALL Java_org_ljunkie_ve301_MenuItem_is_1sub_1menu
 (JNIEnv *env, jobject obj, jlong menu_item_handle) {
     menu_item_jni *item_jni = (menu_item_jni *) menu_item_handle;
     menu_item *item = item_jni->item;
-    return item->is_sub_menu;
+    return item->sub_menu != NULL;
 }
 

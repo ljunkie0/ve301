@@ -3,7 +3,7 @@ CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
 LDFLAGS=
 STRIP=$(ARCH)-strip
 
-OBJS=base.o sdl_util.o menu.o audio.o main.o weather.o bluetooth.o
+OBJS=base.o sdl_util.o glyph_obj.o text_obj.o menu.o audio.o main.o weather.o bluetooth.o
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JNI_INCLUDES=-I /usr/lib/jvm/default-java/include -I /usr/lib/jvm/default-java/include/linux
