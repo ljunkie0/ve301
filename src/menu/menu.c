@@ -26,12 +26,12 @@
 #include <unistd.h>
 #include "../base.h"
 #include "../sdl_util.h"
+#ifdef RASPBERRY
+#include "../rotaryencoder.h"
+#endif
 #include "text_obj.h"
 #include "menu.h"
 
-#ifdef RASPBERRY
-#include"rotaryencoder.h"
-#endif
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
 #define RMASK 0xff000000
 #define GMASK 0x00ff0000

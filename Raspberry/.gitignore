@@ -7,3 +7,5 @@ rotaryencoder.o
 sdl_util.o
 weather.o
 java/
+config
+config.ve301
