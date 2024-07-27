@@ -6,3 +6,4 @@ menu.o
 rotaryencoder.o
 sdl_util.o
 weather.o
+java/
