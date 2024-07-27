@@ -3,7 +3,8 @@ CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
 LDFLAGS=
 STRIP=$(ARCH)-strip
 
-OBJS=base.o sdl_util.o glyph_obj.o text_obj.o menu.o audio.o main.o weather.o bluetooth.o
+MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu.o
+OBJS=base.o sdl_util.o $(MENU_OBJS) audio.o main.o weather.o bluetooth.o
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JNI_INCLUDES=-I /usr/lib/jvm/default-java/include -I /usr/lib/jvm/default-java/include/linux
@@ -34,8 +35,8 @@ all: ve301 libve301.so
 ve301: $(OBJS) $(ADDITIONAL_OBJS)
 	$(CC) -o ve301 $(LDFLAGS) $(OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
 
-libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o menu.o
-	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o menu.o $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
+libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o $(MENU_OBJS)
+	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o $(MENU_OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
 
 $(MPD_LIB):
 	sudo apt-get -y install libmpdclient-dev$(DPKG_ARCH)
@@ -52,6 +53,9 @@ $(DBUS_LIB):
 debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB)
 
 %.o: ../src/%.c ../src/%.h
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+menu/%.o: ../src/menu/%.c ../src/menu/%.h
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 main.o: ../src/main.c

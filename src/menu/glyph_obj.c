@@ -2,8 +2,8 @@
  * Represents one single character to be rendered
  **/
 #include <SDL2/SDL2_rotozoom.h>
-#include "base.h"
-#include "sdl_util.h"
+#include "../base.h"
+#include "../sdl_util.h"
 #include "glyph_obj.h"
 
 /**

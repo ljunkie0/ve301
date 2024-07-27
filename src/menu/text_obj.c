@@ -1,4 +1,4 @@
-#include "base.h"
+#include "../base.h"
 #include "text_obj.h"
 
 #define MAX_LABEL_LENGTH 25

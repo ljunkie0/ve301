@@ -24,8 +24,8 @@
 #include <execinfo.h>
 #include <SDL2/SDL2_rotozoom.h>
 #include <unistd.h>
-#include "base.h"
-#include "sdl_util.h"
+#include "../base.h"
+#include "../sdl_util.h"
 #include "text_obj.h"
 #include "menu.h"
 

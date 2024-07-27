@@ -18,7 +18,7 @@
  */
 
 #include "../base.h"
-#include "../menu.h"
+#include "../menu/menu.h"
 #include <jni.h>
 
 #ifndef MENU_JNI_H

@@ -25,7 +25,7 @@
 #include <netdb.h>
 #include <mpd/client.h>
 #include "base.h"
-#include "menu/menu.h"
+#include "menu.h"
 #include "audio.h"
 #include "weather.h"
 #include "bluetooth.h"
@@ -59,7 +59,7 @@
 #define DEFAULT_FONT_SIZE 24
 #define DEFAULT_INFO_FONT_SIZE 24
 #define CALLBACK_SECONDS 5
-#define CHECK_INTERNET_SECONDS 5
+#define CHECK_INTERNET_SECONDS 60
 #define CHECK_BLUETOOTH_SECONDS 1
 #define INFO_MENU_SECONDS 14
 #define INFO_MENU_ITEM_SECONDS 5
@@ -316,7 +316,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     if (evt == ACTIVATE) {
         menu_item *item = (menu_item *) item_ptr;
         log_debug(MAIN_CTX, "Action: %s\n", item->unicode_label);
-        if (item->sub_menu) {
+        if (item->is_sub_menu) {
             log_info(MAIN_CTX, "Sub menu: %s\n", item->unicode_label);
             if (item->sub_menu == radio_menu) {
                 update_radio_menu();
@@ -328,7 +328,6 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
                 update_directory_menu(item);
             }
         } else if (item->object && item->object_type == OBJ_TYPE_SONG) {
-            m_ptr->active_id = item->id;
             song *s = (song *) item->object;
             song *p = get_playing_song();
             if (!p || (p->id != s->id)) {
@@ -848,8 +847,6 @@ int weather_lstnr(weather *weather) {
 menu_ctrl *create_menu() {
 
     char *font = get_config_value("font", DEFAULT_FONT);
-    char *info_font = get_config_value("info_font", font);
-    char *info_bg_image_path = get_config_value("info_bg_image_path", NULL);
     int font_size = get_config_value_int("font_size",DEFAULT_FONT_SIZE);
     int info_font_size = get_config_value_int("info_font_size",DEFAULT_INFO_FONT_SIZE);
     char *weather_font = get_config_value("weather_font", DEFAULT_FONT);
@@ -874,7 +871,6 @@ menu_ctrl *create_menu() {
     hsv_style = get_config_value_int("hsv_style",0);
 
     default_theme = get_config_theme ("Default");
-    char *info_color = get_config_value_group("info_color", NULL, "Default");
     bluetooth_theme = get_config_theme("Bluetooth");
     spotify_theme = get_config_theme("Spotify");
 
@@ -891,17 +887,6 @@ menu_ctrl *create_menu() {
 
         ctrl->root[0]->current_id = 0;
 
-        info_menu = ctrl->root[0];
-        if (info_color != NULL) {
-            menu_set_colors(info_menu, html_to_color(info_color), html_to_color(info_color));
-        }
-
-        if (info_bg_image_path) {
-            menu_set_bg_image(info_menu, info_bg_image_path);
-        }
-
-        info_menu->transient = 1;
-
         time_t timer;
         time(&timer);
         struct tm *tm_info = localtime(&timer);
@@ -910,10 +895,10 @@ menu_ctrl *create_menu() {
         char *buffer = malloc(25 * sizeof(char));
         strftime(buffer, 25, time_menu_item_format, tm_info);
 
-        time_item = menu_item_new(ctrl->root[0], buffer, NULL, OBJ_TYPE_TIME, info_font, time_font_size, NULL, NULL, -1);
+        time_item = menu_item_new(ctrl->root[0], buffer, NULL, OBJ_TYPE_TIME, font, time_font_size, NULL, NULL, -1);
         free(buffer);
-        title_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, info_font, info_font_size, NULL, NULL, -1);
-        name_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, info_font, info_font_size, NULL, NULL, -1);
+        title_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, font, info_font_size, NULL, NULL, -1);
+        name_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, font, info_font_size, NULL, NULL, -1);
 
         const char *weather_api_key = get_config_value("weather_api_key", "");
         const char *weather_location = get_config_value("weather_location", "");
@@ -921,19 +906,19 @@ menu_ctrl *create_menu() {
         if (strlen(weather_api_key) > 0 && strlen(weather_location) > 0) {
             init_weather(120,weather_api_key,weather_location,weather_units);
             weather_item = menu_item_new(ctrl->root[0], " ", NULL, UNKNOWN_OBJECT_TYPE, weather_font, weather_font_size, NULL, font, font_size);
-            temperature_item = menu_item_new(ctrl->root[0], "Weather", NULL, UNKNOWN_OBJECT_TYPE, info_font, temp_font_size, NULL, font, font_size);
+            temperature_item = menu_item_new(ctrl->root[0], "Weather", NULL, UNKNOWN_OBJECT_TYPE, font, temp_font_size, NULL, font, font_size);
             start_weather_thread(&weather_lstnr);
         } else {
             weather_item = NULL;
         }
 
+        info_menu = ctrl->root[0];
+        info_menu->transient = 1;
         ctrl->active = NULL;
 
         radio_menu = menu_new(ctrl, 3);
-        radio_menu->segments_per_item = 1;
-        radio_menu->n_o_items_on_scale = 4 * ctrl->n_o_items_on_scale;
         radio_menu->radius_labels = radio_radius_labels;
-
+        radio_menu->n_o_items_on_scale = radio_menu->n_o_lines * ctrl->n_o_items_on_scale;
         playlist *internet_radios = get_internet_radios();
         if (internet_radios != NULL) {
             Uint32 r = 0;
@@ -978,11 +963,8 @@ menu_ctrl *create_menu() {
         volume_menu = menu_new_root(ctrl,1);
         volume_menu->transient = 1;
         volume_menu->draw_only_active = 1;
-        if (info_bg_image_path) {
-            menu_set_bg_image(volume_menu, info_bg_image_path);
-        }
         int volume = get_volume();
-        volume_menu_item = menu_item_new(volume_menu,get_vol_label(volume),NULL,UNKNOWN_OBJECT_TYPE,info_font,info_font_size,NULL, NULL, -1);
+        volume_menu_item = menu_item_new(volume_menu,get_vol_label(volume),NULL,UNKNOWN_OBJECT_TYPE,font,info_font_size,NULL, NULL, -1);
 
     }
 
