@@ -9,10 +9,10 @@
 /**
 * For bump mapping
 **/
-typedef struct normal_vector {
+struct normal_vector {
     double x;
     double y;
-} normal_vector;
+};
 
 static double *cosinuses = NULL;
 static double *sinuses = NULL;
@@ -59,7 +59,6 @@ void glyph_obj_free(glyph_obj *obj) {
                 if (obj->bumpmap_textures[a]) {
                     SDL_DestroyTexture(obj->bumpmap_textures[a]);
                 }
-                //free(obj->lights);
             }
         }
 
@@ -244,8 +243,8 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
     }
 
     int idx = (int) (10.0 * (angle + 360.0));
-    double c = cosinuses[idx];
     double s = sinuses[idx];
+    double c = cosinuses[idx];
     if (c > 1.0) {
         double angle_rad = M_PI * angle / 180.0;
         c = cosf(angle_rad);

@@ -21,18 +21,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <regex.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
 #include <netdb.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <ifaddrs.h>
 
 #define INTERNET_CHECK_HOST "www.google.com"
 
 FILE *log_file;
 char *user_home;
+const char *config_path = 0;
 static char *__app;
 static char *__log_prefix;
 
@@ -293,6 +297,50 @@ int index_of(const char *str, const char chr) {
 }
 */
 
+network_interfaces *get_network_interfaces() {
+
+    struct ifaddrs* ptr_ifaddrs = NULL;
+    int r = getifaddrs(&ptr_ifaddrs);
+
+    if (r) {
+        return 0;
+    }
+
+    network_interfaces *interfaces = malloc(sizeof(network_interfaces));
+    interfaces->n = 0;
+    interfaces->interfaces = NULL;
+
+    for (struct ifaddrs* ptr_entry = ptr_ifaddrs; ptr_entry; ptr_entry = ptr_entry->ifa_next) {
+        sa_family_t address_family = ptr_entry->ifa_addr->sa_family;
+        if( address_family == AF_INET ) {
+            interfaces->n++;
+            interfaces->interfaces = realloc(interfaces->interfaces,interfaces->n*sizeof(network_interface));
+            network_interface *interface = malloc(sizeof(network_interface));
+            interfaces->interfaces[interfaces->n-1] = interface;
+
+            interface->ifname = my_copystr(ptr_entry->ifa_name);
+            if( ptr_entry->ifa_addr){
+                char buffer[INET_ADDRSTRLEN] = {0, };
+                inet_ntop(
+                    address_family,
+                    &((struct sockaddr_in*)(ptr_entry->ifa_addr))->sin_addr,
+                    buffer,
+                    INET_ADDRSTRLEN
+                    );
+                interface->ipaddress = my_copystr(buffer);
+
+                log_info(BASE_CTX,"%s: %s\n", interface->ifname, interface->ipaddress);
+
+            }
+        }
+
+    }
+
+    freeifaddrs(ptr_ifaddrs);
+
+    return interfaces;
+}
+
 int check_internet() {
     const char *hostname = INTERNET_CHECK_HOST;
     struct addrinfo *result;
@@ -495,7 +543,9 @@ char *get_config_value_group (char *key, const char *dflt, const char *group) {
     }
 
     if (!value) {
-        value = (char *) dflt;
+        if (dflt) {
+            value = my_copystr((char *) dflt);
+        }
     } else {
         value = my_copystr(value);
     }
@@ -503,12 +553,58 @@ char *get_config_value_group (char *key, const char *dflt, const char *group) {
     return value;
 }
 
+char *get_absolute_path(char *path) {
+    char *absolute_path = NULL;
+    if (path && path[0] != '/') {
+        char *tmp = my_catstr("/", path);
+        absolute_path = my_catstr(config_path, tmp);
+        free(tmp);
+    } else {
+        absolute_path = my_copystr(path);
+    }
+
+    if (path) {
+        free(path);
+    }
+
+    return absolute_path;
+
+}
+
+char *get_config_value_path_group (char *key, const char *dflt, const char *group) {
+    char *value = 0;
+    if (__config) {
+        config_entry *entry = find_config_entry (key, group);
+        if (entry) {
+            value = entry->value;
+        }
+    }
+
+    if (!value) {
+        if (dflt) {
+            value = my_copystr((char *) dflt);
+        }
+    } else {
+        value = my_copystr(value);
+    }
+
+    if (value) {
+        value = get_absolute_path(value);
+    }
+
+    return value;
+}
+
+char *get_config_value_path (char *key, const char *dflt) {
+    return get_config_value_path_group(key,dflt,NULL);
+}
+
 char *get_config_value (char *key, const char *dflt) {
     return get_config_value_group(key,dflt,NULL);
 }
 
 int get_config_value_int_group(char *key, int dflt, const char *group) {
-    char *value_string = get_config_value(key, group);
+    char *value_string = get_config_value_group(key, NULL, group);
     int value_int = 0;
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
@@ -528,7 +624,7 @@ int get_config_value_int(char *key, int dflt) {
 
 float get_config_value_float_group(char *key, float dflt, const char *group) {
 
-    char *value_string = get_config_value(key, group);
+    char *value_string = get_config_value_group(key, NULL, group);
     float value_float = 0;
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
@@ -548,7 +644,7 @@ float get_config_value_float(char *key, float dflt) {
 
 double get_config_value_double_group(char *key, double dflt, const char *group) {
 
-    char *value_string = get_config_value(key, group);
+    char *value_string = get_config_value_group(key, NULL, group);
     double value_double = 0;
     if (value_string) {
         log_info(BASE_CTX, "%s: %s\n", key, value_string);
@@ -634,18 +730,18 @@ void read_config_file(const char *config_file_name) {
                                 } else {
                                     char *last_sep = strrchr(config_file_name,'/');
                                     char *s = (char *) config_file_name;
-                                    char *config_path = NULL;
+                                    char *sub_config_path = NULL;
                                     int pl = 0;
                                     while (s != last_sep) {
                                         pl = pl + 1;
-                                        config_path = (char *) realloc(config_path, pl * sizeof(char));
-                                        config_path[pl-1] = *s;
+                                        sub_config_path = (char *) realloc(sub_config_path, pl * sizeof(char));
+                                        sub_config_path[pl-1] = *s;
                                         s = s + 1;
                                     }
-                                    config_path = (char *) realloc(config_path, (pl+2) * sizeof(char));
-                                    config_path[pl] = '/';
-                                    config_path[pl+1] = 0;
-                                    path = my_catstr(config_path,p);
+                                    sub_config_path = (char *) realloc(sub_config_path, (pl+2) * sizeof(char));
+                                    sub_config_path[pl] = '/';
+                                    sub_config_path[pl+1] = 0;
+                                    path = my_catstr(sub_config_path,p);
                                 }
 
                                 read_config_file(path);
@@ -682,7 +778,6 @@ void init_config_file(const char *appname) {
 
         user_home = getenv ("HOME");
         log_info (BASE_CTX, "Home: %s\n", user_home);
-        const char *config_path = 0;
         if (user_home) {
             config_path = my_catstr (user_home, my_catstr ("/.", appname));
         } else {

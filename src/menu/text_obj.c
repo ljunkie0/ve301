@@ -174,7 +174,7 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
                     shadow_dst_rec.h = glyph_obj->dst_rect->h;
 
                     for (int so = shadow_offset; so > 0; so--) {
-                        int sa = (shadow_offset- so + 1)*shadow_alpha / (shadow_offset);
+                        int sa = (shadow_offset - so + 1)*shadow_alpha / (shadow_offset);
                         SDL_SetTextureAlphaMod(texture,sa);
                         shadow_dst_rec.x = glyph_obj->dst_rect->x+so*glyph_obj->shadow_dx;
                         shadow_dst_rec.y = glyph_obj->dst_rect->y+so*glyph_obj->shadow_dy;

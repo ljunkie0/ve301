@@ -22,10 +22,10 @@ RUN mkdir /build \
         libcurl4-gnutls-dev:armhf \
         libcjson-dev:armhf \
         openjdk-11-jdk-headless:armhf \
-        git \
         bc \
         dpkg-dev \
         liblzma-dev \
         pkg-config \
         gettext-base \
+	libmnl-dev \
         && rm -rf /var/lib/apt/lists/*

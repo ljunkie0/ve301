@@ -149,7 +149,7 @@ JNIEXPORT jint JNICALL Java_org_ljunkie_ve301_MenuControl_menu_1set_1style
         bg_image_path_chr = (char *) (*env)->GetStringUTFChars(env, bg_image_path, NULL);
     }
     menu_ctrl_jni *ctrl = (menu_ctrl_jni *) menu_ctrl_handle;
-    return menu_ctrl_set_style(ctrl->ctrl,background_color_chr,scale_color_chr,indicator_color_chr,default_color_chr,selected_color_chr,activated_color_chr,bg_image_path_chr,bg_from_time,1,0,0,0,NULL,0,NULL,0);
+    return menu_ctrl_set_style(ctrl->ctrl,background_color_chr,scale_color_chr,indicator_color_chr,default_color_chr,selected_color_chr,activated_color_chr,bg_image_path_chr,1,0,0,0,NULL,0,NULL,0);
 }
 
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"

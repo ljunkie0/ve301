@@ -4,7 +4,7 @@ LDFLAGS=
 STRIP=$(ARCH)-strip
 
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu.o
-OBJS=base.o sdl_util.o $(MENU_OBJS) audio.o main.o weather.o bluetooth.o
+OBJS=base.o sdl_util.o $(MENU_OBJS) audio.o weather.o bluetooth.o
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JNI_INCLUDES=-I /usr/lib/jvm/default-java/include -I /usr/lib/jvm/default-java/include/linux
@@ -33,7 +33,7 @@ DBUS_LIB=/usr/lib/$(ARCH)/libdbus-1.so
 all: ve301 libve301.so
 
 ve301: $(OBJS) $(ADDITIONAL_OBJS)
-	$(CC) -o ve301 $(LDFLAGS) $(OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
+	$(CC) -o ve301 $(LDFLAGS) $(OBJS) $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
 
 libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o $(MENU_OBJS)
 	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o $(MENU_OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
@@ -62,7 +62,7 @@ menu/%.o: ../src/menu/%.c ../src/menu/%.h menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 main.o: ../src/main.c
-	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ main.o "$<"
 
 bluetooth.o: ../src/bluetooth.c
 	$(CC) ${CFLAGS_DBUS} $(CFLAGS) -c ../src/bluetooth.c
@@ -70,9 +70,16 @@ bluetooth.o: ../src/bluetooth.c
 bluetooth: bluetooth.o
 	$(CC) -o bluetooth bluetooth.o -ldbus-1
 
+test_menu.o: ../src/test_menu.c
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+	
+test_menu: test_menu.o ${MENU_OBJS} base.o sdl_util.o
+	$(CC) -o test_menu test_menu.o $(MENU_OBJS) base.o sdl_util.o $(LDFLAGS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
+
 java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 	mkdir -p java
 	$(CC) $(JNI_INCLUDES) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
 
 clean:
 	rm -f $(OBJS) $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301

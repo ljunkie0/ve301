@@ -130,7 +130,7 @@ static menu_item *weather_item;
 static menu_item *temperature_item;
 static menu *volume_menu;
 static menu_item *volume_menu_item;
-static menu *settings_menu;
+static menu *system_menu;
 
 static weather wthr;
 
@@ -311,6 +311,28 @@ int menu_action_listener_dbg(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     return 0;
 }
 
+int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
+
+    if (item->sub_menu) {
+        menu_clear(item->sub_menu);
+    }
+
+    network_interfaces *interfaces = get_network_interfaces();
+    if (interfaces) {
+        for (int i = 0; i < interfaces->n; i++) {
+            network_interface *interface = interfaces->interfaces[i];
+            char *tmp = my_catstr(interface->ifname, ": ");
+            char *label = my_catstr(tmp, interface->ipaddress);
+            free(tmp);
+            menu_item_new(item->sub_menu,label,NULL,UNKNOWN_OBJECT_TYPE,NULL,-1,NULL,NULL,-1);
+            free(interface);
+        }
+        free(interfaces);
+    }
+
+    return 0;
+}
+
 int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     log_config(MAIN_CTX, "action(%d)\n",evt);
     if (evt == ACTIVATE) {
@@ -436,104 +458,6 @@ int item_action_label_radius(menu_event evt, menu *m, menu_item *item) {
     return 0;
 }
 
-int item_action_background_hue(menu_event evt, menu *m, menu_item *item) {
-    if (evt == TURN_LEFT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->background_color->r,m->ctrl->background_color->g,m->ctrl->background_color->b,&h,&s,&v);
-        h = h + 2;
-        menu_ctrl_set_bg_color_hsv(m->ctrl,h,s,v);
-        Uint8 r,g,b;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        char *html = rgb_to_html(r,g,b);
-        set_config_value("background_color",html);
-        free(html);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    } else if (evt == TURN_RIGHT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->background_color->r,m->ctrl->background_color->g,m->ctrl->background_color->b,&h,&s,&v);
-        h = h - 2;
-        menu_ctrl_set_bg_color_hsv(m->ctrl,h,s,v);
-        Uint8 r,g,b;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        char *html = rgb_to_html(r,g,b);
-        set_config_value("background_color",html);
-        free(html);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    }
-    return 0;
-}
-
-int item_action_default_hue(menu_event evt, menu *m, menu_item *item) {
-    if (evt == TURN_LEFT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->default_color->r,m->ctrl->default_color->g,m->ctrl->default_color->b,&h,&s,&v);
-        Uint8 r,g,b;
-        h = h + 5;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        menu_ctrl_set_default_color_rgb(m->ctrl,r,g,b);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    } else if (evt == TURN_RIGHT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->default_color->r,m->ctrl->default_color->g,m->ctrl->default_color->b,&h,&s,&v);
-        Uint8 r,g,b;
-        h = h - 5;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        menu_ctrl_set_default_color_rgb(m->ctrl,r,g,b);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    }
-    return 0;
-}
-
-int item_action_selected_hue(menu_event evt, menu *m, menu_item *item) {
-    if (evt == TURN_LEFT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->selected_color->r,m->ctrl->selected_color->g,m->ctrl->selected_color->b,&h,&s,&v);
-        Uint8 r,g,b;
-        h = h + 5;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        menu_ctrl_set_selected_color_rgb(m->ctrl,r,g,b);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    } else if (evt == TURN_RIGHT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->selected_color->r,m->ctrl->selected_color->g,m->ctrl->selected_color->b,&h,&s,&v);
-        Uint8 r,g,b;
-        h = h - 5;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        menu_ctrl_set_selected_color_rgb(m->ctrl,r,g,b);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    }
-    return 0;
-}
-
-int item_action_active_hue(menu_event evt, menu *m, menu_item *item) {
-    if (evt == TURN_LEFT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->activated_color->r,m->ctrl->activated_color->g,m->ctrl->activated_color->b,&h,&s,&v);
-        Uint8 r,g,b;
-        h = h + 5;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        menu_ctrl_set_active_color_rgb(m->ctrl,r,g,b);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    } else if (evt == TURN_RIGHT_1) {
-        double h,s,v;
-        rgb_to_hsv(m->ctrl->activated_color->r,m->ctrl->activated_color->g,m->ctrl->activated_color->b,&h,&s,&v);
-        Uint8 r,g,b;
-        h = h - 5;
-        hsv_to_rgb(h,s,v,&r,&g,&b);
-        menu_ctrl_set_active_color_rgb(m->ctrl,r,g,b);
-        menu_ctrl_draw(ctrl);
-        reset_info_menu_timer();
-    }
-    return 0;
-}
-
 int item_action_store_config(menu_event evt, menu *m, menu_item *item) {
     write_config();
     return 0;
@@ -544,47 +468,21 @@ int item_action_scale_radius_decrease(menu_event evt, menu *m, menu_item *item) 
     return 0;
 }
 
-theme *get_config_theme(char *theme_name) {
+theme *get_config_theme(const char *theme_name) {
     theme *th = malloc (sizeof(theme));
     th->background_color = get_config_value_group("background_color", get_config_value("background_color", "#ffffff"), theme_name);
-    th->bg_color_of_time = get_config_value_int_group("bg_color_from_time", get_config_value_int("bg_color_from_time", 0), theme_name);
     th->scale_color = get_config_value_group("scale_color", get_config_value("scale_color", "#ff0000"), theme_name);
     th->indicator_color = get_config_value_group("indicator_color", get_config_value("indicator_color", "#ff0000"), theme_name);
     th->default_color = get_config_value_group("default_color", get_config_value("default_color", "#00ff00"), theme_name);
     th->selected_color = get_config_value_group("selected_color", get_config_value("selected_color", "#0000ff"), theme_name);
     th->activated_color = get_config_value_group("activated_color", get_config_value("activated_color", "#00ffff"), theme_name);
-    th->bg_image_path = get_config_value_group("bg_image_path", get_config_value("bg_image_path", 0), theme_name);
+    th->bg_image_path = get_config_value_path_group("bg_image_path", get_config_value("bg_image_path", 0), theme_name);
     th->font_bumpmap = get_config_value_int_group("font_bumpmap", get_config_value_int("font_bumpmap", 0), theme_name);
     th->shadow_offset = get_config_value_int_group("shadow_offset",get_config_value_int("shadow_offset",0), theme_name);
     th->shadow_alpha = get_config_value_int_group("shadow_alpha", get_config_value_int("shadow_alpha", 0), theme_name);
-    th->bg_color_palette = NULL;
     th->bg_cp_colors = 0;
     th->fg_color_palette = NULL;
     th->fg_cp_colors = 0;
-
-    char *bg_color_palette = get_config_value("bg_color_palette", 0);
-    if (bg_color_palette) {
-        th->bg_cp_colors = 0;
-        char *color = strtok(bg_color_palette,",");
-        while (color != NULL) {
-            th->bg_cp_colors = th->bg_cp_colors + 1;
-            th->bg_color_palette = realloc(th->bg_color_palette,th->bg_cp_colors*sizeof(char *));
-            th->bg_color_palette[th->bg_cp_colors-1] = color;
-            color = strtok(NULL,",");
-        }
-    }
-
-    char *fg_color_palette = get_config_value("fg_color_palette", 0);
-    if (fg_color_palette) {
-        th->fg_cp_colors = 0;
-        char *color = strtok(fg_color_palette,",");
-        while (color != NULL) {
-            th->fg_cp_colors = th->fg_cp_colors + 1;
-            th->fg_color_palette = realloc(th->fg_color_palette,th->fg_cp_colors*sizeof(char *));
-            th->fg_color_palette[th->fg_cp_colors-1] = color;
-            color = strtok(NULL,",");
-        }
-    }
 
     return th;
 }
@@ -756,35 +654,6 @@ int menu_call_back(menu_ctrl *m_ptr) {
 
         callback_t = timer;
 
-        if (hsv_style) {
-
-            double day_seconds = (current_tm_info->tm_sec + current_tm_info->tm_min * 60.0 + current_tm_info->tm_hour * 3600.0);
-            log_info(MAIN_CTX, "Day seconds: %f\n", day_seconds);
-            double day_fraction = day_seconds / 86400.0;
-            log_info(MAIN_CTX, "Day fraction: %f\n", day_fraction);
-            double color_temp = 1000.0 + day_fraction * (11100.0 - 1000.0);
-            log_info(MAIN_CTX, "Color temp: %f\n", color_temp);
-
-            Uint8 r,g,b;
-
-            double value = 0.5 * (1.0-cos(2.0*day_fraction*M_PI));
-
-            color_temp_to_rgb(color_temp,&r,&g,&b,value);
-
-            menu_ctrl_set_bg_color_rgb(ctrl, r,g,b);
-
-            if (value > 0.2) {
-                menu_ctrl_set_active_color_hsv(ctrl, 0, 0, 0.0);
-                menu_ctrl_set_default_color_hsv(ctrl, 0, 0, 0.0);
-                menu_ctrl_set_selected_color_hsv(ctrl, 0, 0, 0.0);
-            } else {
-                menu_ctrl_set_active_color_hsv(ctrl, 0, 0, 1.0);
-                menu_ctrl_set_default_color_hsv(ctrl, 0, 0, 1.0);
-                menu_ctrl_set_selected_color_hsv(ctrl, 0, 0, 1.0);
-            }
-
-        }
-
         if (!bt_device_status) {
             current_song = get_playing_song();
             if (current_song) {
@@ -847,12 +716,12 @@ int weather_lstnr(weather *weather) {
 
 menu_ctrl *create_menu() {
 
-    char *font = get_config_value("font", DEFAULT_FONT);
-    char *info_font = get_config_value("info_font", font);
-    char *info_bg_image_path = get_config_value("info_bg_image_path", NULL);
+    char *font = get_config_value_path("font", DEFAULT_FONT);
+    char *info_font = get_config_value_path("info_font", font);
+    char *info_bg_image_path = get_config_value_path("info_bg_image_path", NULL);
     int font_size = get_config_value_int("font_size",DEFAULT_FONT_SIZE);
     int info_font_size = get_config_value_int("info_font_size",DEFAULT_INFO_FONT_SIZE);
-    char *weather_font = get_config_value("weather_font", DEFAULT_FONT);
+    char *weather_font = get_config_value_path("weather_font", DEFAULT_FONT);
     int weather_font_size = get_config_value_int("weather_font_size", info_font_size);
     int temp_font_size = get_config_value_int("temperature_font_size", info_font_size);
     int time_font_size = get_config_value_int("time_font_size",info_font_size);
@@ -868,13 +737,14 @@ menu_ctrl *create_menu() {
     int light_y = get_config_value_int("light_y", 100);
     int light_radius = get_config_value_int("light_radius", 300);
     int light_alpha = get_config_value_int("light_alpha", 0);
-    char *light_img = get_config_value("light_image_path",NULL);
+    char *light_img = get_config_value_path("light_image_path",NULL);
     int radio_radius_labels = get_config_value_int("radio_radius_labels", radius_labels);
     info_menu_item_seconds = get_config_value_int("info_menu_item_seconds",INFO_MENU_ITEM_SECONDS);
     hsv_style = get_config_value_int("hsv_style",0);
 
     default_theme = get_config_theme ("Default");
     char *info_color = get_config_value_group("info_color", NULL, "Default");
+    char *info_scale_color = get_config_value_group("info_scale_color", NULL, "Default");
     bluetooth_theme = get_config_theme("Bluetooth");
     spotify_theme = get_config_theme("Spotify");
 
@@ -892,9 +762,19 @@ menu_ctrl *create_menu() {
         ctrl->root[0]->current_id = 0;
 
         info_menu = ctrl->root[0];
+
+        SDL_Color *info_default_clr = NULL, *info_selected_clr = NULL;
         if (info_color != NULL) {
-            menu_set_colors(info_menu, html_to_color(info_color), html_to_color(info_color));
+            info_default_clr = html_to_color(info_color);
+            info_selected_clr = html_to_color(info_color);
         }
+
+        SDL_Color *info_scale_clr = NULL;
+        if (info_scale_color != NULL) {
+            info_scale_clr = html_to_color(info_scale_color);
+        }
+
+        menu_set_colors(info_menu, info_default_clr, info_selected_clr, info_scale_clr);
 
         if (info_bg_image_path) {
             menu_set_bg_image(info_menu, info_bg_image_path);
@@ -953,21 +833,11 @@ menu_ctrl *create_menu() {
         menu_add_sub_menu(nav_menu, "Radio", radio_menu, NULL);
         menu_add_sub_menu(nav_menu, "Bibliothek", lib_menu, NULL);
 
-        settings_menu = menu_new(ctrl,1);
-        menu_item_new(settings_menu, "X Offset", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_x_offset, NULL, -1);
-        //menu_item_new(settings_menu, "X Offset-", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_offset_left, NULL, -1);
-        menu_item_new(settings_menu, "Y Offset", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_y_offset, NULL, -1);
-        menu_item_new(settings_menu, "Label Radius", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_label_radius, NULL, -1);
-        menu_item_new(settings_menu, "Einstellungen Speichern", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_store_config, NULL, -1);
-        menu_add_sub_menu(nav_menu, "Einstellungen", settings_menu, NULL);
+        system_menu = menu_new(ctrl,1);
+        menu_add_sub_menu(nav_menu, "System", system_menu, NULL);
 
-        menu *themes_menu = menu_new(ctrl,1);
-        menu_item_new(themes_menu, "Background", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_background_hue, NULL, -1);
-        menu_item_new(themes_menu, "Default Foreground", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_default_hue, NULL, -1);
-        menu_item_new(themes_menu, "Selected Foreground", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_selected_hue, NULL, -1);
-        menu_item_new(themes_menu, "Active Foreground", NULL, OBJECT_TYPE_ACTION, NULL, -1, &item_action_active_hue, NULL, -1);
-
-        menu_add_sub_menu(settings_menu,"Theme", themes_menu, NULL);
+        menu *network_menu = menu_new(ctrl,1);
+        menu_add_sub_menu(system_menu, "Network", network_menu, item_action_update_network_menu);
 
         root_dir_menu = menu_new(ctrl,1);
         menu_item *dir_menu_item = menu_add_sub_menu(nav_menu, "Verzeichnisse", root_dir_menu, item_action_update_directories_menu);

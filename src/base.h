@@ -88,7 +88,18 @@ void __log_trace(const int log_ctx, const char *__restrict __format, ...);
 
 int log_level_enabled(const int log_ctx, const int lvl);
 
+typedef struct network_interface {
+    char *ifname;
+    char *ipaddress;
+} network_interface;
+
+typedef struct network_interfaces {
+    int n;
+    network_interface **interfaces;
+} network_interfaces;
+
 int check_internet (void);
+network_interfaces *get_network_interfaces();
 
 void set_config_value(char *key, char *value);
 void set_config_value_int (char *key, int value);
@@ -102,6 +113,8 @@ float get_config_value_float(char *key, float dflt);
 float get_config_value_float_group(char *key, float dflt, const char *group);
 double get_config_value_double(char *key, double dflt);
 double get_config_value_double_group(char *key, double dflt, const char *group);
+char *get_config_value_path_group (char *key, const char *dflt, const char *group);
+char *get_config_value_path (char *key, const char *dflt);
 
 void base_close(void);
 void base_init(const char *appname, FILE *dflt_log_file, int log_level);
@@ -110,5 +123,7 @@ void write_config ();
 
 uint16_t *to_unicode(const char *txt, uint32_t *length, uint16_t **second_line, uint32_t *length2);
 char *to_utf8(uint32_t utf, uint32_t *length);
+
+char *my_catstr (const char *str1, const char *str2);
 
 #endif

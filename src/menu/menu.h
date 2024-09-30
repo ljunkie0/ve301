@@ -24,8 +24,6 @@
 #include<SDL2/SDL_ttf.h>
 #include<SDL2/SDL_image.h>
 
-#include "glyph_obj.h"
-
 #define UNKNOWN_OBJECT_TYPE -1
 #define OBJECT_TYPE_ACTION -2
 
@@ -99,6 +97,7 @@ typedef struct menu {
     menu *parent;
     menu_ctrl *ctrl;
     SDL_Texture *bg_image;
+    SDL_Color *scale_color; /* The color of the scales */
     SDL_Color *default_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */
     SDL_Color *selected_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */
     uint8_t transient;
@@ -111,7 +110,6 @@ typedef struct menu {
 
 typedef struct theme {
     char *background_color;
-    int bg_color_of_time; /* Change background color over day */
     char *scale_color;
     char *indicator_color;
     char *default_color;
@@ -162,7 +160,6 @@ struct menu_ctrl {
     int font_size;
     TTF_Font *font2;
     int font_size2;
-    int bg_color_of_time; /* Change background color over day */
     SDL_Color *scale_color; /* The color of the scales */
     SDL_Color *default_color; /* The default foregound color */
     SDL_Color *selected_color; /* The foreground color of the selected item */
@@ -175,19 +172,15 @@ struct menu_ctrl {
     int shadow_offset; /* The offset of the drop shadow (0 -> no shadow) */
     Uint8 shadow_alpha; /* The alpha of the drop shadow */
     Uint8 indicator_alpha;
-    SDL_Window *display;
-    SDL_Renderer *renderer;
     SDL_Texture *bg_image;
-    char **bg_color_palette;
-    int bg_cp_colors;
-    char **fg_color_palette;
-    int fg_cp_colors;
     double bg_segment;
     theme *theme;
     SDL_Texture *light_texture;
     menu_callback *call_back;
     item_action *action;
     int warping;
+    SDL_Window *display;
+    SDL_Renderer *renderer;
     /**
      * User data
     **/
@@ -204,7 +197,7 @@ menu_item *menu_item_next(menu *m, menu_item *item);
 menu *menu_new(menu_ctrl *ctrl, int lines);
 menu *menu_new_root(menu_ctrl *ctrl, int lines);
 int menu_set_bg_image(menu *m, char *bgImagePath);
-int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color);
+int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color, SDL_Color *scale_color);
 menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action);
 menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_action *action);
 int menu_open_sub_menu(menu_ctrl *ctrl, menu_item *item);
@@ -217,10 +210,6 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
 void menu_ctrl_loop(menu_ctrl *ctrl);
 void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_start, int radius_scales_end);
 int menu_ctrl_apply_theme(menu_ctrl *ctrl, theme *theme);
-int menu_ctrl_set_bg_color_hsv(menu_ctrl *ctrl, double h, double s, double v);
-int menu_ctrl_set_default_color_hsv(menu_ctrl *ctrl, double h, double s, double v);
-int menu_ctrl_set_active_color_hsv(menu_ctrl *ctrl, double h, double s, double v);
-int menu_ctrl_set_selected_color_hsv(menu_ctrl *ctrl, double h, double s, double v);
 int menu_ctrl_set_bg_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 int menu_ctrl_set_default_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 int menu_ctrl_set_active_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
@@ -228,7 +217,7 @@ int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b)
 void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha);
 void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path);
 int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator,
-                        char *def, char *selected, char *activated, char *bgImagePath, int bg_from_time, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors);
+                        char *def, char *selected, char *activated, char *bgImagePath, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors);
 void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset);
 void menu_dispose(menu *menu);
 int menu_ctrl_draw(menu_ctrl *ctrl);
