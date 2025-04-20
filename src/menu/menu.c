@@ -61,8 +61,6 @@
 static SDL_Color black = { 0, 0, 0, 255 };
 static SDL_Color white = { 255, 255, 255, 255 };
 
-static int current_hour = -1;
-
 /* For FPS measuring */
 static Uint32 render_start_ticks;
 
@@ -76,14 +74,70 @@ typedef enum {
     ACTIVE, SELECTED, DEFAULT
 } menu_item_state;
 
-void menu_turn_left(menu *m);
-void menu_turn_right(menu *m);
+void __menu_turn_left(menu *m, int redraw);
+void __menu_turn_right(menu *m, int redraw);
 void menu_fade_out(menu *menu_frm, menu *menu_to);
-int menu_ctrl_draw_scale(menu_ctrl *ctrl, double xc, double yc, double r, double R, double angle, unsigned char alpha, int lines);
+int menu_draw_scale(menu *m, double xc, double yc, double r, double R, double angle, unsigned char alpha, int lines);
 int menu_ctrl_clear(menu_ctrl *ctrl, double angle);
 int menu_ctrl_process_events(menu_ctrl *ctrl);
 int menu_draw(menu *m, int clear, int render);
 int menu_ctrl_apply_light(menu_ctrl *ctrl);
+
+TTF_Font *my_OpenTTF_Font(const char *path, const int size) {
+	if (!path) {
+		return NULL;
+	}
+	if (size == 0) {
+		return NULL;
+	}
+	log_config(MENU_CTX, "Opening font %s with size %d\n", path, size);
+	return TTF_OpenFont(path,size);
+}
+
+int menu_action(menu_event evt, menu_ctrl *ctrl, menu *menu) {
+
+    if (menu && menu->action) {
+        return ((item_action*)menu->action)(evt, menu, NULL);
+    } else if (ctrl->current && ctrl->current->action) {
+        return ctrl->current->action(evt, ctrl->current, NULL);
+    } else if (ctrl->action) {
+        return ((item_action*)ctrl->action)(evt, ctrl->current, NULL);
+    }
+
+    return 0;
+
+}
+
+int menu_item_action(menu_event evt, menu_ctrl *ctrl, menu_item *item) {
+
+    if (item) {
+        int result = 1;
+        if (item->action) {
+            result |= ((item_action*)item->action)(evt, item->menu, item);
+        } else if (item->menu->action) {
+            result |= ((item_action*)item->menu->action)(evt, item->menu, item);
+        } else if (ctrl->current && ctrl->current->action) {
+            result |= ctrl->current->action(evt, ctrl->current, item);
+        } else if (ctrl->action) {
+            result |= ((item_action*)ctrl->action)(evt, ctrl->current, item);
+        }
+
+        if (item->sub_menu && evt == ACTIVATE) {
+            result |= menu_open_sub_menu(ctrl, item);
+        }
+
+    } else {
+
+        if (ctrl->current && ctrl->current->action) {
+            return ctrl->current->action(evt, ctrl->current, item);
+        } else if (ctrl->action) {
+            return ((item_action*)ctrl->action)(evt, ctrl->current, item);
+        }
+    }
+
+    return 0;
+
+}
 
 void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius) {
 
@@ -95,9 +149,9 @@ void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius) {
     int line;
     for (line = 0; line < lines; line++) {
 
-        text_obj_update_cnt_rad(item->label_default, center, radius, item->line, item->menu->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-        text_obj_update_cnt_rad(item->label_active, center, radius, item->line, item->menu->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-        text_obj_update_cnt_rad(item->label_current, center, radius, item->line, item->menu->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+        text_obj_update_cnt_rad(item->label_default, center, radius, item->line, item->menu->n_o_lines);
+        text_obj_update_cnt_rad(item->label_active, center, radius, item->line, item->menu->n_o_lines);
+        text_obj_update_cnt_rad(item->label_current, center, radius, item->line, item->menu->n_o_lines);
 
     }
 
@@ -122,7 +176,11 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
             label = item->label_current;
         }
 
-        text_obj_draw(item->menu->ctrl->renderer,NULL,label,item->menu->radius_labels,item->menu->ctrl->center.x,item->menu->ctrl->center.y,angle,item->line,item->menu->ctrl->light_x,item->menu->ctrl->light_y, item->menu->ctrl->font_bumpmap, item->menu->ctrl->shadow_offset, item->menu->ctrl->shadow_alpha);
+        if (label) {
+            text_obj_draw(item->menu->ctrl->renderer,NULL,label,item->menu->radius_labels,item->menu->ctrl->center.x,item->menu->ctrl->center.y,angle,item->menu->ctrl->light_x,item->menu->ctrl->light_y, item->menu->ctrl->font_bumpmap, item->menu->ctrl->shadow_offset, item->menu->ctrl->shadow_alpha);
+        } else {
+            log_info(MENU_CTX, "No label, no drawing\n");
+        }
 
     }
 
@@ -191,18 +249,24 @@ void menu_item_rebuild_glyphs(menu_item *item) {
 
     TTF_Font *font = item->font;
     if (!font) {
+        font = m->font;
+    }
+    if (!font) {
         font = m->ctrl->font;
     }
 
     TTF_Font *font2 = item->font2;
     if (!font2) {
+        font2 = m->font2;
+    }
+    if (!font2) {
         font2 = m->ctrl->font2;
     }
 
     SDL_Renderer *renderer = m->ctrl->renderer;
-    item->label_default = text_obj_new(renderer,item->label,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->default_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-    item->label_current = text_obj_new(renderer,item->label,font,font2,m->selected_color != NULL ? *m->selected_color : *m->ctrl->selected_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-    item->label_active = text_obj_new(renderer,item->label,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->activated_color,m->ctrl->center,m->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_default = text_obj_new(renderer,item->label,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->default_color,m->ctrl->center,m->ctrl->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_current = text_obj_new(renderer,item->label,font,font2,m->selected_color != NULL ? *m->selected_color : *m->ctrl->selected_color,m->ctrl->center,m->ctrl->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
+    item->label_active = text_obj_new(renderer,item->label,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->activated_color,m->ctrl->center,m->ctrl->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
 
 }
 
@@ -226,13 +290,12 @@ int menu_item_set_label(menu_item *item, const char *label) {
     return 1;
 }
 
-menu_item *menu_item_new(menu *m, const char *label, void *object, int object_type,
+menu_item *menu_item_new(menu *m, const char *label, const void *object, int object_type,
                          const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line) {
 
     menu_item *item = malloc(sizeof(menu_item));
     item->unicode_label = NULL;
     item->unicode_label2 = NULL;
-    item->utf8_label = NULL;
     item->label = NULL;
     item->object = object;
     item->sub_menu = NULL;
@@ -241,6 +304,10 @@ menu_item *menu_item_new(menu *m, const char *label, void *object, int object_ty
     item->action = action;
     m->max_id++;
     item->id = m->max_id;
+
+    if (m->current_id < 0) {
+	    m->current_id = 0;
+    }
 
     item->line = (item->id % m->n_o_lines) + 1 - m->n_o_lines;
 
@@ -252,8 +319,6 @@ menu_item *menu_item_new(menu *m, const char *label, void *object, int object_ty
     m->item[m->max_id] = item;
     item->font = NULL;
     item->font2 = NULL;
-    item->glyph_objs = NULL;
-    item->glyph_objs2 = NULL;
     item->num_label_chars = 0;
     item->num_label_chars2 = 0;
     item->label_active = NULL;
@@ -262,11 +327,11 @@ menu_item *menu_item_new(menu *m, const char *label, void *object, int object_ty
 
     /* Initialize fonts */
 
-    if (font && font_size > 0) {
-        TTF_Font *dflt_font = TTF_OpenFont(font, font_size);
+    if (font || font_size > 0) {
+        TTF_Font *dflt_font = my_OpenTTF_Font(font, font_size);
         if (!dflt_font) {
             log_error(MENU_CTX, "Failed to load font: %s. Trying fixed font\n", SDL_GetError());
-            dflt_font = TTF_OpenFont("fixed", font_size);
+            dflt_font = my_OpenTTF_Font("fixed", font_size);
             if (!dflt_font) {
                 log_error(MENU_CTX, "Failed to load font: %s\n", SDL_GetError());
             }
@@ -274,18 +339,13 @@ menu_item *menu_item_new(menu *m, const char *label, void *object, int object_ty
         if (dflt_font) {
             item->font = dflt_font;
         }
-    } else {
-        item->font = m->ctrl->font;
     }
 
-    if (font_2nd_line) {
-        if (font_size_2nd_line <= 0) {
-            font_size_2nd_line = font_size;
-        }
-        TTF_Font *dflt_font = TTF_OpenFont(font_2nd_line, font_size_2nd_line);
+    if (font_2nd_line || font_size_2nd_line > 0) {
+        TTF_Font *dflt_font = my_OpenTTF_Font(font_2nd_line, font_size_2nd_line);
         if (!dflt_font) {
             log_error(MENU_CTX, "Failed to load font: %s. Trying fixed font\n", SDL_GetError());
-            dflt_font = TTF_OpenFont("fixed", font_size_2nd_line);
+            dflt_font = my_OpenTTF_Font("fixed", font_size_2nd_line);
             if (!dflt_font) {
                 log_error(MENU_CTX, "Failed to load font: %s\n", SDL_GetError());
             }
@@ -293,8 +353,6 @@ menu_item *menu_item_new(menu *m, const char *label, void *object, int object_ty
         if (dflt_font) {
             item->font2 = dflt_font;
         }
-    } else {
-        item->font2 = m->ctrl->font2;
     }
 
     menu_item_set_label(item, label);
@@ -303,8 +361,10 @@ menu_item *menu_item_new(menu *m, const char *label, void *object, int object_ty
 
 }
 
+void menu_item_free(menu_item *item);
+
 int menu_item_dispose(menu_item *item) {
-    log_config(MENU_CTX, "Start dispose_menu_item\n");
+    log_debug(MENU_CTX, "Start dispose_menu_item\n");
 
     menu *m = (menu *) item->menu;
 
@@ -313,27 +373,10 @@ int menu_item_dispose(menu_item *item) {
         return 1;
     }
 
-    menu_ctrl *ctrl = (menu_ctrl *) m->ctrl;
+    menu_item_action(DISPOSE, m->ctrl, item);
 
-    if (ctrl->action) {
-        // To dispose the object
-        ctrl->action(DISPOSE,m,item);
-    }
+    menu_item_free(item);
 
-    if (item->sub_menu) {
-        menu_clear((menu *)item->sub_menu);
-        log_config(MENU_CTX, "free(item->sub_menu -> %p)\n", item->sub_menu);
-        free(item->sub_menu);
-        item->sub_menu = NULL;
-    }
-
-    if (item->unicode_label) {
-        log_config(MENU_CTX, "free(item->unicode_label -> %p)\n", item->unicode_label);
-        free(item->unicode_label);
-    }
-    log_config(MENU_CTX, "free(item -> %p)\n", item);
-    free(item);
-    log_config(MENU_CTX, "End dispose_menu_item\n");
     return 0;
 }
 
@@ -347,7 +390,7 @@ menu_item *menu_item_next(menu *m, menu_item *item) {
 }
 
 menu_item *menu_item_update_label(menu_item *item, const char *label) {
-    log_config(MENU_CTX, "menu_item_update_label(item -> %p, label -> %s)\n", item, label);
+    log_debug(MENU_CTX, "menu_item_update_label(item -> %p, label -> %s)\n", item, label);
     menu *m = (menu *) item->menu;
     menu_item_set_label(item, label);
     menu_ctrl_draw(m->ctrl);
@@ -364,7 +407,6 @@ void menu_item_activate(menu_item *item) {
 
 void menu_item_debug(menu_item *item) {
     log_debug(MENU_CTX, "Ptr:   %p\n",item);
-    log_debug(MENU_CTX, "Label: %s\n",item->utf8_label);
     log_debug(MENU_CTX, "Id:    %d\n",item->id);
     log_debug(MENU_CTX, "Length: %d\n",item->num_label_chars);
 }
@@ -410,24 +452,24 @@ void menu_item_warp_to(menu_item *item) {
 
     if (dist_right < dist_left) {
         while (item->id != m->current_id && ctrl->warping) {
-            menu_turn_right(m);
+            __menu_turn_right(m,1);
             menu_ctrl_process_events(ctrl);
         }
     } else {
         while (item->id != m->current_id && ctrl->warping) {
-            menu_turn_left(m);
+            __menu_turn_left(m,1);
             menu_ctrl_process_events(ctrl);
         }
     }
 
     // Lock in
     while (m->segment < 0 && ctrl->warping) {
-        menu_turn_right(m);
+        __menu_turn_right(m,1);
         menu_ctrl_process_events(ctrl);
     }
 
     while (m->segment > 0 && ctrl->warping) {
-        menu_turn_left(m);
+        __menu_turn_left(m,1);
         menu_ctrl_process_events(ctrl);
     }
 
@@ -471,6 +513,18 @@ int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Tex
     return 1;
 }
 
+void menu_update_cnt_rad(menu *m, SDL_Point center, int radius, int recursive) {
+    for (int i = 0; i <= m->max_id; i++) {
+        if (m->item[i]) {
+            if (recursive && m->item[i]->sub_menu) {
+                menu_update_cnt_rad((menu *) m->item[i]->sub_menu, center, radius, recursive);
+            } else {
+                menu_item_update_cnt_rad(m->item[i],center,radius);
+            }
+        }
+    }
+}
+
 void menu_fade_out(menu *menu_frm, menu *menu_to) {
     menu_ctrl *ctrl = (menu_ctrl *) menu_frm->ctrl;
     ctrl->warping = 1;
@@ -481,7 +535,7 @@ void menu_fade_out(menu *menu_frm, menu *menu_to) {
     double R_to = r_frm;
     double r_to = 0;
 
-    int s = 5;
+    int s = 20;
     double ds = (double) s;
     double inv_ds = 1 / ds;
 
@@ -493,20 +547,29 @@ void menu_fade_out(menu *menu_frm, menu *menu_to) {
 
         if (menu_frm) {
             menu_frm->radius_labels = to_int(inv_ds * (x * R_frm + x_1 * r_frm));
+            menu_update_cnt_rad(menu_frm, ctrl->center, menu_frm->radius_labels, 0);
             menu_frm->radius_scales_end = to_int(inv_ds * (x * (R_frm + d_frm) + x_1 * R_frm));
             menu_frm->dirty = 1;
             menu_draw(menu_frm, 1, 0);
         }
         menu_to->radius_labels = to_int(inv_ds * (x * r_frm + x_1 * r_to));
+        menu_update_cnt_rad(menu_to, ctrl->center, menu_to->radius_labels, 0);
         menu_to->radius_scales_end = to_int(inv_ds * (x * R_frm + x_1 * R_to));
         menu_to->dirty = 1;
         menu_draw(menu_to, 0, 1);
     }
+
+    menu_frm->radius_labels = ctrl->radius_labels;
+    menu_update_cnt_rad(menu_frm, ctrl->center, menu_frm->radius_labels, 0);
+    menu_to->radius_labels = ctrl->radius_labels;
+    menu_update_cnt_rad(menu_to, ctrl->center, menu_to->radius_labels, 0);
+
     menu_to->dirty = 1;
     menu_draw(menu_to, 1, 1);
     if (!menu_to->transient) {
         ctrl->active = menu_to;
     }
+    ctrl->current = menu_to;
 }
 
 void menu_fade_in(menu *menu_frm, menu *menu_to) {
@@ -519,7 +582,7 @@ void menu_fade_in(menu *menu_frm, menu *menu_to) {
     double r_to = R_frm;
     double R_to = R_frm + d_frm;
 
-    int s = 5;
+    int s = 20;
     double ds = (double) s;
     double inv_ds = 1 / ds;
 
@@ -530,8 +593,10 @@ void menu_fade_in(menu *menu_frm, menu *menu_to) {
         double x_1 = ds - x;
 
         menu_frm->radius_labels = to_int(inv_ds * x_1 * r_frm);
+        menu_update_cnt_rad(menu_frm, ctrl->center, menu_frm->radius_labels, 0);
         menu_frm->radius_scales_end = to_int(inv_ds * (x * r_frm + x_1 * R_frm));
         menu_to->radius_labels = to_int(inv_ds * (x * r_frm + x_1 * r_to));
+        menu_update_cnt_rad(menu_to, ctrl->center, menu_to->radius_labels, 0);
         menu_to->radius_scales_end = to_int(inv_ds * (x * R_frm + x_1 * R_to));
         menu_frm->dirty = 1;
         menu_draw(menu_frm, 1, 0);
@@ -546,7 +611,7 @@ void menu_fade_in(menu *menu_frm, menu *menu_to) {
 }
 
 int menu_open_sub_menu(menu_ctrl *ctrl, menu_item *item) {
-
+    log_debug(MENU_CTX, "Open sub menu %s\n", item->label);
     menu *sub_menu = (menu *) item->sub_menu;
     sub_menu->segment = 0;
     menu_fade_out(ctrl->current, sub_menu);
@@ -566,6 +631,8 @@ int menu_open(menu *m) {
         if (!m->transient) {
             ctrl->active = ctrl->current;
         }
+    } else {
+	    log_warning(MENU_CTX, "Menu already opened\n");
     }
     return 1;
 }
@@ -593,14 +660,14 @@ int menu_draw_scales(menu *m, double xc, double yc, double angle) {
 
     for (int s = 0; s < ctrl->no_of_scales; s++) {
 
-        menu_ctrl_draw_scale(ctrl, xc, yc, fr-20, fR, a, 255, 0);
+        menu_draw_scale(m, xc, yc, fr-20, fR, a, 255, 0);
 
         a += angle_step;
 
         int sd;
         for (sd = 0; sd < no_of_mini_scales; sd++) {
 
-            menu_ctrl_draw_scale(ctrl,xc,yc,fr,fR,a, 255, 0);
+            menu_draw_scale(m,xc,yc,fr,fR,a, 255, 0);
 
             a += angle_step;
 
@@ -638,40 +705,6 @@ int menu_draw(menu *m, int clear, int render) {
     double xc = ctrl->center.x;
     double yc = ctrl->center.y;
 
-    // Eventually change background color according to time of day
-    if (ctrl->bg_color_of_time) {
-        time_t timer;
-        time(&timer);
-        struct tm *tm_info = localtime(&timer);
-        int t = tm_info->tm_hour * 60 + tm_info->tm_min;
-        if (t != current_hour) {
-
-            double m = (double) t;
-
-            if (ctrl->bg_color_palette) {
-                int col_idx = (int) (m * (double) ctrl->bg_cp_colors / 1440.0);
-                char *bg_color = ctrl->bg_color_palette[col_idx];
-                SDL_Color *bg = html_to_color(bg_color);
-                menu_ctrl_set_bg_color_rgb(ctrl, bg->r,bg->g,bg->b);
-                free(bg);
-            } else {
-                double hue = 360.0 * (m-720.0+240.0)/1440.0;
-
-                if (hue < 0.0) {
-                    hue = hue + 1.0;
-                } else if (hue > 1.0) {
-                    hue = hue - 1.0;
-                }
-
-                menu_ctrl_set_bg_color_hsv(ctrl, hue, 50.0, 100.0);
-
-                current_hour = t;
-            }
-
-
-        }
-    }
-
     double angle = ctrl->angle_offset + m->segment * 360.0 / (m->n_o_items_on_scale*(2.0*m->segments_per_item+1));
     log_debug(MENU_CTX,"segment: %f, angle: %f\n", m->segment, angle);
     if (clear) {
@@ -693,7 +726,7 @@ int menu_draw(menu *m, int clear, int render) {
         for (i = -count_drawn_items; i <= count_drawn_items; i++) {
 
             int current_item = m->current_id + i;
-            if (current_item < 0) {
+            while (current_item < 0) {
                 current_item = current_item + m->max_id + 1;
             }
 
@@ -723,16 +756,17 @@ int menu_draw(menu *m, int clear, int render) {
     }
 
     Sint16 xc_Sint16 = to_Sint16(xc);
+    SDL_SetRenderDrawBlendMode(ctrl->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(ctrl->renderer, ctrl->indicator_color->r,
-                           ctrl->indicator_color->g, ctrl->indicator_color->b, ctrl->indicator_alpha);
+                           ctrl->indicator_color->g, ctrl->indicator_color->b, ctrl->indicator_color->a);
     SDL_RenderDrawLine(ctrl->renderer, xc_Sint16, 0, xc_Sint16, (Sint16) ctrl->w);
     SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 - 1, 0, xc_Sint16 - 1, (Sint16) ctrl->w);
     SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 + 1, 0, xc_Sint16 + 1, (Sint16) ctrl->w);
     SDL_SetRenderDrawColor(ctrl->renderer, ctrl->indicator_color_light->r,
-                           ctrl->indicator_color_light->g, ctrl->indicator_color_light->b, ctrl->indicator_alpha * 180 / 255);
+                           ctrl->indicator_color_light->g, ctrl->indicator_color_light->b, ctrl->indicator_color->a * 180 / 255);
     SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 - 2, 0, xc_Sint16 - 2, (Sint16) ctrl->h);
     SDL_SetRenderDrawColor(ctrl->renderer, ctrl->indicator_color_dark->r,
-                           ctrl->indicator_color_dark->g, ctrl->indicator_color_dark->b, ctrl->indicator_alpha * 180 / 255);
+                           ctrl->indicator_color_dark->g, ctrl->indicator_color_dark->b, ctrl->indicator_color->a * 180 / 255);
     SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 + 2, 0, xc_Sint16 + 2, (Sint16) ctrl->h);
 
     menu_ctrl_apply_light(ctrl);
@@ -771,14 +805,24 @@ int menu_clear(menu *m) {
     return 0;
 }
 
-menu *menu_new(menu_ctrl *ctrl, int lines) {
+menu *menu_new(
+	menu_ctrl *ctrl,
+	int lines,
+	const char *font,
+	int font_size,
+	item_action *action,
+	char *font_2nd_line,
+	int font_size_2nd_line
+) {
 
     menu *m = malloc(sizeof(menu));
 
     m->max_id = -1;
     m->active_id = -1;
-    m->current_id = 0;
-    m->object = 0;
+    m->current_id = -1;
+    m->sticky = 0;
+    m->dirty = 0;
+    m->object = NULL;
 
     m->radius_labels = ctrl->radius_labels;
     m->radius_scales_start = ctrl->radius_scales_start;
@@ -787,9 +831,9 @@ menu *menu_new(menu_ctrl *ctrl, int lines) {
     m->parent = m;
     m->item = NULL;
     m->segment = 0;
-    m->label = 0;
-    m->object = 0;
+    m->label = NULL;
     m->bg_image = NULL;
+    m->scale_color = NULL;
     m->default_color = NULL;
     m->selected_color = NULL;
 
@@ -801,15 +845,36 @@ menu *menu_new(menu_ctrl *ctrl, int lines) {
     m->n_o_items_on_scale = lines * ctrl->n_o_items_on_scale;
     m->segments_per_item = ctrl->segments_per_item;
 
+    m->font = NULL;
+    if (font && font_size > 0) {
+    	m->font = my_OpenTTF_Font(font,font_size);
+    }
+    m->font2 = NULL;
+    if (font_2nd_line && font_size_2nd_line > 0) {
+        m->font2 = my_OpenTTF_Font(font_2nd_line, font_size_2nd_line);
+    }
+
+    m->action = action;
+
     return m;
 
 }
 
-menu *menu_new_root(menu_ctrl *ctrl, int lines) {
-    menu *m = menu_new(ctrl,lines);
+menu *menu_new_root(
+	menu_ctrl *ctrl,
+	int lines,
+	const char *font,
+	int font_size,
+	char *font_2nd_line,
+	int font_size_2nd_line
+) {
+    menu *m = menu_new(ctrl,lines,font, font_size, NULL, font_2nd_line, font_size_2nd_line);
     ctrl->n_roots = ctrl->n_roots + 1;
     ctrl->root = realloc(ctrl->root,ctrl->n_roots * sizeof(menu *));
     ctrl->root[ctrl->n_roots-1] = m;
+    if (!ctrl->current) {
+	    ctrl->current = m;
+    }
     return m;
 }
 
@@ -834,26 +899,7 @@ menu_item *menu_add_sub_menu(menu *m, const char *label, menu *sub_menu, item_ac
 
 menu_item *menu_new_sub_menu(menu *m, const char *label, item_action *action) {
 
-    menu *sub_menu = malloc(sizeof(menu));
-
-    sub_menu->max_id = -1;
-    sub_menu->active_id = -1;
-    sub_menu->current_id = 0;
-
-    sub_menu->radius_labels = m->ctrl->radius_labels;
-    sub_menu->radius_scales_start = m->ctrl->radius_scales_start;
-    sub_menu->radius_scales_end = m->ctrl->radius_scales_end;
-
-    sub_menu->parent = m;
-    sub_menu->item = 0;
-    sub_menu->segment = 0;
-    sub_menu->n_o_lines = 1;
-    sub_menu->label = 0;
-    sub_menu->object = 0;
-
-    sub_menu->ctrl = m->ctrl;
-    sub_menu->n_o_items_on_scale = m->n_o_items_on_scale;
-
+    menu *sub_menu = menu_new(m->ctrl, 1, NULL, 0, NULL, NULL, 0); 
     menu_item *item = menu_item_new(m, label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, action, NULL, -1);
     item->sub_menu = sub_menu;
 
@@ -861,7 +907,7 @@ menu_item *menu_new_sub_menu(menu *m, const char *label, item_action *action) {
 
 }
 
-void menu_turn(menu *m, int direction) {
+void __menu_turn(menu *m, int direction, int redraw) {
     menu_ctrl *ctrl = (menu_ctrl *) m->ctrl;
     ctrl->warping = 1;
     unsigned int total_n_o_segments = m->n_o_items_on_scale * (2.0*m->segments_per_item+1);
@@ -887,15 +933,27 @@ void menu_turn(menu *m, int direction) {
         ctrl->bg_segment = total_n_o_segments - 1;
 
     }
-    menu_ctrl_draw(m->ctrl);
+
+    if (redraw) {
+        menu_ctrl_draw(m->ctrl);
+    }
+
 }
 
 void menu_turn_right(menu *m) {
-    menu_turn(m,1);
+	__menu_turn_right(m, 1);
 }
 
 void menu_turn_left(menu *m) {
-    menu_turn(m,-1);
+	__menu_turn_left(m, 1);
+}
+
+void __menu_turn_right(menu *m, int redraw) {
+    __menu_turn(m,1,redraw);
+}
+
+void __menu_turn_left(menu *m, int redraw) {
+    __menu_turn(m,-1,redraw);
 }
 
 menu_ctrl *menu_get_ctrl(menu *m) {
@@ -932,31 +990,19 @@ void menu_set_radius(menu *m, int radius_labels, int radius_scales_start, int ra
 
 }
 
-void menu_update_cnt_rad(menu *m, SDL_Point center, int radius) {
-    for (int i = 0; i < m->max_id; i++) {
-        if (m->item[i]) {
-            if (m->item[i]->sub_menu) {
-                menu_update_cnt_rad((menu *) m->item[i]->sub_menu, center, radius);
-            } else {
-                menu_item_update_cnt_rad(m->item[i],center,radius);
-            }
-        }
-    }
-}
-
 void menu_rebuild_glyphs(menu *m) {
     for (int i = 0; i < m->max_id; i++) {
         if (m->item[i]) {
             if (m->item[i]->sub_menu) {
                 menu_rebuild_glyphs((menu *) m->item[i]->sub_menu);
-            } else {
-                menu_item_rebuild_glyphs(m->item[i]);
             }
+            menu_item_rebuild_glyphs(m->item[i]);
         }
     }
 }
 
-int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color) {
+int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color, SDL_Color *scale_color) {
+    m->scale_color = scale_color;
     m->default_color = default_color;
     m->selected_color = selected_color;
     menu_rebuild_glyphs(m);
@@ -987,7 +1033,7 @@ int menu_set_bg_image(menu *m, char *bgImagePath) {
 
 int open_parent_menu(void *ctrl_ptr) {
     menu_ctrl *ctrl = (menu_ctrl *) ctrl_ptr;
-        menu *current = ctrl->current;
+    menu *current = ctrl->current;
     if (current->parent) {
         menu_fade_in(current, current->parent);
         ctrl->current = current->parent;
@@ -1002,25 +1048,6 @@ int open_parent_menu(void *ctrl_ptr) {
     return 0;
 }
 
-int menu_action(menu_event evt, menu_ctrl *ctrl, menu_item *item) {
-    if (item) {
-        if(item->sub_menu) {
-
-            if (item->action) {
-                ((item_action*)item->action)(evt, item->menu, item);
-            }
-
-            return menu_open_sub_menu(ctrl, item);
-        } else if (item->object_type == OBJECT_TYPE_ACTION && item->action) {
-            return ((item_action*)item->action)(evt, item->menu, item);
-        }
-    }
-    if (ctrl->action) {
-        return ctrl->action(evt, ctrl->current, item);
-    }
-    return 1;
-}
-
 void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset) {
     ctrl->x_offset = x_offset;
     ctrl->y_offset = y_offset;
@@ -1032,7 +1059,7 @@ void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset) {
     ctrl->center = center;
 
     for (int r = 0; r < ctrl->n_roots; r++) {
-        menu_update_cnt_rad(ctrl->root[r],ctrl->center,ctrl->radius_labels);
+        menu_update_cnt_rad(ctrl->root[r],ctrl->center,ctrl->radius_labels, 1);
     }
 
 }
@@ -1117,7 +1144,7 @@ menu *menu_ctrl_get_root(menu_ctrl *ctrl) {
     return ctrl->root[0];
 }
 
-int menu_ctrl_draw_scale(menu_ctrl *ctrl, double xc, double yc, double r, double R, double angle, unsigned char alpha, int lines) {
+int menu_draw_scale(menu *m, double xc, double yc, double r, double R, double angle, unsigned char alpha, int lines) {
     double a = M_PI * angle / 180.0;
     double cos_a = cos(a);
     double sin_a = sin(a);
@@ -1125,6 +1152,8 @@ int menu_ctrl_draw_scale(menu_ctrl *ctrl, double xc, double yc, double r, double
     double fy1 = yc - r * sin_a;
     double fx2 = xc + R * cos_a;
     double fy2 = yc - R * sin_a;
+
+    menu_ctrl *ctrl = m->ctrl;
 
     /**
      * Decide whether we have to draw
@@ -1141,14 +1170,26 @@ int menu_ctrl_draw_scale(menu_ctrl *ctrl, double xc, double yc, double r, double
     }
 
     if (doDraw) {
+        Uint8 r,g,b;
+
+        if (m->scale_color) {
+            r = m->scale_color->r;
+            g = m->scale_color->g;
+            b = m->scale_color->b;
+        } else {
+            r = ctrl->scale_color->r;
+            g = ctrl->scale_color->g;
+            b = ctrl->scale_color->b;
+        }
+
         if (lines == 1) {
             SDL_SetRenderDrawBlendMode(ctrl->renderer,SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(ctrl->renderer, ctrl->scale_color->r, ctrl->scale_color->g, ctrl->scale_color->b, alpha/2);
+            SDL_SetRenderDrawColor(ctrl->renderer, r, g, b, alpha/2);
             SDL_RenderDrawLineF(ctrl->renderer, fx1-1, fy1, fx2-1, fy2);
             SDL_RenderDrawLineF(ctrl->renderer, fx1+1, fy1, fx2+1, fy2);
         }
         SDL_SetRenderDrawBlendMode(ctrl->renderer,SDL_BLENDMODE_NONE);
-        SDL_SetRenderDrawColor(ctrl->renderer, ctrl->scale_color->r, ctrl->scale_color->g, ctrl->scale_color->b, alpha);
+        SDL_SetRenderDrawColor(ctrl->renderer, r, g, b, alpha);
         SDL_RenderDrawLineF(ctrl->renderer, fx1, fy1, fx2, fy2);
     }
 
@@ -1161,7 +1202,7 @@ int menu_ctrl_apply_light(menu_ctrl *ctrl) {
         double h = ctrl->h;
         double xo = ctrl->center.x - 0.5 * ctrl->w;
         double yo = 0;
-        const SDL_Rect dst_rect = {xo, yo, w, h};
+        const SDL_Rect dst_rect = {xo + ctrl->light_img_x, yo + ctrl->light_img_y, w, h};
         SDL_RenderCopy(ctrl->renderer,ctrl->light_texture,NULL,&dst_rect);
     }
 
@@ -1184,47 +1225,8 @@ void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_s
 
 }
 
-int menu_ctrl_set_bg_color_hsv(menu_ctrl *ctrl, double h, double s, double v) {
-    log_config(MENU_CTX, "free(ctrl->background_color -> %p)\n", ctrl->background_color);
-    free(ctrl->background_color);
-    ctrl->background_color = hsv_to_color(h, s, v);
-    return 1;
-}
-
-int menu_ctrl_set_default_color_hsv(menu_ctrl *ctrl, double h, double s, double v) {
-    log_config(MENU_CTX, "free(ctrl->default_color -> %p)\n", ctrl->default_color);
-    free(ctrl->default_color);
-    ctrl->default_color = hsv_to_color(h, s, v);
-
-    for (int r = 0; r < ctrl->n_roots; r++) {
-        menu_rebuild_glyphs(ctrl->root[r]);
-    }
-
-    return 1;
-}
-
-int menu_ctrl_set_active_color_hsv(menu_ctrl *ctrl, double h, double s, double v) {
-    log_config(MENU_CTX, "free(ctrl->activated_color -> %p)\n", ctrl->activated_color);
-    free(ctrl->activated_color);
-    ctrl->activated_color = hsv_to_color(h, s, v);
-
-    for (int r = 0; r < ctrl->n_roots; r++) {
-        menu_rebuild_glyphs(ctrl->root[r]);
-    }
-
-    return 1;
-}
-
-int menu_ctrl_set_selected_color_hsv(menu_ctrl *ctrl, double h, double s, double v) {
-    log_config(MENU_CTX, "free(ctrl->selected_color -> %p)\n", ctrl->selected_color);
-    free(ctrl->selected_color);
-    ctrl->selected_color = hsv_to_color(h, s, v);
-
-    for (int r = 0; r < ctrl->n_roots; r++) {
-        menu_rebuild_glyphs(ctrl->root[r]);
-    }
-
-    return 1;
+void menu_ctrl_enable_mouse(menu_ctrl *ctrl, int mouse_control) {
+    ctrl->mouse_control = mouse_control;
 }
 
 int menu_ctrl_set_bg_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b) {
@@ -1271,16 +1273,24 @@ int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b)
     }
 
     return 1;
+
 }
 
 int menu_ctrl_draw(menu_ctrl *ctrl) {
     if (ctrl->current) {
         return menu_draw(ctrl->current, 1, 1);
     }
+
+    return 0;
+
 }
 
 int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator,
-                        char *def, char *selected, char *activated, char *bgImagePath, int bg_from_time, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors) {
+                        char *def, char *selected, char *activated, char *bgImagePath,
+			int draw_scales, int font_bumpmap, int shadow_offset,
+			Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors,
+			char **fg_color_palette, int fg_cp_colors
+) {
     log_config(MENU_CTX, "START: menu_ctrl_set_style (");
     log_config(MENU_CTX, "background -> %s", background);
     log_config(MENU_CTX, ", scale -> %s", scale);
@@ -1330,12 +1340,6 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
     }
     ctrl->indicator_color_dark = color_between(ctrl->indicator_color, &black, 0.85);
 
-    if (bg_from_time == 1) {
-        ctrl->bg_color_of_time = 1;
-    } else {
-        ctrl->bg_color_of_time = 0;
-    }
-
     if (ctrl->bg_image) {
         SDL_DestroyTexture(ctrl->bg_image);
         ctrl->bg_image = NULL;
@@ -1350,16 +1354,6 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
         ctrl->bg_image = NULL;
     }
 
-    if (bg_color_palette) {
-        ctrl->bg_color_palette = bg_color_palette;
-        ctrl->bg_cp_colors = bg_cp_colors;
-    }
-
-    if (fg_color_palette) {
-        ctrl->fg_color_palette = fg_color_palette;
-        ctrl->fg_cp_colors = fg_cp_colors;
-    }
-
     ctrl->font_bumpmap = font_bumpmap;
     ctrl->shadow_offset = shadow_offset;
     ctrl->shadow_alpha = shadow_alpha;
@@ -1372,6 +1366,10 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
     html_print_color("Selected", ctrl->selected_color);
     html_print_color("Activated", ctrl->activated_color);
 
+    for (int r = 0; r < ctrl->n_roots; r++) {
+	    menu_rebuild_glyphs(ctrl->root[r]);
+    }
+
     int draw_res = menu_ctrl_draw(ctrl);
     log_config(MENU_CTX, "END: menu_ctrl_set_style\n");
     return draw_res;
@@ -1381,7 +1379,7 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
 int menu_ctrl_apply_theme(menu_ctrl *ctrl, theme *theme) {
     return menu_ctrl_set_style(ctrl, theme->background_color, theme->scale_color,
                                theme->indicator_color, theme->default_color, theme->selected_color,
-                               theme->activated_color, theme->bg_image_path, theme->bg_color_of_time, 1, theme->font_bumpmap, theme->shadow_offset, theme->shadow_alpha, theme->bg_color_palette, theme->bg_cp_colors, theme->fg_color_palette, theme->fg_cp_colors);
+                               theme->activated_color, theme->bg_image_path, 1, theme->font_bumpmap, theme->shadow_offset, theme->shadow_alpha, theme->bg_color_palette, theme->bg_cp_colors, theme->fg_color_palette, theme->fg_cp_colors);
 }
 
 void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha) {
@@ -1396,11 +1394,13 @@ void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double
 
 }
 
-void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path) {
+void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path, int x, int y) {
     if (ctrl->light_texture) {
         SDL_DestroyTexture(ctrl->light_texture);
     }
 
+    ctrl->light_img_x = x;
+    ctrl->light_img_y = y;
     ctrl->light_texture = IMG_LoadTexture(ctrl->renderer, path);
 
 }
@@ -1420,30 +1420,16 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     ctrl->no_of_scales = 36;
     ctrl->n_o_items_on_scale = 4;
     ctrl->segments_per_item = 3;
+    ctrl->mouse_control = 1;
+    ctrl->light_texture = NULL;
 
     ctrl->w = w;
     ctrl->h = to_int(0.65 * w);
 
-    ctrl->root = malloc(sizeof(menu *));
-    ctrl->n_roots = 1;
+    ctrl->root = NULL;
+    ctrl->n_roots = 0;
 
-    menu *root = menu_new(ctrl, 1);
-
-    root->max_id = -1;
-    root->item = 0x0;
-    root->active_id = -1;
-    root->current_id = 0;
-    root->segment = 0;
-    root->parent = 0;
-    root->label = 0;
-    root->transient = 0;
-    root->draw_only_active = 0;
-    root->object = 0;
-    root->n_o_lines = 1;
-    root->n_o_items_on_scale = ctrl->n_o_items_on_scale;
-    root->segments_per_item = ctrl->segments_per_item;
-
-    ctrl->root[0] = root;
+    ctrl->object = NULL;
 
     ctrl->offset = 1.2;
 
@@ -1461,18 +1447,11 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
 
     ctrl->angle_offset = angle_offset;
 
-    ctrl->current = ctrl->root[0];
-    ctrl->active = ctrl->root[0];
-    ctrl->root[0]->ctrl = ctrl;
-
     menu_ctrl_set_radii(ctrl,radius_labels,radius_scales_start,radius_scales_end);
 
     ctrl->call_back = call_back;
     ctrl->action = action;
     ctrl->bg_image = 0;
-
-    ctrl->bg_color_palette = NULL;
-    ctrl->bg_cp_colors = 0;
 
     if (!init_SDL()) {
         log_error(MENU_CTX, "Failed to initialize SDL\n");
@@ -1481,18 +1460,18 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
 
     if (font) {
         log_config(MENU_CTX, "Trying to open font %s\n", font);
-        ctrl->font = TTF_OpenFont(font, font_size);
-        ctrl->font2 = TTF_OpenFont(font, ctrl->font_size2);
+        ctrl->font = my_OpenTTF_Font(font, font_size);
+        ctrl->font2 = my_OpenTTF_Font(font, ctrl->font_size2);
     }
 
     if (!ctrl->font) {
         log_error(MENU_CTX, "Failed to load font %s: %s. Trying %s\n", font, SDL_GetError(), FONT_DEFAULT);
-        ctrl->font = TTF_OpenFont(FONT_DEFAULT, font_size);
-        ctrl->font2 = TTF_OpenFont(FONT_DEFAULT, ctrl->font_size2);
+        ctrl->font = my_OpenTTF_Font(FONT_DEFAULT, font_size);
+        ctrl->font2 = my_OpenTTF_Font(FONT_DEFAULT, ctrl->font_size2);
         if (!ctrl->font) {
             log_error(MENU_CTX, "Failed to load font %s: %s. Trying /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf.\n", FONT_DEFAULT, SDL_GetError());
-            ctrl->font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size);
-            ctrl->font2 = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", ctrl->font_size2);
+            ctrl->font = my_OpenTTF_Font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size);
+            ctrl->font2 = my_OpenTTF_Font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", ctrl->font_size2);
             if (!ctrl->font) {
                 log_error(MENU_CTX, "Failed to load font: %s\n", SDL_GetError());
             }
@@ -1507,7 +1486,7 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     if (ctrl->display) {
         log_info(MENU_CTX, "Creating renderer...");
 #ifdef RASPBERRY
-        ctrl->renderer = SDL_CreateRenderer(ctrl->display, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        ctrl->renderer = SDL_CreateRenderer(ctrl->display, 1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 #else
         ctrl->renderer = SDL_CreateRenderer(ctrl->display, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 #endif
@@ -1531,11 +1510,11 @@ menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, i
     }
 
 #ifdef RASPBERRY
-    menu_ctrl_set_style (ctrl, "#08081e", "#c8c8c8", "#ff0000", "#525239", "#c8c864", "#c8c864", 0, 0, 1, 0, 0, 0, NULL, 0, NULL, 0);
+    menu_ctrl_set_style (ctrl, "#08081e", "#c8c8c8", "#ff0000", "#525239", "#c8c864", "#c8c864", 0, 1, 0, 0, 0, NULL, 0, NULL, 0);
 #else
     menu_ctrl_set_style(ctrl, "#08081e", "#c8c8c8", "#ff0000", "#525239", "#c8c864",
                         "#c8c864",
-                        0, 0, 1, 0, 0, 0, NULL, 0, NULL, 0);
+                        0, 1, 0, 0, 0, NULL, 0, NULL, 0);
 #endif
 
     return ctrl;
@@ -1550,115 +1529,124 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
         ctrl->warping = 1;
         log_config (MENU_CTX, "Event: %d\n", he);
         if (he == BUTTON_A_TURNED_LEFT) {
-            menu_turn_left (ctrl->current);
-            menu_action (TURN_LEFT, ctrl, 0);
+            __menu_turn_left (ctrl->current, 0);
+            menu_action (TURN_LEFT, ctrl, ctrl->current);
             redraw = 1;
         } else if (he == BUTTON_A_TURNED_RIGHT) {
-            menu_turn_right (ctrl->current);
-            menu_action (TURN_RIGHT, ctrl, 0);
+            __menu_turn_right (ctrl->current, 0);
+            menu_action (TURN_RIGHT, ctrl, ctrl->current);
             redraw = 1;
         } else if (he == BUTTON_A_PRESSED) {
-            if (ctrl->current->current_id >= 0 && ctrl->current->item) {
+            if (ctrl->current && ctrl->current->current_id >= 0 && ctrl->current->item) {
                 menu_item *item = ctrl->current->item[ctrl->current->current_id];
-                menu_action (ACTIVATE, ctrl, item);
+                menu_item_action (ACTIVATE, ctrl, item);
                 redraw = 1;
             } else {
-                log_trace (MENU_CTX, "No action.\n");
+                menu_action (ACTIVATE, ctrl, ctrl->current);
+                redraw = 1;
             }
         } else if (he == BUTTON_A_HOLD) {
             open_parent_menu (ctrl);
         } else if (he == BUTTON_B_TURNED_LEFT) {
-            menu_item *item = NULL;
-            if (ctrl->current->current_id >= 0) {
-                item = ctrl->current->item[ctrl->current->current_id];
-            }
-            menu_action(TURN_LEFT_1, ctrl, item);
+            menu_action(TURN_LEFT_1, ctrl, ctrl->current);
         } else if (he == BUTTON_B_TURNED_RIGHT) {
-            menu_item *item = NULL;
-            if (ctrl->current->current_id >= 0) {
-                item = ctrl->current->item[ctrl->current->current_id];
-            }
-            menu_action(TURN_RIGHT_1, ctrl, item);
+            menu_action(TURN_RIGHT_1, ctrl, ctrl->current);
         } else if (he == BUTTON_B_PRESSED) {
-            menu_action (ACTIVATE_1, ctrl, 0);
-            //open_parent_menu(ctrl);
+            if (ctrl->current && ctrl->current->current_id >= 0 && ctrl->current->item) {
+                menu_item *item = ctrl->current->item[ctrl->current->current_id];
+                menu_item_action (ACTIVATE_1, ctrl, item);
+                redraw = 1;
+            } else {
+                menu_action (ACTIVATE_1, ctrl, ctrl->current);
+                redraw = 1;
+            }
+        } else if (he == BUTTON_B_HOLD) {
+            menu_action (HOLD_1, ctrl, ctrl->current);
         }
         he = next_event ();
     }
-    return redraw;
-#else
-    SDL_Event e;
 
-    while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_QUIT) {
-            return -1;
-        } else if (e.type == SDL_MOUSEBUTTONUP) {
-            SDL_MouseButtonEvent *b = (SDL_MouseButtonEvent *) &e;
-            if (b->state == SDL_RELEASED) {
-                if (b->button == 1) {
-                    if (ctrl->current->current_id >= 0) {
-                        menu_item *item =
+    if (ctrl->mouse_control) {
+#endif
+        SDL_Event e;
+
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                return -1;
+            } else if (e.type == SDL_MOUSEBUTTONUP) {
+                SDL_MouseButtonEvent *b = (SDL_MouseButtonEvent *) &e;
+                if (b->state == SDL_RELEASED) {
+                    if (b->button == 1) {
+                        if (ctrl->current->current_id >= 0) {
+                            menu_item *item =
                                 ctrl->current->item[ctrl->current->current_id];
-                        menu_action(ACTIVATE, ctrl, item);
+                            menu_item_action(ACTIVATE, ctrl, item);
+                            redraw = 1;
+                        } else {
+                            log_trace(MENU_CTX, "No action.\n");
+                        }
+                    } else if (b->button == 3) {
+                        if (ctrl->current->parent) {
+                            open_parent_menu(ctrl);
+                            redraw = 1;
+                        }
+                    } else if (b->button == 4) {
+                        __menu_turn_left(ctrl->current,0);
+                        menu_action(TURN_LEFT, ctrl, ctrl->current);
                         redraw = 1;
-                    } else {
-                        log_trace(MENU_CTX, "No action.\n");
-                    }
-                } else if (b->button == 3) {
-                    if (ctrl->current->parent) {
-                        open_parent_menu(ctrl);
+                    } else if (b->button == 5) {
+                        __menu_turn_right(ctrl->current,0);
+                        menu_action(TURN_RIGHT, ctrl, ctrl->current);
                         redraw = 1;
                     }
-                } else if (b->button == 4) {
-                    menu_turn_left(ctrl->current);
-                    menu_action(TURN_LEFT, ctrl, 0);
+                }
+            } else if (e.type == SDL_MOUSEWHEEL) {
+                SDL_MouseWheelEvent *w = (SDL_MouseWheelEvent *) &e;
+                if (w->y > 0) {
+                    __menu_turn_left(ctrl->current,0);
+                    menu_action(TURN_LEFT, ctrl, ctrl->current);
                     redraw = 1;
-                } else if (b->button == 5) {
-                    menu_turn_right(ctrl->current);
-                    menu_action(TURN_RIGHT, ctrl, 0);
+                } else if (w->y < 0) {
+                    __menu_turn_right(ctrl->current,0);
+                    menu_action(TURN_RIGHT, ctrl, ctrl->current);
                     redraw = 1;
                 }
-            }
-        } else if (e.type == SDL_MOUSEWHEEL) {
-            SDL_MouseWheelEvent *w = (SDL_MouseWheelEvent *) &e;
-            if (w->y > 0) {
-                menu_turn_left(ctrl->current);
-                menu_action(TURN_LEFT, ctrl, 0);
-                redraw = 1;
-            } else if (w->y < 0) {
-                menu_turn_right(ctrl->current);
-                menu_action(TURN_RIGHT, ctrl, 0);
-                redraw = 1;
-            }
-        } else if (e.type == SDL_KEYUP) {
-            SDL_KeyboardEvent *k = (SDL_KeyboardEvent *) &e;
-            if (k->state == SDL_RELEASED) {
-                if (k->keysym.sym == SDLK_UP) {
-                    menu_item *item = NULL;
-                    if (ctrl->current->current_id >= 0) {
-                        item = ctrl->current->item[ctrl->current->current_id];
+            } else if (e.type == SDL_KEYUP) {
+                SDL_KeyboardEvent *k = (SDL_KeyboardEvent *) &e;
+                if (k->state == SDL_RELEASED) {
+                    if (k->keysym.sym == SDLK_UP) {
+                        menu_action(TURN_RIGHT_1, ctrl, ctrl->current);
+                    } else if (k->keysym.sym == SDLK_DOWN) {
+                        menu_action(TURN_LEFT_1, ctrl, ctrl->current);
+                    } else if (k->keysym.sym == SDLK_q) {
+                        return -1;
                     }
-                    menu_action(TURN_RIGHT_1, ctrl, item);
-                } else if (k->keysym.sym == SDLK_DOWN) {
-                    menu_item *item = NULL;
-                    if (ctrl->current->current_id >= 0) {
-                        item = ctrl->current->item[ctrl->current->current_id];
-                    }
-                    menu_action(TURN_LEFT_1, ctrl, item);
-                } else if (k->keysym.sym == SDLK_q) {
-                    return -1;
                 }
             }
         }
+#ifdef RASPBERRY
     }
-    return redraw;
 #endif
+    return redraw;
 }
 
 void menu_free(menu *m);
 
 void menu_item_free(menu_item *item) {
     if (item) {
+
+        if (item->unicode_label) {
+            free(item->unicode_label);
+        }
+
+        if (item->unicode_label2) {
+            free(item->unicode_label2);
+        }
+
+        if (item->label) {
+            free(item->label);
+        }
+
         if (item->label_active) {
             text_obj_free(item->label_active);
         }
@@ -1668,78 +1656,130 @@ void menu_item_free(menu_item *item) {
         if (item->label_default) {
             text_obj_free(item->label_default);
         }
-        if (item->object) {
-            if (item->sub_menu) {
-                menu_free((menu *)item->object);
-            } else {
-                free((void *) item->object);
-            }
+
+        if (item->font) {
+            TTF_CloseFont(item->font);
         }
+
+        if (item->font2) {
+            TTF_CloseFont(item->font2);
+        }
+
+        if (item->sub_menu) {
+            menu_free(item->sub_menu);
+        }
+
         free(item);
     }
 }
 
 void menu_free(menu *m) {
     if (m) {
-        for (int i = 0; i < m->max_id; i++) {
-            menu_item_free(m->item[i]);
+        for (int i = 0; i <= m->max_id; i++) {
+            menu_item_dispose(m->item[i]);
+            m->item[i] = NULL;
         }
+
+        free(m->item);
+        m->item = NULL;
+
         if (m->label) {
             free(m->label);
+            m->label = NULL;
         }
-        if (m->object) {
-            free((void *) m->object);
+
+        if (m->bg_image) {
+            SDL_DestroyTexture(m->bg_image);
         }
+
         if (m->default_color) {
             free(m->default_color);
+            m->default_color = NULL;
         }
         if (m->selected_color) {
             free(m->selected_color);
+            m->selected_color = NULL;
         }
+        if (m->scale_color) {
+            free(m->scale_color);
+            m->scale_color = NULL;
+        }
+
+        if (m->object) {
+            free((void *) m->object);
+            m->object = NULL;
+        }
+
         free(m);
     }
 }
 
 void menu_ctrl_free(menu_ctrl *ctrl) {
     if (ctrl) {
-        if (ctrl->activated_color) {
-            free(ctrl->activated_color);
-        }
-        if (ctrl->background_color) {
-            free(ctrl->background_color);
-        }
-        if (ctrl->default_color) {
-            free(ctrl->default_color);
-        }
-        if (ctrl->indicator_color) {
-            free(ctrl->indicator_color);
-        }
-        if (ctrl->indicator_color_dark) {
-            free(ctrl->indicator_color_dark);
-        }
-        if (ctrl->indicator_color_light) {
-            free(ctrl->indicator_color_light);
-        }
-        if (ctrl->scale_color) {
-            free(ctrl->scale_color);
-        }
-        if (ctrl->selected_color) {
-            free(ctrl->selected_color);
-        }
+
+        ctrl->current = NULL;
+
         if (ctrl->root) {
             for (int r = 0; r < ctrl->n_roots; r++) {
                 menu_free(ctrl->root[r]);
+                ctrl->root[r] = NULL;
             }
             ctrl->root = NULL;
         }
+
+        if (ctrl->activated_color) {
+            free(ctrl->activated_color);
+            ctrl->activated_color = NULL;
+        }
+        if (ctrl->background_color) {
+            free(ctrl->background_color);
+            ctrl->background_color = NULL;
+        }
+        if (ctrl->default_color) {
+            free(ctrl->default_color);
+            ctrl->default_color = NULL;
+        }
+        if (ctrl->indicator_color) {
+            free(ctrl->indicator_color);
+            ctrl->indicator_color = NULL;
+        }
+        if (ctrl->indicator_color_dark) {
+            free(ctrl->indicator_color_dark);
+            ctrl->indicator_color_dark = NULL;
+        }
+        if (ctrl->indicator_color_light) {
+            free(ctrl->indicator_color_light);
+            ctrl->indicator_color_light = NULL;
+        }
+        if (ctrl->scale_color) {
+            free(ctrl->scale_color);
+            ctrl->scale_color = NULL;
+        }
+        if (ctrl->selected_color) {
+            free(ctrl->selected_color);
+            ctrl->selected_color = NULL;
+        }
+
         if (ctrl->object) {
             free(ctrl->object);
+            ctrl->object = NULL;
         }
+
+        if (ctrl->font) {
+            TTF_CloseFont(ctrl->font);
+        }
+
+        if (ctrl->font2) {
+            TTF_CloseFont(ctrl->font2);
+        }
+
         if (ctrl->renderer) {
             SDL_DestroyRenderer(ctrl->renderer);
+            ctrl->renderer = NULL;
         }
         if (ctrl->display) {
             SDL_DestroyWindow(ctrl->display);
+            ctrl->display = NULL;
         }
         free(ctrl);
     }
@@ -1769,7 +1809,6 @@ void menu_ctrl_loop(menu_ctrl *ctrl) {
         int res = menu_ctrl_process_events(ctrl);
         log_trace(MENU_CTX, "events result: %d\n", res);
         if (res == -1) {
-            menu_ctrl_quit(ctrl);
             return;
         } else if (res == 0) {
             if (ctrl->call_back) {

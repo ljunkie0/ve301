@@ -1,4 +1,4 @@
-FROM debian:bookworm
+FROM debian:bullseye
 
 ENV INSIDE_DOCKER_CONTAINER=1 \
     DEBIAN_FRONTEND=noninteractive \
@@ -7,23 +7,22 @@ ENV INSIDE_DOCKER_CONTAINER=1 \
     PKG_CONFIG_PATH="/usr/lib/arm-linux-gnueabihf/pkgconfig"
 
 RUN mkdir /build \
-    && dpkg --add-architecture arm64 \
+    && dpkg --add-architecture armhf \
     && apt-get update \
     && apt-get -y upgrade \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        crossbuild-essential-arm64 \
-        gcc-11-aarch64-linux-gnu \
-	libdbus-1-dev:arm64 \
-        libsdl2-dev:arm64 \
-        libsdl2-ttf-dev:arm64 \
-        libsdl2-gfx-dev:arm64 \
-        libsdl2-image-dev:arm64 \
-        libmpdclient-dev:arm64 \
-        libcurl4-gnutls-dev:arm64 \
-        libcjson-dev:arm64 \
-	libwebsockets-dev:arm64 \
-	libmnl-dev:arm64 \
+        crossbuild-essential-armhf \
+        gcc-10-arm-linux-gnueabi \
+        libsdl2-dev:armhf \
+        libsdl2-ttf-dev:armhf \
+        libsdl2-gfx-dev:armhf \
+        libsdl2-image-dev:armhf \
+        libmpdclient-dev:armhf \
+        libcurl4-gnutls-dev:armhf \
+        libcjson-dev:armhf \
+	libmnl-dev:armhf \
+        openjdk-11-jdk-headless:armhf \
         bc \
         dpkg-dev \
         liblzma-dev \

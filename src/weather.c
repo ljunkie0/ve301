@@ -26,6 +26,7 @@
 #include<string.h>
 #include<pthread.h>
 #include<unistd.h>
+#include<time.h>
 
 #define WEATHER_BASE_URL "http://api.openweathermap.org/data/2.5/weather"
 
@@ -50,6 +51,7 @@ static time_t __weather_last_update_t = 0;
 weather *__weather_last_result = NULL;
 
 static pthread_t __weather_thread;
+static int __weather_thread_run = 0;
 
 #define DAY_SUNNY 0xF00D
 #define DAY_CLOUDY 0xF002
@@ -539,20 +541,48 @@ void *on_weather_thread_start(void *__weather_listener) {
 
     weather_listener *listener = (weather_listener *) __weather_listener;
 
-    while (1) {
+    const struct timespec duration = {
+        10,
+        0
+    };
 
-        weather *weather = get_weather();
-        listener(weather);
-        sleep(5);
+    time_t timer;
+    time(&timer);
+
+    while (__weather_thread_run) {
+
+        nanosleep(&duration, NULL);
+
+        time_t timer2;
+        time(&timer2);
+
+        time_t diff = timer2 - timer;
+
+        if (diff > 5) {
+            timer = timer2;
+            weather *weather = get_weather();
+            listener(weather);
+        }
 
     }
 
+    log_info(WEATHER_CTX, "Weather thread finished\n");
     return NULL;
 }
 
 void start_weather_thread(weather_listener *listener) {
+    __weather_thread_run = 1;
     int r = pthread_create(&__weather_thread, NULL, on_weather_thread_start, listener);
     if (r) {
+        __weather_thread_run = 0;
         log_error(WEATHER_CTX, "Could not start weather thread: %d\n", r);
     }
+}
+
+void stop_weather_thread() {
+    __weather_thread_run = 0;
+
+    void *res;
+    pthread_join(__weather_thread, &res);
+
 }

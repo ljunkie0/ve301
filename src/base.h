@@ -28,13 +28,13 @@
 #define LOG_LEVEL 5
 #endif
 
-#define IR_LOG_LEVEL_OFF -1
-#define IR_LOG_LEVEL_ERROR 0
-#define IR_LOG_LEVEL_WARNING 1
-#define IR_LOG_LEVEL_INFO 2
-#define IR_LOG_LEVEL_CONFIG 3
-#define IR_LOG_LEVEL_DEBUG 4
-#define IR_LOG_LEVEL_TRACE 5
+#define IR_LOG_LEVEL_OFF 0
+#define IR_LOG_LEVEL_ERROR 1
+#define IR_LOG_LEVEL_WARNING 2
+#define IR_LOG_LEVEL_INFO 3
+#define IR_LOG_LEVEL_CONFIG 4
+#define IR_LOG_LEVEL_DEBUG 5
+#define IR_LOG_LEVEL_TRACE 6
 
 char *my_copystr (const char *str);
 char *my_copynstr (const char *str, unsigned int max_length);
@@ -101,6 +101,8 @@ typedef struct network_interfaces {
 int check_internet (void);
 network_interfaces *get_network_interfaces();
 
+void free_network_interface(network_interface *interface);
+
 void set_config_value(char *key, char *value);
 void set_config_value_int (char *key, int value);
 void set_config_value_double (char *key, double value);
@@ -125,5 +127,6 @@ uint16_t *to_unicode(const char *txt, uint32_t *length, uint16_t **second_line, 
 char *to_utf8(uint32_t utf, uint32_t *length);
 
 char *my_catstr (const char *str1, const char *str2);
+char *my_cat3str (const char *str1, const char *str2, const char *str3);
 
 #endif

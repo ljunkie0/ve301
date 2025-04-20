@@ -28,30 +28,37 @@ void glyph_obj_free(glyph_obj *obj) {
 
         if (obj->colors) {
             free(obj->colors);
+	    obj->colors = NULL;
         }
 
         if (obj->normals) {
             free(obj->normals);
+	    obj->normals = NULL;
         }
 
         if (obj->surface) {
             SDL_FreeSurface(obj->surface);
+	    obj->surface = NULL;
         }
 
         if (obj->texture) {
             SDL_DestroyTexture(obj->texture);
+	    obj->texture = NULL;
         }
 
         if (obj->bumpmap_overlay) {
             SDL_DestroyTexture(obj->bumpmap_overlay);
+	    obj->bumpmap_overlay = NULL;
         }
 
         if (obj->rot_center) {
             free(obj->rot_center);
+	    obj->rot_center = NULL;
         }
 
         if (obj->dst_rect) {
             free(obj->dst_rect);
+	    obj->dst_rect = NULL;
         }
 
         if (obj->bumpmap_textures) {
@@ -60,6 +67,8 @@ void glyph_obj_free(glyph_obj *obj) {
                     SDL_DestroyTexture(obj->bumpmap_textures[a]);
                 }
             }
+	    free(obj->bumpmap_textures);
+	    obj->bumpmap_textures = NULL;
         }
 
         free(obj);
@@ -67,7 +76,7 @@ void glyph_obj_free(glyph_obj *obj) {
     }
 }
 
-void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius, int light_x, int light_y) {
+void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius) {
 
     glyph_o->dst_rect->x = center.x - 0.5 * glyph_o->dst_rect->w;
     glyph_o->dst_rect->y = center.y - radius - 0.5 * glyph_o->dst_rect->h;
@@ -76,9 +85,10 @@ void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius, 
 
 }
 
-glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius, int light_x, int light_y) {
+glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius) {
 
-    glyph_obj *glyph_o = calloc(1,sizeof(glyph_obj));
+    glyph_obj *glyph_o = malloc(sizeof(glyph_obj));
+    glyph_o->bumpmap_textures = NULL;
 
     glyph_o->surface = TTF_RenderGlyph_Blended(font,c,fg);
     if (glyph_o->surface == NULL) {
@@ -86,22 +96,26 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
         return NULL;
     }
 
+    glyph_o->radius = radius;
+
     glyph_o->current_angle = -2000.0;
 
     glyph_o->normals = calloc(glyph_o->surface->w * glyph_o->surface->h , sizeof(normal_vector));
     glyph_o->colors = calloc(glyph_o->surface->w * glyph_o->surface->h , sizeof(SDL_Color));
-
+    
     Uint32 *pixels = (Uint32 *) glyph_o->surface->pixels;
 
     int bpp = glyph_o->surface->format->BytesPerPixel;
     int pitch = glyph_o->surface->pitch / bpp;
 
     for (int y = 0; y < glyph_o->surface->h; y++) {
-        int o = glyph_o->surface->w*y;
+        
+	int o = glyph_o->surface->w*y;
         int p = pitch*y;
         int pop = pitch * (y-1);
         int pon = pitch * (y+1);
         for (int x = 0; x < glyph_o->surface->w; x++) {
+
             Uint32 pixel = pixels[p + x];
             SDL_Color color;
             SDL_GetRGBA(pixel,glyph_o->surface->format,&(color.r),&(color.g),&(color.b),&(color.a));
@@ -148,7 +162,6 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
                     dy = dy * inv_dn;
                 } else {
                     dx = 0.0;
-#include<SDL2/SDL_ttf.h>
                     dy = 0.0;
                 }
 
@@ -205,7 +218,7 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
     SDL_Point *rot_center = malloc(sizeof(SDL_Point));
     glyph_o->rot_center = rot_center;
 
-    glyph_obj_update_cnt_rad(glyph_o,center,radius, light_x, light_y);
+    glyph_obj_update_cnt_rad(glyph_o,center,radius);
 
     int minx = 0,maxx = 0,miny = 0,maxy = 0,advance = 0;
     TTF_GlyphMetrics(font,c,&minx,&maxx,&miny,&maxy,&advance);

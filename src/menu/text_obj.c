@@ -12,6 +12,7 @@ void text_obj_free(text_obj *obj) {
                 glyph_obj_free(obj->glyphs_objs[g]);
             }
             free(obj->glyphs_objs);
+	    obj->glyphs_objs = NULL;
         }
 
         if (obj->glyphs_objs_2nd_line) {
@@ -19,6 +20,7 @@ void text_obj_free(text_obj *obj) {
                 glyph_obj_free(obj->glyphs_objs_2nd_line[g]);
             }
             free(obj->glyphs_objs_2nd_line);
+            obj->glyphs_objs_2nd_line = NULL;
         }
 
         free(obj);
@@ -26,7 +28,7 @@ void text_obj_free(text_obj *obj) {
     }
 }
 
-void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int line, int n_lines, int light_x, int light_y) {
+void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int line, int n_lines) {
     if (obj) {
 
         if (obj->n_glyphs_2nd_line > 0) {
@@ -37,15 +39,15 @@ void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int li
 
         if (obj->glyphs_objs) {
             for (int g = 0; g < obj->n_glyphs; g++) {
-                glyph_obj_update_cnt_rad(obj->glyphs_objs[g], center, radius, light_x, light_y);
+                glyph_obj_update_cnt_rad(obj->glyphs_objs[g], center, radius);
             }
         }
 
-        int radius_new = radius - obj->height;
 
         if (obj->glyphs_objs_2nd_line) {
+            radius = radius - obj->height;
             for (int g = 0; g < obj->n_glyphs_2nd_line; g++) {
-                glyph_obj_update_cnt_rad(obj->glyphs_objs_2nd_line[g], center, radius_new, light_x, light_y);
+                glyph_obj_update_cnt_rad(obj->glyphs_objs_2nd_line[g], center, radius);
             }
         }
     }
@@ -80,7 +82,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
         t->height = text_surface->h;
 
         if (unicode_length_second_line > 0 && unicode_text_2nd_line != NULL) {
-            radius = radius + text_surface->h * 0.5;
+            radius = radius + text_surface->h * 0.3;
         }
 
         radius = radius + 0.8 * text_surface->h * (line + 0.5 * (n_lines-1));
@@ -89,7 +91,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
 
         unsigned int i = 0;
         for (i = 0; i < unicode_length; i++) {
-            glyph_obj *glyph_o = glyph_obj_new(renderer,unicode_text[i],font,fg,center,radius, light_x, light_y);
+            glyph_obj *glyph_o = glyph_obj_new(renderer,unicode_text[i],font,fg,center,radius);
             if (!glyph_o) {
                 log_error(MENU_CTX, "Could not create glyph object for %c\n", unicode_text[i]);
                 return NULL;
@@ -114,9 +116,9 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
             SDL_FreeSurface(text_surface);
 
             unsigned int i = 0;
-            int radius_new = radius - text_surface->h;
+            int radius_new = radius - (0.6) * t->height - 1;
             for (i = 0; i < unicode_length_second_line; i++) {
-                t->glyphs_objs_2nd_line[i] = glyph_obj_new(renderer,unicode_text_2nd_line[i],font_2nd_line,fg,center,radius_new, light_x, light_y);
+                t->glyphs_objs_2nd_line[i] = glyph_obj_new(renderer,unicode_text_2nd_line[i],font_2nd_line,fg,center,radius_new);
             }
         }
 
@@ -133,10 +135,10 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
 
 }
 
-void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label, int radius, int center_x, int center_y, double angle, int line, double light_x, double light_y, int font_bumpmap, int shadow_offset, int shadow_alpha) {
+void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label, int radius, int center_x, int center_y, double angle, double light_x, double light_y, int font_bumpmap, int shadow_offset, int shadow_alpha) {
     double circumference = M_2_X_PI * radius;
-    double advance = - 0.5 * label->width;
-    log_config(MENU_CTX,"text_obj_draw: angle: %f, radius: %d, circumference: %f, advance: %f\n", angle, radius, circumference, advance);
+
+    log_config(MENU_CTX,"text_obj_draw: angle: %f, radius: %d, circumference: %f\n", angle, radius, circumference);
     if (radius == 0) {
         log_config(MENU_CTX,"text_obj_draw: radius = 0, returning\n");
         return;
@@ -146,10 +148,98 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
         SDL_SetRenderTarget(renderer,target);
     }
 
-    int c;
-    for (c = 0; c < label->n_glyphs; c++) {
+    double advance = 0;
+
+    if (shadow_offset > 0) {
+        advance = - 0.5 * label->width;
+        for (int c = 0; c < label->n_glyphs; c++) {
+
+            glyph_obj *glyph_obj = label->glyphs_objs[c];
+
+            double crc = M_2_X_PI * glyph_obj->radius;
+            double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/crc;
+                
+	    if (a != glyph_obj->current_angle) {
+                    glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
+            }
+
+            SDL_Texture *texture = font_bumpmap ? glyph_obj->bumpmap_overlay : glyph_obj->texture;
+
+            if (a >= -VISIBLE_ANGLE && a <= VISIBLE_ANGLE) {
+
+                Uint8 orig_a, orig_r, orig_g, orig_b;
+                SDL_GetTextureAlphaMod(texture, &orig_a);
+                SDL_GetTextureColorMod(texture, &orig_r, &orig_g, &orig_b);
+                SDL_SetTextureColorMod(texture,0,0,0);
+
+                SDL_Rect shadow_dst_rec;
+                shadow_dst_rec.w = glyph_obj->dst_rect->w;
+                shadow_dst_rec.h = glyph_obj->dst_rect->h;
+
+                for (int so = shadow_offset; so > 0; so--) {
+                    int sa = (shadow_offset - so + 1)*shadow_alpha / (shadow_offset);
+                    SDL_SetTextureAlphaMod(texture,sa);
+                    shadow_dst_rec.x = glyph_obj->dst_rect->x+so*glyph_obj->shadow_dx;
+                    shadow_dst_rec.y = glyph_obj->dst_rect->y+so*glyph_obj->shadow_dy;
+                    SDL_RenderCopyEx(renderer,texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                }
+
+                SDL_SetTextureAlphaMod(texture,orig_a);
+                SDL_SetTextureColorMod(texture,orig_r, orig_g, orig_b);
+            }
+
+            advance += glyph_obj->advance;
+
+        }
+
+        advance = - 0.5 * label->width_2nd_line;
+        for (int c = 0; c < label->n_glyphs_2nd_line; c++) {
+
+            glyph_obj *glyph_obj = label->glyphs_objs_2nd_line[c];
+
+            double crc = M_2_X_PI * glyph_obj->radius;
+            double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/crc;
+	    if (a != glyph_obj->current_angle) {
+                    glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
+            }
+            SDL_Texture *texture = font_bumpmap ? glyph_obj->bumpmap_overlay : glyph_obj->texture;
+
+            if (a >= -VISIBLE_ANGLE && a <= VISIBLE_ANGLE) {
+                Uint8 orig_a, orig_r, orig_g, orig_b;
+                SDL_GetTextureAlphaMod(texture, &orig_a);
+                SDL_GetTextureColorMod(texture, &orig_r, &orig_g, &orig_b);
+                SDL_SetTextureColorMod(texture,0,0,0);
+
+                SDL_Rect shadow_dst_rec;
+                shadow_dst_rec.w = glyph_obj->dst_rect->w;
+                shadow_dst_rec.h = glyph_obj->dst_rect->h;
+
+                for (int so = shadow_offset; so > 0; so--) {
+                    int sa = (shadow_offset - so + 1)*shadow_alpha / (shadow_offset);
+                    SDL_SetTextureAlphaMod(texture,sa);
+                    shadow_dst_rec.x = glyph_obj->dst_rect->x+so*glyph_obj->shadow_dx;
+                    shadow_dst_rec.y = glyph_obj->dst_rect->y+so*glyph_obj->shadow_dy;
+                    SDL_RenderCopyEx(renderer,texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                }
+
+                SDL_SetTextureAlphaMod(texture,orig_a);
+                SDL_SetTextureColorMod(texture,orig_r, orig_g, orig_b);
+
+            }
+
+            advance += glyph_obj->advance;
+
+        }
+    } else {
+        log_error(MENU_CTX, "No shadow\n");
+    }
+
+    advance = - 0.5 * label->width;
+    for (int c = 0; c < label->n_glyphs; c++) {
         glyph_obj *glyph_obj = label->glyphs_objs[c];
-        double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/circumference;
+
+        double crc = M_2_X_PI * glyph_obj->radius;
+        double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/crc;
 
         if (a >= -VISIBLE_ANGLE && a <= VISIBLE_ANGLE) {
 
@@ -160,59 +250,16 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
                 }
 
                 SDL_Texture *texture = glyph_obj->bumpmap_overlay;
-                log_debug(MENU_CTX,"texture: %p\n", texture);
-
-                if (shadow_offset > 0) {
-
-                    Uint8 orig_a, orig_r, orig_g, orig_b;
-                    SDL_GetTextureAlphaMod(texture, &orig_a);
-                    SDL_GetTextureColorMod(texture, &orig_r, &orig_g, &orig_b);
-                    SDL_SetTextureColorMod(texture,0,0,0);
-
-                    SDL_Rect shadow_dst_rec;
-                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
-
-                    for (int so = shadow_offset; so > 0; so--) {
-                        int sa = (shadow_offset - so + 1)*shadow_alpha / (shadow_offset);
-                        SDL_SetTextureAlphaMod(texture,sa);
-                        shadow_dst_rec.x = glyph_obj->dst_rect->x+so*glyph_obj->shadow_dx;
-                        shadow_dst_rec.y = glyph_obj->dst_rect->y+so*glyph_obj->shadow_dy;
-                        SDL_RenderCopyEx(renderer,texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-                    }
-
-                    SDL_SetTextureAlphaMod(texture,orig_a);
-                    SDL_SetTextureColorMod(texture,orig_r, orig_g, orig_b);
-
-                }
 
                 SDL_RenderCopyEx(renderer,texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
 
             } else {
 
-                if (shadow_offset > 0) {
-
-                    SDL_Rect shadow_dst_rec;
-                    shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                    shadow_dst_rec.h = glyph_obj->dst_rect->h;
-                    shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
-                    shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
-
-                    Uint8 orig_a, orig_r, orig_g, orig_b;
-                    SDL_GetTextureAlphaMod(glyph_obj->texture, &orig_a);
-                    SDL_GetTextureColorMod(glyph_obj->texture, &orig_r, &orig_g, &orig_b);
-                    SDL_SetTextureAlphaMod(glyph_obj->texture,shadow_alpha);
-                    SDL_SetTextureColorMod(glyph_obj->texture,0,0,0);
-
-                    SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-                    SDL_SetTextureAlphaMod(glyph_obj->texture,orig_a);
-                    SDL_SetTextureColorMod(glyph_obj->texture,orig_r, orig_g, orig_b);
-                }
-
                 SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
 
             }
+        } else {
+            log_debug(MENU_CTX, "angle %f not in visible range of %f\n", angle, VISIBLE_ANGLE);
         }
 
         glyph_obj->current_angle = a;
@@ -220,68 +267,37 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
 
     }
 
-    if (label->glyphs_objs_2nd_line > 0) {
-        circumference = M_2_X_PI * (radius - label->height);
-        advance = - 0.5 * label->width_2nd_line;
-        for (c = 0; c < label->n_glyphs_2nd_line; c++) {
-            glyph_obj *glyph_obj = label->glyphs_objs_2nd_line[c];
-            double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/circumference;
+    advance = - 0.5 * label->width_2nd_line;
+    for (int c = 0; c < label->n_glyphs_2nd_line; c++) {
+        glyph_obj *glyph_obj = label->glyphs_objs_2nd_line[c];
 
-            if (a >= -VISIBLE_ANGLE || a <= VISIBLE_ANGLE) {
+        double crc = M_2_X_PI * glyph_obj->radius;
+        double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w)/crc;
 
-                if (font_bumpmap) {
+        if (a >= -VISIBLE_ANGLE && a <= VISIBLE_ANGLE) {
 
-                    if (a != glyph_obj->current_angle) {
-                        glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
-                    }
+            if (font_bumpmap) {
 
-                    if (shadow_offset > 0) {
-
-                        SDL_Rect shadow_dst_rec;
-                        shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                        shadow_dst_rec.h = glyph_obj->dst_rect->h;
-                        shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
-                        shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
-
-                        Uint8 orig_a, orig_r, orig_g, orig_b;
-                        SDL_GetTextureAlphaMod(glyph_obj->bumpmap_overlay, &orig_a);
-                        SDL_GetTextureColorMod(glyph_obj->bumpmap_overlay, &orig_r, &orig_g, &orig_b);
-                        SDL_SetTextureAlphaMod(glyph_obj->bumpmap_overlay,shadow_alpha);
-                        SDL_SetTextureColorMod(glyph_obj->bumpmap_overlay,0,0,0);
-
-                        SDL_RenderCopyEx(renderer,glyph_obj->bumpmap_overlay,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-                        SDL_SetTextureAlphaMod(glyph_obj->bumpmap_overlay,orig_a);
-                        SDL_SetTextureColorMod(glyph_obj->bumpmap_overlay,orig_r, orig_g, orig_b);
-
-                    }
-                    SDL_RenderCopyEx(renderer,glyph_obj->bumpmap_overlay,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-                } else {
-                    if (shadow_offset > 0) {
-
-                        SDL_Rect shadow_dst_rec;
-                        shadow_dst_rec.w = glyph_obj->dst_rect->w;
-                        shadow_dst_rec.h = glyph_obj->dst_rect->h;
-                        shadow_dst_rec.x = glyph_obj->dst_rect->x+shadow_offset*glyph_obj->shadow_dx;
-                        shadow_dst_rec.y = glyph_obj->dst_rect->y+shadow_offset*glyph_obj->shadow_dy;
-
-                        Uint8 orig_a, orig_r, orig_g, orig_b;
-                        SDL_GetTextureAlphaMod(glyph_obj->texture, &orig_a);
-                        SDL_GetTextureColorMod(glyph_obj->texture, &orig_r, &orig_g, &orig_b);
-                        SDL_SetTextureAlphaMod(glyph_obj->texture,shadow_alpha);
-                        SDL_SetTextureColorMod(glyph_obj->texture,0,0,0);
-
-                        SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,&shadow_dst_rec,a, glyph_obj->rot_center,SDL_FLIP_NONE);
-
-                        SDL_SetTextureAlphaMod(glyph_obj->texture,orig_a);
-                        SDL_SetTextureColorMod(glyph_obj->texture,orig_r, orig_g, orig_b);
-                    }
-                    SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+                if (a != glyph_obj->current_angle) {
+                    glyph_obj_update_bumpmap_texture(renderer, glyph_obj,center_x,center_y,a, light_x, light_y);
                 }
+
+                SDL_Texture *texture = glyph_obj->bumpmap_overlay;
+                log_trace(MENU_CTX,"texture: %p\n", texture);
+
+                SDL_RenderCopyEx(renderer,texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
+            } else {
+		    
+                SDL_RenderCopyEx(renderer,glyph_obj->texture,NULL,glyph_obj->dst_rect,a, glyph_obj->rot_center,SDL_FLIP_NONE);
+
             }
-            glyph_obj->current_angle = a;
-            advance += glyph_obj->advance;
+        } else {
+            log_debug(MENU_CTX, "angle %f not in visible range of %f\n", angle, VISIBLE_ANGLE);
         }
+
+        glyph_obj->current_angle = a;
+        advance += glyph_obj->advance;
     }
 
     if (target != NULL) {

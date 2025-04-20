@@ -22,14 +22,15 @@ typedef struct glyph_obj {
     int maxy;
     SDL_Rect *dst_rect;
     SDL_Point *rot_center;
+    double radius;
     double current_angle;
     double shadow_dx;
     double shadow_dy;
 } glyph_obj;
 
-glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius, int light_x, int light_y);
+glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius);
 void glyph_obj_free(glyph_obj *obj);
-void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius, int light_x, int light_y);
+void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius);
 void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o, double center_x, double center_y, int angle, double l_x, double l_y);
 
 #endif // GLYPH_OBJ_H

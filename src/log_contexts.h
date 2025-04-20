@@ -16,13 +16,22 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+#ifndef LOG_CONTEXTS
+#define LOG_CONTEXTS
 
-#define BASE_CTX 0
-#define MAIN_CTX 1
-#define MENU_CTX 2
-#define AUDIO_CTX 3
-#define ENCODER_CTX 4
-#define SDL_CTX 5
-#define WEATHER_CTX 6
-#define NUM_CTX 7
-#define BT_CTX 8
+enum log_context {
+	BASE_CTX	= 0,
+	MAIN_CTX	= 1,
+	MENU_CTX	= 2,
+	AUDIO_CTX	= 3,
+	ENCODER_CTX	= 4,
+	SDL_CTX		= 5,
+	WEATHER_CTX	= 6,
+	BT_CTX		= 7,
+	SPOTIFY_CTX	= 8,
+	NUM_CTX		= 9
+};
+
+char *get_log_context_name(enum log_context context);
+
+#endif

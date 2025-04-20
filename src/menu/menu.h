@@ -31,9 +31,11 @@ typedef enum {
     TURN_LEFT,
     TURN_RIGHT,
     ACTIVATE,
+    HOLD,
     TURN_LEFT_1,
     TURN_RIGHT_1,
     ACTIVATE_1,
+    HOLD_1,
     DISPOSE,
     CLOSE
 } menu_event;
@@ -49,27 +51,21 @@ typedef struct menu_item {
     int id;
     Uint16 *unicode_label;
     Uint16 *unicode_label2;
-    char *utf8_label;
-    char *utf8_label2;
     char *label;
     int num_label_chars;
     int num_label_chars2;
     int w;
     int h;
-    void *sub_menu;
+    menu *sub_menu;
     TTF_Font *font;
     TTF_Font *font2;
     menu *menu;
-    void **glyph_objs;
-    void **glyph_objs2;
     int line; // The line (0 = default, >0 = above, <0 = below)
 
     text_obj *label_default;
     text_obj *label_active;
     text_obj *label_current;
 
-    float *kernings;
-    float *kernings2;
     item_action *action;
     int w2;
     int h2;
@@ -92,16 +88,20 @@ typedef struct menu {
     int n_o_lines; /* The number of lines to show the menu items */
     int n_o_items_on_scale; /* The number of items on the scale at the same time. Default is taken from menu_ctrl */
     int segments_per_item; /* The number of segments left and right that belong to a menu item. Default is taken from menu_ctrl */
+    int sticky; /* ignored in the menu framework, but can be used to indicate that a menu shall not fade after a certain time */
     double segment;
     menu_item **item;
     menu *parent;
     menu_ctrl *ctrl;
     SDL_Texture *bg_image;
+    TTF_Font *font;
+    TTF_Font *font2;
     SDL_Color *scale_color; /* The color of the scales */
     SDL_Color *default_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */
     SDL_Color *selected_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */
     uint8_t transient;
     uint8_t draw_only_active;
+    item_action *action;
     /**
      * User data
     **/
@@ -160,6 +160,7 @@ struct menu_ctrl {
     int font_size;
     TTF_Font *font2;
     int font_size2;
+    int mouse_control;
     SDL_Color *scale_color; /* The color of the scales */
     SDL_Color *default_color; /* The default foregound color */
     SDL_Color *selected_color; /* The foreground color of the selected item */
@@ -176,6 +177,8 @@ struct menu_ctrl {
     double bg_segment;
     theme *theme;
     SDL_Texture *light_texture;
+    int light_img_x;
+    int light_img_y;
     menu_callback *call_back;
     item_action *action;
     int warping;
@@ -187,15 +190,15 @@ struct menu_ctrl {
     void *object;
 };
 
-menu_item *menu_item_new(menu *m, const char *label, void *object, int object_type, const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line);
+menu_item *menu_item_new(menu *m, const char *label, const void *object, int object_type, const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line);
 void menu_item_activate(menu_item *item);
 void menu_item_warp_to(menu_item *item);
 void menu_item_show(menu_item *item);
 menu_item *menu_item_update_label(menu_item *item, const char *label);
 menu_item *menu_item_next(menu *m, menu_item *item);
 
-menu *menu_new(menu_ctrl *ctrl, int lines);
-menu *menu_new_root(menu_ctrl *ctrl, int lines);
+menu *menu_new(menu_ctrl *ctrl, int lines, const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line);
+menu *menu_new_root(menu_ctrl *ctrl, int lines, const char *font, int font_size, char *font_2nd_line, int font_size_2nd_line);
 int menu_set_bg_image(menu *m, char *bgImagePath);
 int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color, SDL_Color *scale_color);
 menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action);
@@ -203,10 +206,13 @@ menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_act
 int menu_open_sub_menu(menu_ctrl *ctrl, menu_item *item);
 int menu_open(menu *m);
 int menu_clear(menu *m);
+void menu_turn_left(menu *m);
+void menu_turn_right(menu *m);
 
 void menu_ctrl_quit(menu_ctrl *ctrl);
 menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, int draw_scales, int radius_scales_start, int radius_scales_end, double angle_offset, const char *font, int font_size, int font_size2,
         item_action *action, menu_callback *call_back);
+void menu_ctrl_enable_mouse(menu_ctrl *ctrl, int mouse_control);
 void menu_ctrl_loop(menu_ctrl *ctrl);
 void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_start, int radius_scales_end);
 int menu_ctrl_apply_theme(menu_ctrl *ctrl, theme *theme);
@@ -215,7 +221,7 @@ int menu_ctrl_set_default_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 int menu_ctrl_set_active_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha);
-void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path);
+void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path, int x, int y);
 int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator,
                         char *def, char *selected, char *activated, char *bgImagePath, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors);
 void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset);

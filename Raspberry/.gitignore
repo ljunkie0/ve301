@@ -1,0 +1,16 @@
+./.gitignore
+./audio.o
+./weather.o
+./bluetooth.o
+./java/org_ljunkie_ve301_MenuItem.o
+./java/menu_jni.o
+./java/org_ljunkie_ve301_MenuControl.o
+./java/org_ljunkie_ve301_Application.o
+./java/org_ljunkie_ve301_Menu.o
+./rotaryencoder.o
+./menu/menu.o
+./menu/glyph_obj.o
+./menu/text_obj.o
+./base.o
+./sdl_util.o
+./main.o

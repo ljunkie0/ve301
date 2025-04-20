@@ -322,13 +322,16 @@ int init_SDL() {
     for (v = 0; v < SDL_GetNumVideoDrivers(); v++) {
         log_info(SDL_CTX, "%s\n", SDL_GetVideoDriver(v));
     }
+
+    log_info(SDL_CTX, "SDL chose the driver: %s\n", SDL_GetCurrentVideoDriver());
+
     log_info(SDL_CTX, "Available video renderers:\n");
     int r = 0;
     for (r = 0; r < SDL_GetNumRenderDrivers(); r++) {
         SDL_RendererInfo rendererInfo;
         SDL_GetRenderDriverInfo(r, &rendererInfo);
-        log_info(MENU_CTX, "%d ", r );
-        log_info(MENU_CTX, "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
+        log_info(SDL_CTX, "%d ", r );
+        log_info(SDL_CTX, "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
                  rendererInfo.name,
                  (rendererInfo.flags & SDL_RENDERER_SOFTWARE) != 0,
                  (rendererInfo.flags & SDL_RENDERER_ACCELERATED) != 0,

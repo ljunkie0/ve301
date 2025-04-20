@@ -17,20 +17,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef __WEATHER_H
-#define __WEATHER_H
-#include<time.h>
+void spotify_init(char *host);
+void spotify_close();
+int spotify_is_connected();
+char *spotify_get_title();
+char *spotify_get_album();
+char *spotify_get_artist();
 
-typedef struct weather_struct {
-    double temp;
-    char *weather_icon;
-} weather;
-
-int init_weather(time_t update_interval, const char *api_key, const char *location, const char *units);
-int cleanup_weather();
-weather *get_weather();
-typedef int weather_listener(weather *weather);
-void start_weather_thread(weather_listener *listener);
-void stop_weather_thread();
-
-#endif

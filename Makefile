@@ -1,17 +1,36 @@
+WITH_SPOTIFY=1
+WITH_BLUETOOTH=1
+
 CC=$(ARCH)-gcc-11
 CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
+LDFLAGS_DBUS=-ldbus-1
 LDFLAGS=
 STRIP=$(ARCH)-strip
 
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu.o
-OBJS=base.o sdl_util.o $(MENU_OBJS) audio.o weather.o bluetooth.o
+AUDIO_OBJS=audio/audio.o audio/alsa.o
+OBJS=log_contexts.o base.o sdl_util.o $(MENU_OBJS) $(AUDIO_OBJS) input_menu.o weather.o 
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
-JNI_INCLUDES=-I /usr/lib/jvm/default-java/include -I /usr/lib/jvm/default-java/include/linux
+JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+JNI_INCLUDES=-I $(JAVA_HOME)/include -I $(JAVA_HOME)/include/linux
 LIBS_SDL=-lm -lSDL2 -lSDL2_ttf -lSDL2_gfx -lSDL2_image
 LIB_MPD=-lmpdclient
 LIB_WEATHER=-lcurl -lcjson -lpthread
-LIB_BT=-ldbus-1
+LIB_WS=-lwebsockets
+LIB_ASOUND=-lasound
+ifeq ($(WITH_SPOTIFY),1)
+	LIB_SPOTIFY=$(LIB_WS)
+	SPOTIFY_FLAGS=-DSPOTIFY
+	AUDIO_OBJS += audio/spotify.o
+endif
+
+ifeq ($(WITH_BLUETOOTH),1)
+	LIB_BT=-ldbus-1
+	AUDIO_OBJS += audio/bluetooth.o
+endif
+
+WIFI_SCAN_DIRECTORY=../../wifi-scan
 
 IR_LOG_LEVEL_OFF=-1
 IR_LOG_LEVEL_ERROR=0
@@ -30,10 +49,29 @@ MPD_LIB=/usr/lib/$(ARCH)/libmpdclient.so
 SDL_LIB=/usr/lib/$(ARCH)/libSDL2.so
 DBUS_LIB=/usr/lib/$(ARCH)/libdbus-1.so
 
-all: ve301 libve301.so
+all: ve301
 
-ve301: $(OBJS) $(ADDITIONAL_OBJS)
-	$(CC) -o ve301 $(LDFLAGS) $(OBJS) $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
+ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o wifi.o wifi_scan.o
+	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
+
+wifi_scan.o: $(WIFI_SCAN_DIRECTORY)/wifi_scan.c
+	make -C $(WIFI_SCAN_DIRECTORY)
+	mv $(WIFI_SCAN_DIRECTORY)/wifi_scan.o .
+
+bt_devices: bt_devices.o
+	$(CC) -o bt_devices bt_devices.o $(LDFLAGS_DBUS)
+
+bt_devices.o: ../src/bt_devices.c
+	$(CC) -c bt_devices.o $(CFLAGS_DBUS) ../src/bt_devices.c
+
+$(WIFI_SCAN_DIRECTORY)/wifi-scan-all:
+	make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-all
+
+$(WIFI_SCAN_DIRECTORY)/wifi-scan-station:
+	make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-station
+	
+$(WIFI_SCAN_DIRECTORY)/wifi_scan.c:
+	git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
 
 libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o $(MENU_OBJS)
 	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o $(MENU_OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
@@ -58,22 +96,31 @@ debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB)
 menu:
 	mkdir menu
 
+audio:
+	mkdir audio
+
 menu/%.o: ../src/menu/%.c ../src/menu/%.h menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
+audio/%.o: ../src/audio/%.c ../src/audio/%.h audio
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+menu/examples/%.o: ../src/menu/%.c ../src/menu/%.h ../src/menu/examples/%.c ../src/menu/examples/%.h
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
 main.o: ../src/main.c
-	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ main.o "$<"
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-bluetooth.o: ../src/bluetooth.c
-	$(CC) ${CFLAGS_DBUS} $(CFLAGS) -c ../src/bluetooth.c
+audio/bluetooth.o: ../src/audio/bluetooth.c
+	$(CC) ${CFLAGS_DBUS} $(CFLAGS) -c -o audio/bluetooth.o ../src/audio/bluetooth.c
 
-bluetooth: bluetooth.o
-	$(CC) -o bluetooth bluetooth.o -ldbus-1
+audio/bluetooth: audio/bluetooth.o
+	$(CC) -o bluetooth audio/bluetooth.o -ldbus-1
 
 test_menu.o: ../src/test_menu.c
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 	
-test_menu: test_menu.o ${MENU_OBJS} base.o sdl_util.o
+test_menu: test_menu.o ${MENU_OBJS} base.o sdl_util.o $(ADDITIONAL_OBJS)
 	$(CC) -o test_menu test_menu.o $(MENU_OBJS) base.o sdl_util.o $(LDFLAGS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
 
 java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
@@ -82,5 +129,7 @@ java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 
 
 clean:
-	rm -f $(OBJS) $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301
+	rm -f $(OBJS) main.o wifi.o wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) $(AUDIO_OBJS) libve301.so ve301 bt_devices
 	rm -rf menu
+	rm -rf audio
+	make -C $(WIFI_SCAN_DIRECTORY) clean
