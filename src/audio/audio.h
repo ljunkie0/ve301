@@ -23,6 +23,7 @@
 #include<inttypes.h>
 
 typedef struct song {
+    char *artist;
     char *name;
     char *title;
     const char *url;
@@ -58,6 +59,8 @@ int toggle_pause(void);
 int stop(void);
 int list_playlists(void);
 int dispose_playlist(playlist *p);
+song *new_song(unsigned int id, const char *url, const char *name, const char *title);
+void song_free(song *s);
 struct mpd_connection *get_mpd_connection(void);
 //void **get_directory(char *path);
 

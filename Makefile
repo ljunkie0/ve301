@@ -2,6 +2,7 @@ WITH_SPOTIFY=1
 WITH_BLUETOOTH=1
 
 CC=$(ARCH)-gcc-11
+CXX=$(ARCH)-g++-13
 CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
 LDFLAGS_DBUS=-ldbus-1
 LDFLAGS=
@@ -9,7 +10,7 @@ STRIP=$(ARCH)-strip
 
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu.o
 AUDIO_OBJS=audio/audio.o audio/alsa.o
-OBJS=log_contexts.o base.o sdl_util.o $(MENU_OBJS) $(AUDIO_OBJS) input_menu.o weather.o 
+OBJS=log_contexts.o base.o player.o sdl_util.o $(MENU_OBJS) $(AUDIO_OBJS) input_menu.o weather.o 
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
@@ -21,12 +22,13 @@ LIB_WS=-lwebsockets
 LIB_ASOUND=-lasound
 ifeq ($(WITH_SPOTIFY),1)
 	LIB_SPOTIFY=$(LIB_WS)
-	SPOTIFY_FLAGS=-DSPOTIFY
+	ADD_CFLAGS += -DSPOTIFY
 	AUDIO_OBJS += audio/spotify.o
 endif
 
 ifeq ($(WITH_BLUETOOTH),1)
 	LIB_BT=-ldbus-1
+	ADD_CFLAGS += -DBLUETOOTH
 	AUDIO_OBJS += audio/bluetooth.o
 endif
 
@@ -122,6 +124,18 @@ test_menu.o: ../src/test_menu.c
 	
 test_menu: test_menu.o ${MENU_OBJS} base.o sdl_util.o $(ADDITIONAL_OBJS)
 	$(CC) -o test_menu test_menu.o $(MENU_OBJS) base.o sdl_util.o $(LDFLAGS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
+
+menu/Menu.o: ../src/menu/Menu.cpp
+	$(CXX) $(CFLAGS) -c -o $@ "$<"
+
+menu/Menu%.o: ../src/menu/Menu%.cpp
+	$(CXX) $(CFLAGS) -c -o $@ "$<"
+
+mainObjective.o: base.o log_contexts.o sdl_util.o menu/menu.o menu/glyph_obj.o menu/text_obj.o ../src/mainObjective.cpp ../src/menu/MenuCtrl.cpp ../src/menu/Menu.cpp ../src/menu/MenuItem.cpp
+	$(CXX) $(CFLAGS) -c ../src/mainObjective.cpp
+
+mainObjective: mainObjective.o menu/menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o base.o sdl_util.o log_contexts.o
+	$(CXX) -o mainObjective mainObjective.o base.o sdl_util.o log_contexts.o menu/menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o $(LIBS_SDL)
 
 java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 	mkdir -p java

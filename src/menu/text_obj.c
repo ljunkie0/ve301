@@ -1,3 +1,4 @@
+#include <SDL2/SDL_image.h>
 #include "../base.h"
 #include "text_obj.h"
 
@@ -54,27 +55,43 @@ void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius, int li
 }
 
 
-text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Font *font_2nd_line, SDL_Color fg, SDL_Point center, int radius, int line, int n_lines, int light_x, int light_y) {
+text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, char *icon, TTF_Font *font, TTF_Font *font_2nd_line, SDL_Color fg, SDL_Point center, int radius, int line, int n_lines, int light_x, int light_y) {
 
-    if (txt) {
+    if ((txt && strlen(txt) > 0) || icon) {
         Uint32 unicode_length = MAX_LABEL_LENGTH;
         Uint16 *unicode_text_2nd_line = NULL;
         Uint32 unicode_length_second_line = MAX_LABEL_LENGTH;
         Uint16 *unicode_text = NULL;
-        unicode_text = to_unicode(txt,&unicode_length,&unicode_text_2nd_line,&unicode_length_second_line);
+	if (txt) {
+        	unicode_text = to_unicode(txt,&unicode_length,&unicode_text_2nd_line,&unicode_length_second_line);
+	}
 
-        if (!unicode_text) {
-            return NULL;
-        }
+ 	if (icon) {
+		// Throw away a possible second line text, take the first line text as second line and the icon surface
+		// as first line "text"
+		if (unicode_text_2nd_line) {
+			free(unicode_text_2nd_line);
+		}
+		if (unicode_text) {
+			unicode_text_2nd_line = unicode_text;
+			unicode_length_second_line = unicode_length;
+			unicode_text = NULL;
+		} else {
+			unicode_text_2nd_line = NULL;
+			unicode_length_second_line = 0;
+		}
+		unicode_length = 1;
+	}
+
 
         text_obj *t = malloc(sizeof(text_obj));
         t->n_glyphs = unicode_length;
         t->glyphs_objs = malloc(unicode_length * sizeof(glyph_obj *));
         log_debug(MENU_CTX, "Rendering surface for %s\n",unicode_text);
-        SDL_Surface *text_surface = TTF_RenderUNICODE_Blended(font,unicode_text,fg);
+        SDL_Surface *text_surface = icon ? IMG_Load(icon) : TTF_RenderUNICODE_Blended(font,unicode_text,fg);
 
         if (text_surface == NULL) {
-            log_error(MENU_CTX, "Could not create glyph surface for %s: %s\n", txt, TTF_GetError());
+            log_error(MENU_CTX, "Could not create glyph surface for \"[%s]\": %s\n", txt, icon ? IMG_GetError() : TTF_GetError());
             return NULL;
         }
 
@@ -87,11 +104,14 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
 
         radius = radius + 0.8 * text_surface->h * (line + 0.5 * (n_lines-1));
 
-        SDL_FreeSurface(text_surface);
+	if (!icon) {
+	        log_debug(MENU_CTX,"SDL_FreeSurface(text_surface => %p) (first line);\n", text_surface);
+        	SDL_FreeSurface(text_surface);
+	}
 
         unsigned int i = 0;
         for (i = 0; i < unicode_length; i++) {
-            glyph_obj *glyph_o = glyph_obj_new(renderer,unicode_text[i],font,fg,center,radius);
+            glyph_obj *glyph_o = icon ? glyph_obj_new_surface(renderer,text_surface,font,fg,center,radius) : glyph_obj_new(renderer,unicode_text[i],font,fg,center,radius);
             if (!glyph_o) {
                 log_error(MENU_CTX, "Could not create glyph object for %c\n", unicode_text[i]);
                 return NULL;
@@ -107,12 +127,13 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
 
             text_surface = TTF_RenderUNICODE_Blended(font_2nd_line,unicode_text_2nd_line,fg);
             if (text_surface == NULL) {
-                log_error(MENU_CTX, "Could not create glyph surface for %s: %s\n", txt, TTF_GetError());
+                log_error(MENU_CTX, "Could not create glyph surface for %s (unicode_text_2nd_line = %s, unicode_length_2nd_line = %d): %s\n", txt, unicode_text_2nd_line, unicode_length_second_line, TTF_GetError());
                 return NULL;
             }
 
             t->width_2nd_line = text_surface->w;
             t->height_2nd_line = text_surface->h;
+	    log_debug(MENU_CTX,"SDL_FreeSurface(text_surface => %p) (second line);\n", text_surface);
             SDL_FreeSurface(text_surface);
 
             unsigned int i = 0;
@@ -122,13 +143,17 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, TTF_Font *font, TTF_Fo
             }
         }
 
-        free(unicode_text);
+	if (unicode_text) {
+        	free(unicode_text);
+	}
         if (unicode_text_2nd_line) {
             free(unicode_text_2nd_line);
         }
 
         return t;
 
+    } else {
+	    log_warning(MENU_CTX, "No icon and not label provided\n");
     }
 
     return NULL;

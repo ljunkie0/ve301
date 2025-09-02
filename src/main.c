@@ -36,6 +36,7 @@
 #include "weather.h"
 #include "sdl_util.h"
 #include "wifi.h"
+#include "player.h"
 
 #ifdef RASPBERRY
 #ifdef SDL1
@@ -99,35 +100,38 @@ static const char *time_menu_item_format = "%H:%M\n%d. %B";
 
 /**
  * Alsa
-**/
+ **/
 static char *default_mixer = "Master";
+
+
+/**
+ * Radio
+ */
+#define CHECK_RADIO_SECONDS 1
+static player *radio_player = NULL;
 
 #ifdef BLUETOOTH
 /**
  * Bluetooth
  */
-static const char *bluetooth_label = "Bluetooth";
-static int bt_device_status = 0;
-static time_t check_bluetooth_t = 0;
 #define CHECK_BLUETOOTH_SECONDS 1
+player *bluetooth_player = NULL;
 #endif
 
 #ifdef SPOTIFY
 /**
  * Spotify
  */
-static const char *spotify_label = "Spotify";
-static int spotify_device_status = 0;
-static time_t check_spotify_t = 0;
 static char *spotify_host;
 #define CHECK_SPOTIFY_SECONDS 1
+player *spotify_player = NULL;
 #endif
 
 /**
  * Internet
  */
-static time_t check_internet_t = 0;
 static int internet_available;
+time_check_interval *check_internet_interval;
 
 
 static int info_menu_item_seconds = INFO_MENU_ITEM_SECONDS;
@@ -150,6 +154,10 @@ typedef struct radio_theme {
     char *info_scale_color;
 } radio_theme;
 
+static radio_theme *default_theme = NULL;
+static radio_theme *bluetooth_theme = NULL;
+static radio_theme *spotify_theme = NULL;
+
 static int last_tm_min;
 static struct tm* current_tm_info;
 static int hsv_style = 0;
@@ -161,7 +169,7 @@ static time_t callback_t = 0;
  *
  * Specific Menus
  *
-**/
+ **/
 
 /* Radio menu */
 static menu *radio_menu;
@@ -185,10 +193,11 @@ static menu *mixer_menu = NULL;
 static menu_item *message_menu_item = NULL;
 /**
  * Specific Menu Items
-**/
-static menu_item *time_item = NULL;
+ **/
+static menu_item *player_item = NULL;
 static menu_item *title_item = NULL;
-static menu_item *name_item = NULL;
+static menu_item *artist_item = NULL;
+static menu_item *time_item = NULL;
 static menu_item *weather_item = NULL;
 static menu_item *temperature_item = NULL;
 static menu_item *volume_menu_item = NULL;
@@ -229,7 +238,7 @@ radio_theme *new_radio_theme(char *info_bg_image_path, char *info_color, char *i
 void free_radio_theme(radio_theme *radio_theme) {
     free(radio_theme->info_bg_image_path);
     if (radio_theme->volume_bg_image_path != radio_theme->info_bg_image_path) {
-    	free(radio_theme->volume_bg_image_path);
+        free(radio_theme->volume_bg_image_path);
     }
     free(radio_theme->info_color);
     free(radio_theme->info_scale_color);
@@ -264,10 +273,6 @@ void apply_radio_theme(menu_ctrl *ctrl, radio_theme *theme) {
 
 }
 
-static radio_theme *default_theme = NULL;
-static radio_theme *bluetooth_theme = NULL;
-static radio_theme *spotify_theme = NULL;
-
 void reset_info_menu_timer() {
     time_t timer;
     time(&timer);
@@ -282,25 +287,25 @@ void update_radio_menu(menu_ctrl *ctrl) {
     playlist *internet_radios = get_internet_radios();
     if (internet_radios != NULL) {
 
-	    radio_menu->n_o_lines = RADIO_MENU_NO_OF_LINES;
-    	    radio_menu->segments_per_item = RADIO_MENU_SEGMENTS_PER_ITEM;
-    	    radio_menu->n_o_items_on_scale = RADIO_MENU_ITEMS_ON_SCALE_FACTOR * ctrl->n_o_items_on_scale;
-    	    radio_menu->radius_labels = radio_radius_labels;
-            unsigned int r = 0;
-            for (r = 0; r < internet_radios->n_songs; r++) {
-                    song *s = internet_radios->songs[r];
-                    menu_item_new(radio_menu, s->title, s, OBJ_TYPE_SONG, NULL, -1, NULL, NULL, -1);
-            }
+        radio_menu->n_o_lines = RADIO_MENU_NO_OF_LINES;
+        radio_menu->segments_per_item = RADIO_MENU_SEGMENTS_PER_ITEM;
+        radio_menu->n_o_items_on_scale = RADIO_MENU_ITEMS_ON_SCALE_FACTOR * ctrl->n_o_items_on_scale;
+        radio_menu->radius_labels = radio_radius_labels;
+        unsigned int r = 0;
+        for (r = 0; r < internet_radios->n_songs; r++) {
+            song *s = internet_radios->songs[r];
+            menu_item_new(radio_menu, s->title, NULL, s, OBJ_TYPE_SONG, NULL, -1, NULL, NULL, -1);
+        }
 
-	    radio_menu_item->sub_menu = radio_menu;
+        radio_menu_item->sub_menu = radio_menu;
 
     } else {
-	    
-            menu_item_update_label(message_menu_item,"No radio");	    
-	    message_menu->parent = radio_menu->parent;
-	    radio_menu_item->sub_menu = message_menu;
 
-            log_error(MAIN_CTX, "create_menu: playlist is NULL\n");
+        menu_item_update_label(message_menu_item,"No radio");	    
+        message_menu->parent = radio_menu->parent;
+        radio_menu_item->sub_menu = message_menu;
+
+        log_error(MAIN_CTX, "create_menu: playlist is NULL\n");
 
     }
 
@@ -319,7 +324,7 @@ void update_album_menu() {
         }
     } else {
         log_error(MAIN_CTX, "create_menu: album list is NULL\n");
-        menu_item_new(album_menu, "Could not retrieve albums", NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
+        menu_item_new(album_menu, "Could not retrieve albums", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
     }
 }
 
@@ -340,11 +345,11 @@ void update_song_menu(menu_item *album_item) {
         for (r = 0; r < album_songs->n_songs; r++) {
             song *s = album_songs->songs[r];
             log_info(MAIN_CTX, "Song: %s\n", s->title);
-            menu_item_new((menu *) album_item->sub_menu, s->title, s, OBJ_TYPE_SONG, NULL, -1, NULL, NULL, -1);
+            menu_item_new((menu *) album_item->sub_menu, s->title, NULL, s, OBJ_TYPE_SONG, NULL, -1, NULL, NULL, -1);
         }
     } else {
         log_error(MAIN_CTX, "update_song_menu: playlist is NULL\n");
-        menu_item_new((menu *)album_item->sub_menu, "FEHLER", NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
+        menu_item_new((menu *)album_item->sub_menu, "FEHLER", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
     }
 }
 
@@ -388,7 +393,7 @@ void update_directory_menu(menu_item *directory_item) {
                 log_info(MAIN_CTX, "Song: %s\n", name);
                 char *title = (char *) mpd_song_get_tag(s,MPD_TAG_TITLE,0);
                 song *my_song = new_song(mpd_song_get_id(s),uri,name,title);
-                menu_item_new(sub_menu,my_song->title,my_song,OBJ_TYPE_SONG,NULL,-1, NULL, NULL, -1);
+                menu_item_new(sub_menu,my_song->title,NULL,my_song,OBJ_TYPE_SONG,NULL,-1, NULL, NULL, -1);
                 free((char *) uri);
                 free(name);
                 free(title);
@@ -430,7 +435,7 @@ int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) 
 
         network_interface *interface = (network_interface *) item->object;
         char *ip_address_label = my_catstr("IP\n", interface->ipaddress);
-        menu_item_new(item->sub_menu, ip_address_label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
+        menu_item_new(item->sub_menu, ip_address_label, NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
         free(ip_address_label);
 
         log_debug(MAIN_CTX, "Getting result from wifi scan\n");
@@ -440,13 +445,13 @@ int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) 
         if (wifi_scan_result) {
             char *ssid_label = my_catstr("Station\n", wifi_scan_result->ssid);
             log_debug(MAIN_CTX, "%s\n", ssid_label);
-            menu_item_new(item->sub_menu, ssid_label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
+            menu_item_new(item->sub_menu, ssid_label, NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
             free(ssid_label);
 
             char signal_chr[100];
             sprintf(signal_chr, "%d dBm", wifi_scan_result->signal_dbm);
             char *strength_label = my_catstr("Strength\n", signal_chr);
-            menu_item_new(item->sub_menu, strength_label, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
+            menu_item_new(item->sub_menu, strength_label, NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
             free(strength_label);
 
             free(wifi_scan_result);
@@ -460,6 +465,10 @@ int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) 
 }
 
 int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
+
+    if (evt == DISPOSE) {
+        return 0;
+    }
 
     if (item->sub_menu) {
 
@@ -495,7 +504,7 @@ void input_menu_ok(menu *input_menu, char *input) {
 
 int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     if (log_level_enabled(MAIN_CTX, IR_LOG_LEVEL_CONFIG)) {
-	char *label = item_ptr ? item_ptr->label : "";
+        char *label = item_ptr ? item_ptr->label : "";
         log_config(MAIN_CTX, "action(%d, %p, %s)\n",evt,m_ptr,label);
     }
     if (evt == ACTIVATE) {
@@ -523,7 +532,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
                     }
                     song *current_song = get_playing_song();
                     if (current_song) {
-                        menu_item_update_label(name_item, current_song->name);
+                        menu_item_update_label(artist_item, current_song->name);
                     }
                 } else if (p) {
                     stop();
@@ -543,54 +552,54 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
             }
         }
     } else if (evt == ACTIVATE_1) {
-	if (m_ptr == mixer_menu && item_ptr) {
-	    menu_open_sub_menu(ctrl, item_ptr); 
-	} else {
+        if (m_ptr == mixer_menu && item_ptr) {
+            menu_open_sub_menu(ctrl, item_ptr); 
+        } else {
             menu_open(mixer_menu);
-	}
+        }
     } else if (evt == HOLD_1) {
-	if (m_ptr == mixer_menu) {
-	    log_config(MAIN_CTX, "Opening volume menu\n");
+        if (m_ptr == mixer_menu) {
+            log_config(MAIN_CTX, "Opening volume menu\n");
             menu_open(volume_menu);
-	} else {
-	    log_config(MAIN_CTX, "Opening mixer menu\n");
- 	    menu_open(mixer_menu);
-	}
+        } else {
+            log_config(MAIN_CTX, "Opening mixer menu\n");
+            menu_open(mixer_menu);
+        }
     } else if (evt == TURN_LEFT_1) {
-	if (m_ptr == mixer_menu) {
-	    menu_turn_left(m_ptr);
-	} else if (m_ptr && m_ptr->current_id >= 0 && m_ptr->item[m_ptr->current_id]->object_type == OBJ_TYPE_MIXER) {
-	    menu_item *mixer_item = m_ptr->item[m_ptr->current_id];
-	    char *mixer_name = (char *) mixer_item->object;
-	    int vol = alsa_get_volume(mixer_name);
-	    log_config(MAIN_CTX, "Current volume of mixer %s: %d\n", mixer_name, vol);
-	    alsa_set_volume(default_mixer, vol-2);
-	    log_config(MAIN_CTX, "Decreased volume: %d\n", vol);
+        if (m_ptr == mixer_menu) {
+            menu_turn_left(m_ptr);
+        } else if (m_ptr && m_ptr->current_id >= 0 && m_ptr->item[m_ptr->current_id]->object_type == OBJ_TYPE_MIXER) {
+            menu_item *mixer_item = m_ptr->item[m_ptr->current_id];
+            char *mixer_name = (char *) mixer_item->object;
+            int vol = alsa_get_volume(mixer_name);
+            log_config(MAIN_CTX, "Current volume of mixer %s: %d\n", mixer_name, vol);
+            alsa_set_volume(default_mixer, vol-2);
+            log_config(MAIN_CTX, "Decreased volume: %d\n", vol);
             const char *vol_label = get_vol_label(vol);
             menu_item_update_label(mixer_item,vol_label);
-	} else {
+        } else {
             menu_item_show(volume_menu_item);
-	    int vol = alsa_get_volume(default_mixer);
-	    log_config(MAIN_CTX, "Current volume: %d\n", vol);
-	    alsa_set_volume(default_mixer, vol-2);
-	    vol = alsa_get_volume(default_mixer);
-	    log_config(MAIN_CTX, "Decreased volume: %d\n", vol);
+            int vol = alsa_get_volume(default_mixer);
+            log_config(MAIN_CTX, "Current volume: %d\n", vol);
+            alsa_set_volume(default_mixer, vol-2);
+            vol = alsa_get_volume(default_mixer);
+            log_config(MAIN_CTX, "Decreased volume: %d\n", vol);
             const char *vol_label = get_vol_label(vol);
             menu_item_update_label(volume_menu_item,vol_label);
             menu_item_show(volume_menu_item);
-	}
+        }
     } else if (evt == TURN_RIGHT_1) {
-	if (m_ptr == mixer_menu) {
-	    menu_turn_right((menu *)m_ptr);
-	} else {
+        if (m_ptr == mixer_menu) {
+            menu_turn_right((menu *)m_ptr);
+        } else {
             menu_item_show(volume_menu_item);
-	    int vol = alsa_get_volume(default_mixer);
-	    alsa_set_volume(default_mixer,vol+2);
-	    vol = alsa_get_volume(default_mixer);
+            int vol = alsa_get_volume(default_mixer);
+            alsa_set_volume(default_mixer,vol+2);
+            vol = alsa_get_volume(default_mixer);
             const char *vol_label = get_vol_label(vol);
             menu_item_update_label(volume_menu_item,vol_label);
             menu_item_show(volume_menu_item);
-	}
+        }
     } else if (evt == DISPOSE) {
         menu_item *item = (menu_item *) item_ptr;
         const void *obj = item->object;
@@ -624,6 +633,7 @@ radio_theme *get_config_theme(const char *theme_name) {
     menu_theme->bg_cp_colors = 0;
     menu_theme->fg_color_palette = NULL;
     menu_theme->fg_cp_colors = 0;
+    menu_theme->bg_color_palette = NULL;
 
     char *info_menu_bg_path = get_config_value_path_group("info_bg_image_path", get_config_value("info_bg_image_path", 0), theme_name);
     char *volume_menu_bg_path = get_config_value_group("volume_bg_image_path", info_menu_bg_path, theme_name);
@@ -729,102 +739,111 @@ int menu_call_back_dbg(menu_ctrl *m_ptr) {
     return 1;
 }
 
-#ifdef BLUETOOTH
-void check_bluetooth(menu_ctrl *ctrl, time_t timer) {
+void update_menu_item_icon_or_label(menu_item *item, char *icon, char *label) {
+    if (icon) {
+        menu_item_update_icon(item,icon);
+        menu_item_update_label(item,NULL);
+    } else {
+        menu_item_update_label(item,label);
+        menu_item_update_icon(item,NULL);
+    }
+}
 
-    long check_bluetooth_diff = timer - check_bluetooth_t;
-    if (check_bluetooth_diff > CHECK_BLUETOOTH_SECONDS) {
-        log_debug(MAIN_CTX, "Checking bluetooth...\n");
+void update_title_artist_menu_item(menu_item *item, char *label, char *icon, char *label_default) {
+    if (label) {
+        update_menu_item_icon_or_label(item, NULL, label);
+    } else if (icon) {
+        update_menu_item_icon_or_label(item, icon, NULL);
+    } else {
+        update_menu_item_icon_or_label(item, NULL, label_default);
+    }
+}
+
+#ifdef BLUETOOTH
+int check_bluetooth(menu_ctrl *ctrl) {
+    if (player_do_check(bluetooth_player)) {
+        log_config(MAIN_CTX, "Checking bluetooth...\n");
         if (bt_connection_signal(/* proces_prop_changes => */ 1)) {
             if (bt_is_connected()) {
-                if (!bt_device_status) {
-                    bt_device_status = 1;
+                log_config(MAIN_CTX, "Bluetooth is connected.\n");
+                if (!player_get_status(bluetooth_player)) {
+                    player_set_status(bluetooth_player,1);
                     stop();
                     if (bluetooth_theme) {
                         apply_radio_theme(ctrl, bluetooth_theme);
                     }
-                    menu_item_update_label(title_item, bluetooth_label);
-                    menu_item_update_label(name_item, bluetooth_label);
+                    update_menu_item_icon_or_label(player_item, player_get_icon(bluetooth_player), player_get_label(bluetooth_player));
                 }
 
-                char *title = bt_get_title();
-                if (title) {
-                    menu_item_update_label(title_item, title);
-                } else {
-                    menu_item_update_label(title_item, bluetooth_label);
-                }
-
-                char *artist = bt_get_artist();
-                if (artist) {
-                    menu_item_update_label(name_item, artist);
-                } else {
-                    menu_item_update_label(name_item, bluetooth_label);
-                }
+                update_title_artist_menu_item(title_item, bt_get_title(), player_get_icon(bluetooth_player), player_get_label(bluetooth_player));
+                update_title_artist_menu_item(artist_item, bt_get_artist(), player_get_icon(bluetooth_player), player_get_label(bluetooth_player));
 
             } else {
-                if (bt_device_status) {
-                    apply_radio_theme(ctrl, default_theme);
-                    menu_item_update_label(title_item, "VE301");
-                    menu_item_update_label(name_item, "VE301");
-                    bt_device_status = 0;
-                }
+                log_config(MAIN_CTX, "Bluetooth not connected\n");
+                player_set_status(bluetooth_player,0);
             }
         }
-        log_debug(MAIN_CTX, "Bluetooth checked.\n");
+        log_config(MAIN_CTX, "Bluetooth checked.\n");
     }
-
+    return player_get_status(bluetooth_player);
 }
 #endif
 
 #ifdef SPOTIFY
-void check_spotify(menu_ctrl *ctrl, time_t timer) {
+int check_spotify(menu_ctrl *ctrl) {
 
-    long check_spotify_diff = timer - check_spotify_t;
-    if (check_spotify_diff > CHECK_SPOTIFY_SECONDS) {
-        log_debug(MAIN_CTX, "Checking spotify...\n");
+    if (player_do_check(spotify_player)) {
+        log_config(MAIN_CTX, "Checking spotify...\n");
 
         if (spotify_is_connected()) {
-	    log_debug(MAIN_CTX, "Spotify is connected\n");
-            if (!spotify_device_status) {
-		log_config(MAIN_CTX, "Spotify activated\n");
-                spotify_device_status = 1;
+            log_config(MAIN_CTX, "Spotify is connected\n");
+            if (!player_get_status(spotify_player)) {
+                log_config(MAIN_CTX, "Spotify activated\n");
+                player_set_status(spotify_player,1);
                 stop();
                 if (spotify_theme) {
                     apply_radio_theme(ctrl, spotify_theme);
                 }
-                menu_item_update_label(title_item, "spotify");
-                menu_item_update_label(name_item, "spotify");
+                update_menu_item_icon_or_label(player_item, player_get_icon(spotify_player), player_get_label(spotify_player));
             }
 
-            char *title = spotify_get_title();
-            if (title) {
-                menu_item_update_label(title_item, title);
-            } else {
-                menu_item_update_label(title_item, spotify_label);
-            }
-
-            char *artist = spotify_get_artist();
-            if (artist) {
-                menu_item_update_label(name_item, artist);
-            } else {
-                menu_item_update_label(name_item, spotify_label);
-            }
+            update_title_artist_menu_item(title_item, spotify_get_title(), player_get_icon(spotify_player), player_get_label(spotify_player));
+            update_title_artist_menu_item(artist_item, spotify_get_artist(), player_get_icon(spotify_player), player_get_label(spotify_player));
 
         } else {
-	    log_debug(MAIN_CTX, "Spotify not connected\n");
-            if (spotify_device_status) {
-		log_config(MAIN_CTX, "Spotify deactivated\n");
-                apply_radio_theme(ctrl, default_theme);
-                menu_item_update_label(title_item, "VE301");
-                menu_item_update_label(name_item, "VE301");
-                spotify_device_status = 0;
-            }
+            log_config(MAIN_CTX, "Spotify not connected\n");
+            player_set_status(spotify_player,0);
         }
-        log_debug(MAIN_CTX, "spotify checked.\n");
+        log_config(MAIN_CTX, "spotify checked.\n");
     }
+
+    return player_get_status(spotify_player);
 
 }
 #endif
+
+int check_radio() {
+    if (player_do_check(radio_player)) {
+        if (!player_get_status(radio_player)) {
+            player_set_status(radio_player,1);
+            apply_radio_theme(ctrl, default_theme);
+            update_menu_item_icon_or_label(player_item, player_get_icon(radio_player), player_get_label(radio_player));
+            update_menu_item_icon_or_label(title_item, NULL, "VE 301");
+            update_menu_item_icon_or_label(artist_item, NULL, "VE 301");
+        }
+        song *current_song = get_playing_song();
+        if (current_song) {
+            log_debug(MAIN_CTX, "Current song: %s\n", current_song->title);
+            if (current_song->title && (strlen(current_song->title) > 0) && strncmp(current_song->title, "N/A", 3)) {
+                menu_item_update_label(title_item, current_song->title);
+            }
+            if (current_song->name && (strlen(current_song->name) > 0) && strncmp(current_song->name, "N/A", 3)) {
+                menu_item_update_label(artist_item, current_song->name);
+            }
+        }
+    }
+    return player_get_status(radio_player);
+}
 
 int menu_call_back(menu_ctrl *ctrl) {
 
@@ -836,7 +855,7 @@ int menu_call_back(menu_ctrl *ctrl) {
 
     long time_diff = timer - info_menu_t;
     long callback_diff = timer - callback_t;
-    long check_internet_diff = timer - check_internet_t;
+ 
 
     if (ctrl->active != info_menu) {
         current_menu = ctrl->active;
@@ -844,19 +863,27 @@ int menu_call_back(menu_ctrl *ctrl) {
 
     log_debug(MAIN_CTX, "Callback diff: %d\n", callback_diff);
 
-    if (check_internet_diff > CHECK_INTERNET_SECONDS) {
-
-        check_internet_t = timer;
+    if (check_time_interval(check_internet_interval)) {
         internet_available = check_internet();
-
     }
 
+    int check_state = 0;
 #ifdef BLUETOOTH
-    check_bluetooth(ctrl, timer);
+    if (!check_state) {
+        check_state = check_bluetooth(ctrl);
+    }
 #endif
 #ifdef SPOTIFY
-    check_spotify(ctrl, timer);
+    if (!check_state) {
+        check_state = check_spotify(ctrl);
+    }
 #endif
+
+    if (!check_state) {
+        check_radio();
+    } else {
+        player_set_status(radio_player,0); 
+    }
 
     if (callback_diff > CALLBACK_SECONDS) {
 
@@ -880,6 +907,10 @@ int menu_call_back(menu_ctrl *ctrl) {
         info_menu_t = timer;
         if (!current_menu || !current_menu->sticky) {
             if (internet_available) {
+                char *title_item_label = menu_item_get_label(title_item);
+                if (!strcpy(title_item_label,"No internet")) {
+                    menu_item_update_label(title_item,"VE 301");
+                }
                 int current_id = ctrl->root[0]->current_id+1;
                 if (current_id > ctrl->root[0]->max_id) {
                     current_id = 0;
@@ -938,11 +969,39 @@ menu_ctrl *create_menu() {
     char *light_img = get_config_value_path("light_image_path",NULL);
     int light_img_x = get_config_value_int("light_image_x", 0);
     int light_img_y = get_config_value_int("light_image_y", 0);
+    int warp_speed = get_config_value_int("warp_speed", 10);
     char *mixer_device = get_config_value_path("alsa_mixer_device", "default");
     default_mixer = get_config_value("alsa_mixer_name", "Master");
     radio_radius_labels = get_config_value_int("radio_radius_labels", radius_labels);
+
+    radio_player = player_new(
+            get_config_value_path("radio_icon",NULL),
+            "VE 301",
+            get_config_value_int("check_radio_seconds", CHECK_RADIO_SECONDS)
+    );
+    if (player_get_icon(radio_player)) {
+        player_set_label(radio_player,NULL);
+    }
 #ifdef SPOTIFY
+    spotify_player = player_new(
+            get_config_value_path("spotify_icon",NULL),
+            "Spotify",
+            get_config_value_int("check_spotify_seconds", CHECK_SPOTIFY_SECONDS)
+    );
+    if (player_get_icon(spotify_player)) {
+            player_set_label(spotify_player,NULL);
+    }
     spotify_host = get_config_value("spotify_host","localhost");
+#endif
+#ifdef BLUETOOTH
+    bluetooth_player = player_new(
+            get_config_value_path("bluetooth_icon",NULL),
+            "Bluetooth",
+            get_config_value_int("check_bluetooth_seconds", CHECK_BLUETOOTH_SECONDS)
+    );
+    if (player_get_icon(bluetooth_player)) {
+        player_set_label(bluetooth_player,NULL);
+    }
 #endif
 
     info_menu_item_seconds = get_config_value_int("info_menu_item_seconds",INFO_MENU_ITEM_SECONDS);
@@ -953,20 +1012,20 @@ menu_ctrl *create_menu() {
     spotify_theme = get_config_theme("Spotify");
 
     menu_ctrl *ctrl = menu_ctrl_new (
-		    w,
-		    x_offset,
-		    y_offset,
-		    radius_labels,
-		    draw_scales,
-		    radius_scales_start,
-		    radius_scales_end,
-		    angle_offset,
-		    font,
-		    font_size,
-		    font_size,
-		    &MENU_ACTION_LISTENER,
-		    &MENU_CALL_BACK
-    );
+            w,
+            x_offset,
+            y_offset,
+            radius_labels,
+            draw_scales,
+            radius_scales_start,
+            radius_scales_end,
+            angle_offset,
+            font,
+            font_size,
+            font_size,
+            &MENU_ACTION_LISTENER,
+            &MENU_CALL_BACK
+            );
 
     if (ctrl) {
 
@@ -978,33 +1037,35 @@ menu_ctrl *create_menu() {
             free(light_img);
         }
 
+        menu_ctrl_set_warp_speed(ctrl, warp_speed);
+
         info_menu = menu_new_root(ctrl, 1, info_font, info_font_size, NULL, 0);
         info_menu->transient = 1;
 
-	message_menu = menu_new_root(ctrl,1, info_font, info_font_size, NULL, 0);
-    	message_menu->segments_per_item = 1;
-	message_menu_item = menu_item_new(message_menu, "", NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
+        message_menu = menu_new_root(ctrl,1, info_font, info_font_size, NULL, 0);
+        message_menu->segments_per_item = 1;
+        message_menu_item = menu_item_new(message_menu, "", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
+
+        player_item = menu_item_new(ctrl->root[0], "VE 301", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
+        title_item = menu_item_new(ctrl->root[0], "VE 301", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
+        artist_item = menu_item_new(ctrl->root[0], "VE 301", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
 
         time_t timer;
         time(&timer);
         struct tm *tm_info = localtime(&timer);
         last_tm_min = tm_info->tm_min;
-
         char *buffer = malloc(25 * sizeof(char));
         strftime(buffer, 25, time_menu_item_format, tm_info);
-
-        time_item = menu_item_new(ctrl->root[0], buffer, NULL, OBJ_TYPE_TIME, info_font, time_font_size, NULL, info_font, 0.6*time_font_size);
+        time_item = menu_item_new(ctrl->root[0], buffer, NULL, NULL, OBJ_TYPE_TIME, info_font, time_font_size, NULL, info_font, 0.6*time_font_size);
         free(buffer);
-        title_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
-        name_item = menu_item_new(ctrl->root[0], "VE 301", NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
 
         const char *weather_api_key = get_config_value("weather_api_key", "");
         const char *weather_location = get_config_value("weather_location", "");
         const char *weather_units = get_config_value("weather_units", "metric");
         if (strlen(weather_api_key) > 0 && strlen(weather_location) > 0) {
             init_weather(120,weather_api_key,weather_location,weather_units);
-            weather_item = menu_item_new(ctrl->root[0], " ", NULL, UNKNOWN_OBJECT_TYPE, weather_font, weather_font_size, NULL, font, font_size);
-            temperature_item = menu_item_new(ctrl->root[0], "Weather", NULL, UNKNOWN_OBJECT_TYPE, info_font, temp_font_size, NULL, font, font_size);
+            weather_item = menu_item_new(ctrl->root[0], " ", NULL, NULL, UNKNOWN_OBJECT_TYPE, weather_font, weather_font_size, NULL, font, font_size);
+            temperature_item = menu_item_new(ctrl->root[0], "Weather", NULL, NULL, UNKNOWN_OBJECT_TYPE, info_font, temp_font_size, NULL, font, font_size);
             start_weather_thread(&weather_lstnr);
 
         } else {
@@ -1016,11 +1077,11 @@ menu_ctrl *create_menu() {
         }
 
         nav_menu = menu_new_root(ctrl, 1, NULL, 0, NULL, 0);
-	ctrl->active = nav_menu;
+        ctrl->active = nav_menu;
 
         radio_menu = menu_new(ctrl, RADIO_MENU_NO_OF_LINES, NULL, 0, NULL, NULL, 0);
         radio_menu_item = menu_add_sub_menu(nav_menu, "Radio", radio_menu, NULL);
-	update_radio_menu(ctrl);
+        update_radio_menu(ctrl);
 
         lib_menu = menu_new(ctrl,1,NULL, 0, NULL, NULL, 0);
         menu_add_sub_menu(nav_menu, "Bibliothek", lib_menu, NULL);
@@ -1040,7 +1101,7 @@ menu_ctrl *create_menu() {
         root_dir_menu = menu_new(ctrl,1,NULL,0,NULL,NULL,0);
         menu_item *dir_menu_item = menu_add_sub_menu(nav_menu, "Verzeichnisse", root_dir_menu, item_action_update_directories_menu);
         dir_menu_item->object = my_copystr("/");
-        dir_menu_item->object_type = OBJ_TYPE_DIRECTORY;
+
         song_menu = menu_new(ctrl,1,NULL,0,NULL,NULL,0);
 
         volume_menu = menu_new_root(ctrl,1, info_font, info_font_size, NULL, 0);
@@ -1051,22 +1112,22 @@ menu_ctrl *create_menu() {
             free(info_bg_image_path);
         }
 
-	mixer_menu = menu_new_root(ctrl,1,NULL,0,NULL,0);
-	mixer_menu->transient = 1;
-	int n_mixers;
-	const char **alsa_mixers = alsa_get_mixers(mixer_device, &n_mixers);
-	for (int n = 0; n < n_mixers; n++) {
-		menu *mixer_sub_menu = menu_new(ctrl,1,NULL,0,NULL,NULL,0);
-		menu_add_sub_menu(mixer_menu, alsa_mixers[n], mixer_sub_menu, NULL);	
-        	const int volume = alsa_get_volume(alsa_mixers[n]);
-        	const char *vol_label = get_vol_label(volume);
-		menu_item_new(mixer_sub_menu, vol_label, alsa_mixers[n], OBJ_TYPE_MIXER, NULL, -1, NULL, NULL, -1);
-	}
+        mixer_menu = menu_new_root(ctrl,1,NULL,0,NULL,0);
+        mixer_menu->transient = 1;
+        int n_mixers;
+        const char **alsa_mixers = alsa_get_mixers(mixer_device, &n_mixers);
+        for (int n = 0; n < n_mixers; n++) {
+            menu *mixer_sub_menu = menu_new(ctrl,1,NULL,0,NULL,NULL,0);
+            menu_add_sub_menu(mixer_menu, alsa_mixers[n], mixer_sub_menu, NULL);	
+            const int volume = alsa_get_volume(alsa_mixers[n]);
+            const char *vol_label = get_vol_label(volume);
+            menu_item_new(mixer_sub_menu, vol_label, NULL, alsa_mixers[n], OBJ_TYPE_MIXER, NULL, -1, NULL, NULL, -1);
+        }
 
         const int volume = alsa_get_volume(default_mixer);
         const char *vol_label = get_vol_label(volume);
 
-        volume_menu_item = menu_item_new(volume_menu,vol_label,NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
+        volume_menu_item = menu_item_new(volume_menu, vol_label, NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
         free((char *) vol_label);
 
         apply_radio_theme (ctrl,default_theme);
@@ -1081,7 +1142,12 @@ menu_ctrl *create_menu() {
 
 int close_all() {
     stop_weather_thread();
-    menu_ctrl_quit(ctrl);
+#ifdef BLUETOOTH
+    bt_close();
+#endif
+#ifdef SPOTIFY
+    spotify_close();
+#endif
     if (bluetooth_theme) {
         free_theme(bluetooth_theme);
     }
@@ -1089,13 +1155,8 @@ int close_all() {
         free_theme(spotify_theme);
     }
     audio_disconnect();
-#ifdef BLUETOOTH
-    bt_close();
-#endif
-#ifdef SPOTIFY
-    spotify_close();
-#endif
     base_close();
+    menu_ctrl_dispose(ctrl);
     return 0;
 }
 
@@ -1134,9 +1195,8 @@ void sig_handler(int signo) {
 
             break;
         default:
-            log_info(MAIN_CTX, "Bye with signal %d\n", signo);
-            close_all();
-            exit(EXIT_SUCCESS);
+            log_error(MAIN_CTX, "Bye with signal %d\n", signo);
+            exit(0);
             break;
     }
 }
@@ -1150,23 +1210,21 @@ int main(int argc, char **argv) {
     signal(SIGINT, sig_handler);
     signal(SIGHUP, sig_handler);
 
+    check_internet_interval = time_check_interval_new(CHECK_INTERNET_SECONDS);
 
     log_info(MAIN_CTX, "Creating menu... ");
     ctrl = create_menu();
     log_info(MAIN_CTX, "Done\n");
 
-#ifdef BLUETOOTH
-    bt_init();
-#endif
-#ifdef SPOTIFY
-    spotify_init(spotify_host);
-#endif
-
     log_info(MAIN_CTX, "Entering main loop\n");
     if (ctrl) {
+#ifdef BLUETOOTH
+        bt_init();
+#endif
+#ifdef SPOTIFY
+        spotify_init(spotify_host);
+#endif
         menu_ctrl_loop(ctrl);
-        close_all();
-        exit(EXIT_SUCCESS);
         return 0;
     } else {
         base_close();

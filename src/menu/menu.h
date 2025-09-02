@@ -20,6 +20,10 @@
 #ifndef MENU_H_
 #define MENU_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include<SDL2/SDL.h>
 #include<SDL2/SDL_ttf.h>
 #include<SDL2/SDL_image.h>
@@ -56,6 +60,7 @@ typedef struct menu_item {
     int num_label_chars2;
     int w;
     int h;
+    int visible;
     menu *sub_menu;
     TTF_Font *font;
     TTF_Font *font2;
@@ -69,6 +74,7 @@ typedef struct menu_item {
     item_action *action;
     int w2;
     int h2;
+    char *icon;
     /**
      * User data
     **/
@@ -148,6 +154,7 @@ struct menu_ctrl {
      * one can serve as a return point for transient menus
      */
     menu *active;
+    int warp_speed; // 0-10
     double offset;
     int no_of_scales;
     int segments_per_item; /* The number of segments left and right that belong to a menu item */
@@ -184,19 +191,30 @@ struct menu_ctrl {
     int warping;
     SDL_Window *display;
     SDL_Renderer *renderer;
+    int loop;
     /**
      * User data
     **/
     void *object;
 };
 
-menu_item *menu_item_new(menu *m, const char *label, const void *object, int object_type, const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line);
+/**
+ * Menu Items
+ **/
+menu_item *menu_item_new(menu *m, const char *label, const char *icon, const void *object, int object_type, const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line);
 void menu_item_activate(menu_item *item);
 void menu_item_warp_to(menu_item *item);
 void menu_item_show(menu_item *item);
+void menu_item_free(menu_item *item);
 menu_item *menu_item_update_label(menu_item *item, const char *label);
-menu_item *menu_item_next(menu *m, menu_item *item);
+char *menu_item_get_label(menu_item *item);
+menu_item *menu_item_update_icon(menu_item *item, const char *icon);
+void menu_item_set_visible(menu_item *item, const int visible);
+int menu_item_get_visible(menu_item *item);
 
+/**
+ * Menus
+ **/
 menu *menu_new(menu_ctrl *ctrl, int lines, const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line);
 menu *menu_new_root(menu_ctrl *ctrl, int lines, const char *font, int font_size, char *font_2nd_line, int font_size_2nd_line);
 int menu_set_bg_image(menu *m, char *bgImagePath);
@@ -208,12 +226,17 @@ int menu_open(menu *m);
 int menu_clear(menu *m);
 void menu_turn_left(menu *m);
 void menu_turn_right(menu *m);
+void menu_free(menu *m);
 
+/**
+ * Menu Ctrls
+ **/
 void menu_ctrl_quit(menu_ctrl *ctrl);
+void menu_ctrl_dispose(menu_ctrl *ctrl);
 menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, int draw_scales, int radius_scales_start, int radius_scales_end, double angle_offset, const char *font, int font_size, int font_size2,
         item_action *action, menu_callback *call_back);
 void menu_ctrl_enable_mouse(menu_ctrl *ctrl, int mouse_control);
-void menu_ctrl_loop(menu_ctrl *ctrl);
+int menu_ctrl_loop(menu_ctrl *ctrl);
 void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_start, int radius_scales_end);
 int menu_ctrl_apply_theme(menu_ctrl *ctrl, theme *theme);
 int menu_ctrl_set_bg_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
@@ -222,12 +245,16 @@ int menu_ctrl_set_active_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b);
 void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha);
 void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path, int x, int y);
-int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator,
-                        char *def, char *selected, char *activated, char *bgImagePath, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors);
+//int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *indicator, char *def, char *selected, char *activated, char *bgImagePath, int draw_scales, int font_bumpmap, int shadow_offset, Uint8 shadow_alpha, char **bg_color_palette, int bg_cp_colors, char **fg_color_palette, int fg_cp_colors);
 void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset);
+void menu_ctrl_set_warp_speed(menu_ctrl *ctrl, int warp_speed);
 void menu_dispose(menu *menu);
 int menu_ctrl_draw(menu_ctrl *ctrl);
 void hsv_to_rgb(double h, double s, double v, Uint8 *r, Uint8 *g, Uint8 *b);
 void color_temp_to_rgb(double temp, Uint8 *r, Uint8 *g, Uint8 *b, double value);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MENU_H_ */

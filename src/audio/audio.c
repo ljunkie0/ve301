@@ -21,7 +21,7 @@
 #include<stdlib.h>
 #include<string.h>
 #include<limits.h>
-#include"base.h"
+#include"../base.h"
 #include"audio.h"
 
 #define MAX_TITLE_LENGTH 20
@@ -35,6 +35,8 @@
 #define MPD_PORT 6600
 
 static struct mpd_connection *mpd_conn;
+
+#define RADIO_PLAYLIST "Radio"
 
 const static unsigned int unknown_song_id = UINT_MAX;
 static char *unknown_song_name = "Unknown";
@@ -67,7 +69,7 @@ int printplaylists() {
 }
 
 int init_audio() {
-    log_debug(AUDIO_CTX, "Audio init\n");
+    log_config(AUDIO_CTX, "Audio init\n");
 
     if (mpd_conn != NULL) {
         log_config(AUDIO_CTX, "init_mpd: Checking existing connection...");
@@ -131,63 +133,19 @@ song *new_song(unsigned int id, const char *url, const char *name, const char *t
     return s;
 }
 
-playlist *get_internet_radios_old() {
-    if (init_audio()) {
-        if (internet_radios == NULL) {
-            log_info(AUDIO_CTX, "get_internet_radios: (Re-)creating playlists for internet radios\n");
-            internet_radios = malloc(sizeof(playlist));
-            internet_radios->n_songs = 0;
-            internet_radios->songs = 0;
-            internet_radios->name = "Internet Radio";
-
-            if (!mpd_send_list_meta(mpd_conn, "playlists")) {
-                log_error(AUDIO_CTX, "Could not list internet-radio playlists: %s\n", mpd_connection_get_error_message(mpd_conn));
-                return 0;
-            }
-
-            char **playlist_names = 0;
-            unsigned int n_playlist_names = 0;
-            const struct mpd_entity *e = mpd_recv_entity(mpd_conn);
-            while (e) {
-                enum mpd_entity_type t = mpd_entity_get_type(e);
-                if (t == MPD_ENTITY_TYPE_PLAYLIST) {
-                    const struct mpd_playlist *mpd_pl = mpd_entity_get_playlist(e);
-                    playlist_names = realloc(playlist_names, (++n_playlist_names) * sizeof(char *));
-                    const char *p = mpd_playlist_get_path(mpd_pl);
-                    playlist_names[n_playlist_names - 1] = my_copystr(p);
-                }
-                e = mpd_recv_entity(mpd_conn);
-            }
-
-            unsigned int i = 0;
-            for (i = 0; i < n_playlist_names; i++) {
-                log_info(AUDIO_CTX, "Playlist: %s\n", playlist_names[i]);
-                if (!mpd_send_list_playlist_meta(mpd_conn, playlist_names[i])) {
-                    log_error(AUDIO_CTX, "Could not determine songs of playlist %s: %s\n", playlist_names[i], mpd_connection_get_error_message(mpd_conn));
-                    return 0;
-                }
-
-                struct mpd_song *mpd_s = mpd_recv_song(mpd_conn);
-                while (mpd_s) {
-                    const char *title = mpd_song_get_tag(mpd_s, MPD_TAG_TITLE, 0);
-                    if (title) {
-                        internet_radios->n_songs++;
-                        internet_radios->songs = realloc(internet_radios->songs, (internet_radios->n_songs * sizeof(song *)));
-                        const char *c_u = mpd_song_get_uri(mpd_s);
-                        song *s = new_song(0,c_u,"N/A",title);
-                        internet_radios->songs[internet_radios->n_songs - 1] = s;
-                        log_info(AUDIO_CTX, "\tSong: %s (%s)\n", s->title, s->url);
-                    } else {
-                        log_warning(AUDIO_CTX, "Unknown title. Ignored\n");
-                    }
-                    mpd_s = mpd_recv_song(mpd_conn);
-                }
-            }
+void song_free(song *s) {
+    if (s) {
+        if (s->name && s->name != unknown_song_name) {
+            free(s->name);
         }
-    } else {
-        log_error(AUDIO_CTX, "Could not load internet radio list.\n");
+        if (s->title) {
+            free(s->title);
+        }
+        if (s->url && s->url != unknown_song_url) {
+            free((char *) s->url);
+        }
+        free(s);
     }
-    return internet_radios;
 }
 
 int add_station(const char *url) {
@@ -380,8 +338,9 @@ int get_volume() {
             return 0;
         }
 
-        return mpd_status_get_volume(status);
-
+        int s = mpd_status_get_volume(status);
+        mpd_status_free(status);
+        return s;
     }
     return 0;
 }
@@ -394,35 +353,12 @@ void set_volume(unsigned int volume) {
 }
 
 int dispose_song(song *s) {
-    if (s) {
-        if (s->name) {
-            log_debug(AUDIO_CTX, "free(song->name)\n");
-            log_debug(AUDIO_CTX, "s->name = %p\n", s->name);
-            free(s->name);
-            s->name = 0;
-        }
-        if (s->title) {
-            log_debug(AUDIO_CTX, "free(song->title)\n");
-            log_debug(AUDIO_CTX, "s->title = %p\n", s->title);
-            free(s->title);
-            s->title = 0;
-        }
-        if (s->url) {
-            log_debug(AUDIO_CTX, "free(song->url)\n");
-            log_debug(AUDIO_CTX, "s->url = %p\n", s->url);
-            //free(s->url);
-            //s->url = 0;
-        }
-        log_debug(AUDIO_CTX, "free(song)\n");
-        log_debug(AUDIO_CTX, "song = %p\n", s);
-        free(s);
-    }
+    song_free(s);
     return 0;
 }
 
 int clear_playlist(playlist *p) {
-    unsigned int i = 0;
-    while (i++ < p->n_songs) {
+    for (unsigned int i = 0; i < p->n_songs; i++) {
         song *s = p->songs[i];
         dispose_song(s);
         p->songs[i] = 0;
@@ -431,8 +367,7 @@ int clear_playlist(playlist *p) {
 }
 
 int dispose_playlist(playlist *p) {
-    unsigned int i = 0;
-    while (i++ < p->n_songs) {
+    for (unsigned int i = 0; i < p->n_songs; i++) {
         song *s = p->songs[i];
         dispose_song(s);
         p->songs[i] = 0;
@@ -440,6 +375,66 @@ int dispose_playlist(playlist *p) {
     if (p->name) free((void *) p->name);
     free(p);
     return 0;
+}
+
+#ifdef DBG_MPD
+void log_mpd_song(const struct mpd_song *__mpd_song) {
+    printf("    MPD_TAG_ALBUM: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_ALBUM, 0));
+    printf("    MPD_TAG_ALBUM_ARTIST: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_ALBUM_ARTIST, 0));
+    printf("    MPD_TAG_TITLE: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_TITLE, 0));
+    printf("    MPD_TAG_TRACK: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_TRACK, 0));
+    printf("    MPD_TAG_NAME: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_NAME, 0));
+    printf("    MPD_TAG_GENRE: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_GENRE, 0));
+    printf("    MPD_TAG_DATE: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_DATE, 0));
+    printf("    MPD_TAG_COMPOSER: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_COMPOSER, 0));
+    printf("    MPD_TAG_PERFORMER: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_PERFORMER, 0));
+    printf("    MPD_TAG_COMMENT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_COMMENT, 0));
+    printf("    MPD_TAG_DISC: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_DISC, 0));
+    printf("    MPD_TAG_MUSICBRAINZ_ARTISTID: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MUSICBRAINZ_ARTISTID, 0));
+    printf("    MPD_TAG_MUSICBRAINZ_ALBUMID: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MUSICBRAINZ_ALBUMID, 0));
+    printf("    MPD_TAG_MUSICBRAINZ_ALBUMARTISTID: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MUSICBRAINZ_ALBUMARTISTID, 0));
+    printf("    MPD_TAG_MUSICBRAINZ_TRACKID: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MUSICBRAINZ_TRACKID, 0));
+    printf("    MPD_TAG_MUSICBRAINZ_RELEASETRACKID: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MUSICBRAINZ_RELEASETRACKID, 0));
+    printf("    MPD_TAG_ORIGINAL_DATE: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_ORIGINAL_DATE, 0));
+    printf("    MPD_TAG_ARTIST_SORT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_ARTIST_SORT, 0));
+    printf("    MPD_TAG_ALBUM_ARTIST_SORT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_ALBUM_ARTIST_SORT, 0));
+    printf("    MPD_TAG_ALBUM_SORT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_ALBUM_SORT, 0));
+    printf("    MPD_TAG_LABEL: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_LABEL, 0));
+    printf("    MPD_TAG_MUSICBRAINZ_WORKID: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MUSICBRAINZ_WORKID, 0));
+    printf("    MPD_TAG_GROUPING: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_GROUPING, 0));
+    printf("    MPD_TAG_WORK: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_WORK, 0));
+    printf("    MPD_TAG_CONDUCTOR: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_CONDUCTOR, 0));
+    printf("    MPD_TAG_COMPOSER_SORT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_COMPOSER_SORT, 0));
+    printf("    MPD_TAG_ENSEMBLE: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_ENSEMBLE, 0));
+    printf("    MPD_TAG_MOVEMENT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MOVEMENT, 0));
+    printf("    MPD_TAG_MOVEMENTNUMBER: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MOVEMENTNUMBER, 0));
+    printf("    MPD_TAG_LOCATION: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_LOCATION, 0));
+    printf("    MPD_TAG_MOOD: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MOOD, 0));
+    printf("    MPD_TAG_TITLE_SORT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_TITLE_SORT, 0));
+    printf("    MPD_TAG_MUSICBRAINZ_RELEASEGROUPID: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_MUSICBRAINZ_RELEASEGROUPID, 0));
+    printf("    MPD_TAG_COUNT: %s\n",mpd_song_get_tag(__mpd_song,     MPD_TAG_COUNT, 0));
+}
+#endif
+
+song *add_internet_radio(const struct mpd_song *__mpd_song) {
+
+    const char *name = mpd_song_get_tag(__mpd_song, MPD_TAG_NAME, 0);
+    if (!name) name = mpd_song_get_tag(__mpd_song, MPD_TAG_TITLE, 0);
+    if (!name) name = mpd_song_get_tag(__mpd_song, MPD_TAG_ARTIST, 0);
+    if (!name) name = "N/A";
+
+    const char *path = mpd_song_get_uri(__mpd_song);
+
+    song *s = 0;
+    if (path) {
+        internet_radios->n_songs++;
+        internet_radios->songs = realloc(internet_radios->songs, (internet_radios->n_songs * sizeof(song *)));
+        s = new_song(unknown_song_id,path,"N/A",name);
+        internet_radios->songs[internet_radios->n_songs - 1] = s;
+    }
+
+    return s;
+
 }
 
 playlist *get_internet_radios() {
@@ -453,6 +448,7 @@ playlist *get_internet_radios() {
         } else {
             clear_playlist(internet_radios);
         }
+
         internet_radios->n_songs = 0;
         internet_radios->songs = 0;
 
@@ -465,7 +461,7 @@ playlist *get_internet_radios() {
         struct mpd_playlist *playlist = mpd_recv_playlist(mpd_conn);
         while (playlist) {
             const char *path = mpd_playlist_get_path(playlist);
-            if (!strcmp("[Radio Streams]",path)) {
+            if (!strcmp(RADIO_PLAYLIST,path)) {
                 playlist_exists = true;
             }
             mpd_playlist_free(playlist);
@@ -474,10 +470,10 @@ playlist *get_internet_radios() {
 
         if (!playlist_exists) {
             log_info(AUDIO_CTX, "Playlist does not yet exist. Creating it\n");
-            mpd_send_save(mpd_conn,"[Radio Streams]");
+            mpd_send_save(mpd_conn,RADIO_PLAYLIST);
         }
 
-        if (!mpd_send_list_playlist(mpd_conn,"[Radio Streams]")) {
+        if (!mpd_send_list_playlist_meta(mpd_conn,RADIO_PLAYLIST)) {
             log_error(AUDIO_CTX, "Could not list internet-radio playlists: %s\n", mpd_connection_get_error_message(mpd_conn));
             return internet_radios;
         }
@@ -488,53 +484,21 @@ playlist *get_internet_radios() {
             return internet_radios;
         }
 
-        struct mpd_pair *pair = mpd_recv_pair_named(mpd_conn,"file");
-        while (pair) {
-            const char *file_name = pair->value;
-            log_info(AUDIO_CTX, "File: %s\n", file_name);
-            if (file_name) {
+        struct mpd_song *__mpd_song = mpd_recv_song(mpd_conn);
+        while (__mpd_song) {
 
-                unsigned int hash_idx = 0;
-                char *path = 0;
-
-                char c = file_name[hash_idx];
-                while (c && c != '#') {
-                    path = realloc(path,(hash_idx+2)*sizeof(char));
-                    path[hash_idx] = c;
-                    c = file_name[++hash_idx];
-                }
-
-                char *title = 0;
-
-                if (c) {
-                    path[hash_idx] = 0;
-                    log_info(AUDIO_CTX, "Path: %s\n", path);
-                    // hash found
-                    c = file_name[++hash_idx];
-                    int i = 0;
-                    while (c) {
-                        title = realloc(title,((i+1)+2)*sizeof(char));
-                        title[i++] = c;
-                        c = file_name[++hash_idx];
-                    }
-                    title[i] = 0;
-                    log_info(AUDIO_CTX, "Title: %s\n", title);
-
-                    internet_radios->n_songs++;
-                    internet_radios->songs = realloc(internet_radios->songs, (internet_radios->n_songs * sizeof(song *)));
-                    song *s = new_song(unknown_song_id,path,"N/A",title);
-                    internet_radios->songs[internet_radios->n_songs - 1] = s;
-                    log_info(AUDIO_CTX, "\tSong: %s (%s)\n", s->title, s->url);
-
-                }
+            song *s = add_internet_radio(__mpd_song);
+            if (s) {
+                log_info(AUDIO_CTX, "\tSong: %s (%s)\n", s->title, s->url);
             }
-            mpd_return_pair(mpd_conn,pair);
-            pair = mpd_recv_pair_named(mpd_conn,"file");
+
+            mpd_song_free(__mpd_song);
+            __mpd_song = mpd_recv_song(mpd_conn);
+
         }
     }
     return internet_radios;
 }
-
 
 playlist *get_album_songs(char *album) {
     if (init_audio()) {

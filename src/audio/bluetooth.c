@@ -18,21 +18,23 @@
 */
 
 #define DBUS_API_SUBJECT_TO_CHANGE
-#include "base.h"
 #include <dbus/dbus.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../base.h"
 
 #define MATCHING_RULE "eavesdrop=true,interface='org.bluealsa.Manager1'"
 #define MATCHING_RULE1 "eavesdrop=true,interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'"
 
 const char *pcm_removed = "PCMRemoved";
 const char *pcm_added = "PCMAdded";
+const char *media_control = "org.bluez.MediaControl";
 const char *prop_changed = "PropertiesChanged";
 const char *prop_bluez_device = "org.bluez.Device1";
+const char *connected_key = "Connected";
 const char *track_key = "Track";
 const char *title_key = "Title";
 const char *artist_key = "Artist";
@@ -80,21 +82,21 @@ void bt_init() {
     // connect to the bus and check for errors
     bt_conn = dbus_bus_get(DBUS_BUS_SYSTEM, &bt_err);
     if (dbus_error_is_set(&bt_err)) {
-       log_error(BT_CTX, "Connection Error (%s)\n", bt_err.message);
+       log_error(BT_CTX, "Error connecting to system bus: %s\n", bt_err.message);
        dbus_error_free(&bt_err);
     }
 
     if (NULL == bt_conn) {
-       log_error(BT_CTX, "Connection Null\n");
+       log_error(BT_CTX, "No connection available\n");
     } else {
         dbus_bus_add_match (bt_conn,MATCHING_RULE,&bt_err);
         if (dbus_error_is_set(&bt_err)) {
-           log_error(BT_CTX, "Connection Error (%s)\n", bt_err.message);
+           log_error(BT_CTX, "Error adding matching rule %s: %s\n", MATCHING_RULE, bt_err.message);
            dbus_error_free(&bt_err);
         }
         dbus_bus_add_match (bt_conn,MATCHING_RULE1,&bt_err);
         if (dbus_error_is_set(&bt_err)) {
-            log_error(BT_CTX, "Connection Error (%s)\n", bt_err.message);
+            log_error(BT_CTX, "Error adding matching rule %s: %s\n", MATCHING_RULE1, bt_err.message);
             dbus_error_free(&bt_err);
         }
     }
@@ -102,10 +104,13 @@ void bt_init() {
 }
 
 void bt_close() {
+    log_config(BT_CTX, "Closing Bluetooth ... ");
     // close the connection
     if (bt_conn != NULL) {
-        dbus_connection_close(bt_conn);
+        dbus_connection_unref(bt_conn);
+        bt_conn = NULL;
     }
+    log_config(BT_CTX, "Done");
 }
 
 void process_string_dict_entry(DBusMessageIter parentIter,char **key, char **value) {
@@ -117,6 +122,7 @@ void process_string_dict_entry(DBusMessageIter parentIter,char **key, char **val
     dbus_message_iter_recurse(&dictEntryIter,&variantIter);
     if (dbus_message_iter_get_arg_type(&variantIter) == DBUS_TYPE_STRING) {
         dbus_message_iter_get_basic(&variantIter,value);
+    	log_config(BT_CTX, "process_string_dict_entry(%s,%s)\n", *key, *value);
         return;
     }
 
@@ -129,6 +135,7 @@ void process_properties_chg_msg(DBusMessage *msg) {
     dbus_message_iter_init(msg,&iter);
     char *str;
     dbus_message_iter_get_basic(&iter,&str);
+    log_config(BT_CTX, "process_properties_chg_msg: str = %s\n", str);
 
     if (dbus_message_iter_has_next(&iter)) {
         dbus_message_iter_next (&iter);
@@ -140,12 +147,22 @@ void process_properties_chg_msg(DBusMessage *msg) {
             dbus_message_iter_recurse(&subIter,&dictEntryIter);
             char *key;
             dbus_message_iter_get_basic(&dictEntryIter,&key);
+	    log_config(BT_CTX, "Key: %s\n", key);
 
             if (dbus_message_iter_has_next(&dictEntryIter)) {
                 dbus_message_iter_next (&dictEntryIter);
-                if (!strcmp(track_key,key)) {
-                    DBusMessageIter dictValueIter;
-                    dbus_message_iter_recurse(&dictEntryIter,&dictValueIter);
+                DBusMessageIter dictValueIter;
+                dbus_message_iter_recurse(&dictEntryIter,&dictValueIter);
+		if (!strcmp(connected_key,key)) {
+    		    DBusMessageIter variantIter;
+    		    dbus_message_iter_recurse(&dictEntryIter,&variantIter);
+    		    if (dbus_message_iter_get_arg_type(&variantIter) == DBUS_TYPE_BOOLEAN) {
+			    dbus_bool_t connected;
+            		    dbus_message_iter_get_basic(&variantIter,&connected);
+			    log_config(BT_CTX, "Connected: %d\n", connected);
+			    bt_info->connected = connected;
+		    }
+		} else if (!strcmp(track_key,key)) {
                     DBusMessageIter trackDataIter;
                     dbus_message_iter_recurse(&dictValueIter,&trackDataIter);
                     char current_type = dbus_message_iter_get_arg_type(&trackDataIter);
@@ -156,19 +173,42 @@ void process_properties_chg_msg(DBusMessage *msg) {
                             if (value && strlen(value) == 0) {
                                 value = NULL;
                             }
-                            if (strcmp(key,album_key)) {
-                                bt_info->album = value;
-                            } else if (strcmp(key,artist_key)) {
-                                bt_info->artist = value;
-                            } else if (strcmp(key,title_key)) {
-                                bt_info->title = value;
+                            if (!strcmp(key,album_key)) {
+				if (bt_info->album) {
+					free(bt_info->album);
+				}
+				if (value) {
+                                	bt_info->album = strdup(value);
+				} else {
+					bt_info->album = NULL;
+				}
+                            } else if (!strcmp(key,artist_key)) {
+				if (bt_info->artist) {
+					free(bt_info->artist);
+				}
+				if (value) {
+                                	bt_info->artist = strdup(value);
+				} else {
+					bt_info->artist = NULL;
+				}
+                            } else if (!strcmp(key,title_key)) {
+				if (bt_info->title) {
+					free(bt_info->title);
+				}
+				if (value) {
+                                	bt_info->title = strdup(value);
+				} else {
+					bt_info->title = NULL;
+				}
                             }
                         }
                         dbus_message_iter_next (&trackDataIter);
                         current_type = dbus_message_iter_get_arg_type(&trackDataIter);
                     }
                 }
-            }
+            } else {
+		    log_config(BT_CTX, "No further entry\n");
+	    }
 
             dbus_message_iter_next (&subIter);
         }
@@ -176,12 +216,14 @@ void process_properties_chg_msg(DBusMessage *msg) {
 
 }
 
-void debug_bt_info() {
-    log_info(BT_CTX, "Connected: %d\n", bt_info->connected);
-    log_info(BT_CTX, "Track:\n");
-    log_info(BT_CTX, "\tTitle:  %s\n", bt_info->title);
-    log_info(BT_CTX, "\tArtist: %s\n", bt_info->artist);
-    log_info(BT_CTX, "\tAlbum:  %s\n", bt_info->album);
+void log_bt_info() {
+   if (log_level_enabled(BT_CTX, IR_LOG_LEVEL_CONFIG)) {
+    	log_config(BT_CTX, "Connected: %s\n", bt_info->connected ? "yes" : "no");
+    	log_config(BT_CTX, "Track:\n");
+    	log_config(BT_CTX, "\tTitle:  %s\n", bt_info->title);
+    	log_config(BT_CTX, "\tArtist: %s\n", bt_info->artist);
+    	log_config(BT_CTX, "\tAlbum:  %s\n", bt_info->album);
+   }
 }
 
 /**
@@ -189,7 +231,7 @@ void debug_bt_info() {
  * 0 no change
  * -1 bluetooth device disconnected
  */
-int bt_connection_signal(int proces_prop_changes) {
+int bt_connection_signal(int process_prop_changes) {
 
     int result = 0;
 
@@ -197,22 +239,31 @@ int bt_connection_signal(int proces_prop_changes) {
         dbus_connection_read_write(bt_conn, 0);
         bt_msg = dbus_connection_pop_message(bt_conn);
         if (bt_msg != NULL) {
-
+	    log_config(BT_CTX, "bt_msg: %s\n", bt_msg);
             const char *member = dbus_message_get_member(bt_msg);
-            if (!strcmp(member,pcm_added)) {
-                bt_info->connected = 1;
+	    log_config(BT_CTX, "member: %s\n", member);
+            if (!strncmp(member,media_control, strlen(media_control))) {
+                process_properties_chg_msg(bt_msg);
+                //bt_info->connected = 1;
                 result = 1;
             } else if (!strcmp(member,pcm_removed)) {
-                bt_info->connected = 0;
-                result = 1;
-            } else if (proces_prop_changes && !strcmp(member,prop_changed)) {
+                //bt_info->connected = 0;
+                result = -1;
+            } else if (!strcmp(member,prop_changed)) {
                 process_properties_chg_msg(bt_msg);
                 result = 1;
             }
 
             dbus_message_unref(bt_msg);
 
-        }
+	}
+    } else {
+	log_error(BT_CTX, "bt_connection_signal: no bluetooth connection\n");
+    }
+
+    if (result) {
+    	log_config(BT_CTX, "bt_connection_signal(proces_prop_changes => %d) -> %d\n", process_prop_changes, result);
+    	log_bt_info();
     }
 
     return result;

@@ -296,7 +296,9 @@ void spotify_init(char *spotify_host) {
 }
 
 void spotify_close() {
+    log_info(SPOTIFY_CTX,"Closing Spotify ... ");
     __stop_spotify_thread();
+    log_info(SPOTIFY_CTX,"Done");
 }
 
 int spotify_is_connected() {

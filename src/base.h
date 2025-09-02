@@ -21,6 +21,8 @@
 #define BASE_H
 
 #include<stdio.h>
+#include<stdlib.h>
+#include<time.h>
 #include<inttypes.h>
 #include"log_contexts.h"
 
@@ -88,6 +90,16 @@ void __log_trace(const int log_ctx, const char *__restrict __format, ...);
 
 int log_level_enabled(const int log_ctx, const int lvl);
 
+typedef struct time_check_interval {
+    time_t last_checked;
+    int check_seconds;
+} time_check_interval;
+
+int check_time_interval(time_check_interval *i);
+time_check_interval *time_check_interval_new(int check_seconds);
+void time_check_interval_free(time_check_interval *i);
+void time_check_interval_set_check_seconds(time_check_interval *i, int check_seconds); 
+
 typedef struct network_interface {
     char *ifname;
     char *ipaddress;
@@ -128,5 +140,6 @@ char *to_utf8(uint32_t utf, uint32_t *length);
 
 char *my_catstr (const char *str1, const char *str2);
 char *my_cat3str (const char *str1, const char *str2, const char *str3);
+int my_strcmp(const char *str1, const char *str2);
 
 #endif

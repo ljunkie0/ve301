@@ -171,7 +171,7 @@ menu *input_menu_new (menu_ctrl *ctrl, char *font, int font_size, input_menu_ok_
 
     for (int c = 0; c < input_menu_n_of_characters; c++) {
         const char *lbl = input_menu_alphabet_items[c];
-        menu_item_new(my_menu, lbl, NULL, OBJECT_TYPE_ACTION, NULL, 0, &input_menu_item_action, NULL, 0);
+        menu_item_new(my_menu, lbl, NULL, NULL, OBJECT_TYPE_ACTION, NULL, 0, &input_menu_item_action, NULL, 0);
     }
 
     return my_menu;

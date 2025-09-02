@@ -42,6 +42,8 @@ src/menu/menu.c
 src/menu/menu.h
 src/menu/menucontrol.cpp
 src/menu/menucontrol.h
+src/menu/menuo.cpp
+src/menu/menuo.h
 src/menu/text_obj.c
 src/menu/text_obj.h
 src/mpris_audio.c

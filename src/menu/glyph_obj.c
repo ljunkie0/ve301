@@ -28,15 +28,16 @@ void glyph_obj_free(glyph_obj *obj) {
 
         if (obj->colors) {
             free(obj->colors);
-	    obj->colors = NULL;
+    	    obj->colors = NULL;
         }
 
         if (obj->normals) {
             free(obj->normals);
-	    obj->normals = NULL;
+    	    obj->normals = NULL;
         }
 
         if (obj->surface) {
+	    log_debug(MENU_CTX,"SDL_FreeSurface(obj->surface => %p);\n", obj->surface); 
             SDL_FreeSurface(obj->surface);
 	    obj->surface = NULL;
         }
@@ -85,17 +86,13 @@ void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius) 
 
 }
 
-glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius) {
+glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius) {
 
     glyph_obj *glyph_o = malloc(sizeof(glyph_obj));
+
     glyph_o->bumpmap_textures = NULL;
 
-    glyph_o->surface = TTF_RenderGlyph_Blended(font,c,fg);
-    if (glyph_o->surface == NULL) {
-        log_error(MENU_CTX, "Could not render glyph %c: %s\n", c, TTF_GetError());
-        return NULL;
-    }
-
+    glyph_o->surface = surface;
     glyph_o->radius = radius;
 
     glyph_o->current_angle = -2000.0;
@@ -110,7 +107,7 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
 
     for (int y = 0; y < glyph_o->surface->h; y++) {
         
-	int o = glyph_o->surface->w*y;
+	    int o = glyph_o->surface->w*y;
         int p = pitch*y;
         int pop = pitch * (y-1);
         int pon = pitch * (y+1);
@@ -188,10 +185,14 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
     glyph_o->colors[0] = transparent;
 
     for (int y = 1; y < glyph_o->surface->h; y++) {
-        glyph_o->normals[glyph_o->surface->w * y] = df;
-        glyph_o->normals[glyph_o->surface->w * y - 1] = df;
-        glyph_o->colors[glyph_o->surface->w * y] = transparent;
-        glyph_o->colors[glyph_o->surface->w * y - 1] = transparent;
+        int p = glyph_o->surface->w * y; 
+        if (glyph_o->surface->w * glyph_o->surface->h - p <= 0)
+            log_error(MENU_CTX, "Pointer %d out of range %d\n", p, glyph_o->surface->w * glyph_o->surface->h); 
+
+        glyph_o->normals[p] = df;
+        glyph_o->normals[p-1] = df;
+        glyph_o->colors[p] = transparent;
+        glyph_o->colors[p-1] = transparent;
     }
 
     for (int x = 0; x < glyph_o->surface->w; x++) {
@@ -219,6 +220,26 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
     glyph_o->rot_center = rot_center;
 
     glyph_obj_update_cnt_rad(glyph_o,center,radius);
+
+    glyph_o->minx = 0;
+    glyph_o->maxx = surface->w;
+    glyph_o->miny = 0;
+    glyph_o->maxy = surface->h;
+    glyph_o->advance = 0;
+
+    return glyph_o;
+
+}
+
+glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius) {
+
+    SDL_Surface *surface = TTF_RenderGlyph_Blended(font,c,fg);
+    if (surface == NULL) {
+        log_error(MENU_CTX, "Could not render glyph %c: %s\n", c, TTF_GetError());
+        return NULL;
+    }
+
+    glyph_obj *glyph_o = glyph_obj_new_surface(renderer,surface,font,fg,center,radius);
 
     int minx = 0,maxx = 0,miny = 0,maxy = 0,advance = 0;
     TTF_GlyphMetrics(font,c,&minx,&maxx,&miny,&maxy,&advance);
@@ -256,6 +277,12 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
     }
 
     int idx = (int) (10.0 * (angle + 360.0));
+    if (idx >= 10000) {
+	    idx = 9999;
+    } else if (idx < 0) {
+	    idx = 0;
+    }
+
     double s = sinuses[idx];
     double c = cosinuses[idx];
     if (c > 1.0) {

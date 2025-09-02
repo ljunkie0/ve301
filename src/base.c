@@ -98,6 +98,47 @@ char *my_cat3str (const char *str1, const char *str2, const char *str3) {
     return res;
 }
 
+int my_strcmp(const char *str1, const char *str2) {
+	if (!str1) {
+		if (str2) {
+			return -1;
+		}
+		return 0;
+	}
+
+	if (!str2) {
+		return 1;
+	}
+
+	return strcmp(str1,str2);
+
+}
+
+void free_time_check_interval(time_check_interval *i) {
+    free(i);
+}
+
+time_check_interval *time_check_interval_new(int check_seconds) {
+    time_check_interval *i = malloc(sizeof(time_check_interval));
+    i->last_checked = 0;
+    i->check_seconds = check_seconds;
+    return i;
+}
+
+int check_time_interval(time_check_interval *i) {
+    time_t timer;
+    time(&timer);
+    if (timer - i->last_checked > i->check_seconds) {
+        i->last_checked = timer;
+        return 1;
+    }
+    return 0;
+}
+
+void time_check_interval_set_check_seconds(time_check_interval *i, int check_seconds) {
+    i->check_seconds = check_seconds;
+}
+
 /**
  * Encode a code point using UTF-8
  *
@@ -559,13 +600,13 @@ void free_config() {
 }
 
 config_entry *
-find_config_entry (const char *key, const char *group) {
+find_config_entry (const __config_rec *config, const char *key, const char *group) {
     config_entry *entry = 0;
     int e = 0;
-    while (!entry && e < __config->no_of_entries) {
-        if (!strcmp (key, __config->entries[e]->key)) {
-            if ((!__config->entries[e]->group && !group) || (__config->entries[e]->group && group && !strcmp (group, __config->entries[e]->group))) {
-               entry = __config->entries[e];
+    while (!entry && e < config->no_of_entries) {
+        if (!strcmp (key, config->entries[e]->key)) {
+            if ((!config->entries[e]->group && !group) || (config->entries[e]->group && group && !strcmp (group, config->entries[e]->group))) {
+               entry = config->entries[e];
             }
         }
         e++;
@@ -573,14 +614,14 @@ find_config_entry (const char *key, const char *group) {
     return entry;
 }
 
-config_entry *add_config_entry (const char *config_file_name, const char *key, const char *value, const char *group) {
-    config_entry *e = find_config_entry(key, group);
+config_entry *add_config_entry (__config_rec *config, const char *config_file_name, const char *key, const char *value, const char *group) {
+    config_entry *e = find_config_entry(config, key, group);
     if (e == NULL) {
         e = malloc (sizeof (config_entry));
-        e->id =  __config->no_of_entries++;
-        __config->entries = realloc (__config->entries,
-                                    __config->no_of_entries * sizeof (config_entry *));
-        __config->entries[__config->no_of_entries - 1] = e;
+        e->id =  config->no_of_entries++;
+        config->entries = realloc (config->entries,
+                                    config->no_of_entries * sizeof (config_entry *));
+        config->entries[config->no_of_entries - 1] = e;
     } else {
         if (e->config_file_name) {
             free(e->config_file_name);
@@ -618,7 +659,7 @@ config_entry *add_config_entry (const char *config_file_name, const char *key, c
 char *get_config_value_group (char *key, const char *dflt, const char *group) {
     char *value = 0;
     if (__config) {
-        config_entry *entry = find_config_entry (key, group);
+        config_entry *entry = find_config_entry (__config, key, group);
         if (entry) {
             value = entry->value;
         }
@@ -674,7 +715,7 @@ char *get_config_value_path_group (char *key, const char *dflt, const char *grou
     char *value = NULL;
     config_entry *entry = NULL;
     if (__config) {
-        entry = find_config_entry (key, group);
+        entry = find_config_entry (__config, key, group);
         if (entry) {
             value = entry->value;
         }
@@ -845,7 +886,7 @@ void read_config_file(const char *config_file_name) {
                                 log_error(BASE_CTX, "include without file");
                             }
                         } else {
-                            config_entry *e = add_config_entry (config_file_name, key, value, current_group);
+                            config_entry *e = add_config_entry (__config, config_file_name, key, value, current_group);
                             if (e->value) {
                                 log_info (BASE_CTX, "%s: %s\n", key, value);
                             }

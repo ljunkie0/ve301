@@ -19,8 +19,8 @@
 
 void bt_init();
 void bt_close();
-int bt_connection_signal();
-int *bt_is_connected();
+int bt_connection_signal(int proces_prop_changes);
+int bt_is_connected();
 char *bt_get_title();
 char *bt_get_album();
 char *bt_get_artist();
