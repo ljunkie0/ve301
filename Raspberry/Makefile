@@ -11,7 +11,7 @@ LIBRS_ARCH=arm-linux-gnueabihf
 DPKG_ARCH=:armhf
 include ../Makefile
 #CC=arm-linux-gnueabihf-gcc-10
-CC=aarch64-linux-gnu-gcc-11
+CC=aarch64-linux-gnu-gcc-12
 JNI_INCLUDES=-I /usr/lib/jvm/java-11-openjdk-arm64/include -I /usr/lib/jvm/java-11-openjdk-arm64/include/linux
 #ADD_CFLAGS=-DPERF_TEST
 LDFLAGS=
@@ -20,13 +20,12 @@ armhf-docker:
 	docker build -t ve301 .
 	docker run \
 			--rm \
-			--volume "$(CURDIR)/../../:/mnt/ve301" \
-			--volume "$(WIRINGPI):/mnt/WiringPi" \
+			--volume "$(CURDIR)/../:/mnt/ve301" \
 			--volume "/opt/vc:/mnt/vc" \
 			--env PERMFIX_UID="$$(id -u)" \
 			--env PERMFIX_GID="$$(id -g)" \
 			--env ARCHITECTURE="armhf" \
-			ve301 sh -c "make CC=$(CC) WITH_SPOTIFY=$(WITH_SPOTIFY) WITH_BLUETOOTH=$(WITH_BLUETOOTH) -C /mnt/ve301/ve301.ui/Raspberry WIRINGPI=/mnt/WiringPi VC=/mnt/vc"
+			ve301 sh -c "make CC=$(CC) WIFI_SCAN_DIRECTORY=/tmp/wifi-scan WITH_SPOTIFY=$(WITH_SPOTIFY) WITH_BLUETOOTH=$(WITH_BLUETOOTH) -C /mnt/ve301/Raspberry WIRINGPI=/mnt/WiringPi VC=/mnt/vc"
 
 armhf-docker-clean:
 	docker build -t ve301 .

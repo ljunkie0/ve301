@@ -13,7 +13,6 @@ RUN mkdir /build \
     && apt-get install -y --no-install-recommends \
         build-essential \
         crossbuild-essential-arm64 \
-        gcc-11-aarch64-linux-gnu \
 	libdbus-1-dev:arm64 \
         libsdl2-dev:arm64 \
         libsdl2-ttf-dev:arm64 \
@@ -29,4 +28,13 @@ RUN mkdir /build \
         liblzma-dev \
         pkg-config \
         gettext-base \
-        && rm -rf /var/lib/apt/lists/*
+	wget \
+	git \
+    && cd /tmp \
+    && wget --no-check-certificate https://github.com/WiringPi/WiringPi/releases/download/3.16/wiringpi_3.16_arm64.deb && dpkg -i wiringpi_3.16_arm64.deb \
+    && ln -sf /usr/lib/libwiringPi.so.3.16 /usr/lib/libwiringPi.so \
+    && ln -sf /usr/lib/libwiringPiDev.so.3.16 /usr/lib/libwiringPiDev.so \
+    && GIT_SSL_NO_VERIFY=true git clone https://github.com/bmegli/wifi-scan.git \
+    && cd wifi-scan \
+    && make CC=aarch64-linux-gnu-gcc-12 \
+    && rm -rf /var/lib/apt/lists/*
