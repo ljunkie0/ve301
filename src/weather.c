@@ -17,6 +17,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define _GNU_SOURCE
+
 #include"base.h"
 #include"weather.h"
 #include<curl/curl.h>
@@ -538,6 +540,7 @@ weather *get_weather() {
 
 void *on_weather_thread_start(void *__weather_listener) {
     log_info(WEATHER_CTX, "Weather thread successfully started\n");
+    pthread_setname_np(pthread_self(), "Weather Thread");
 
     weather_listener *listener = (weather_listener *) __weather_listener;
 

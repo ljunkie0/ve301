@@ -1,8 +1,10 @@
+#define _GNU_SOURCE
 #include <libwebsockets.h>
 #include <cjson/cJSON.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <curl/curl.h>
 #include "../base.h"
 #include "spotify.h"
@@ -128,6 +130,7 @@ static struct lws_protocols protocols[] =
 
 void *__spotify_thread_func(void *) {
     log_config(SPOTIFY_CTX, "Spotify thread starting\n");
+    pthread_setname_np(pthread_self(), "Spotify thead");
     struct lws_context_creation_info info;
     memset( &info, 0, sizeof(info) );
 
@@ -187,6 +190,7 @@ void *__spotify_thread_func(void *) {
 
     }
 
+    log_info(SPOTIFY_CTX, "Spotify thread finished. Destroying LWS context\n");
     lws_context_destroy( context );
 
     return NULL;

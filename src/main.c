@@ -855,7 +855,6 @@ int menu_call_back(menu_ctrl *ctrl) {
 
     long time_diff = timer - info_menu_t;
     long callback_diff = timer - callback_t;
- 
 
     if (ctrl->active != info_menu) {
         current_menu = ctrl->active;

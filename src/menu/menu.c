@@ -82,6 +82,7 @@ int menu_ctrl_clear(menu_ctrl *ctrl, double angle);
 int menu_ctrl_process_events(menu_ctrl *ctrl);
 int menu_draw(menu *m, int clear, int render);
 int menu_ctrl_apply_light(menu_ctrl *ctrl);
+int menu_draw_indicator(menu *m, double xc, double yc, double angle);
 
 TTF_Font *my_OpenTTF_Font(const char *path, const int size) {
     if (!path) {
@@ -800,19 +801,7 @@ int menu_draw(menu *m, int clear, int render) {
         }
     }
 
-    Sint16 xc_Sint16 = to_Sint16(xc);
-    SDL_SetRenderDrawBlendMode(ctrl->renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(ctrl->renderer, ctrl->indicator_color->r,
-            ctrl->indicator_color->g, ctrl->indicator_color->b, ctrl->indicator_color->a);
-    SDL_RenderDrawLine(ctrl->renderer, xc_Sint16, 0, xc_Sint16, (Sint16) ctrl->w);
-    SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 - 1, 0, xc_Sint16 - 1, (Sint16) ctrl->w);
-    SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 + 1, 0, xc_Sint16 + 1, (Sint16) ctrl->w);
-    SDL_SetRenderDrawColor(ctrl->renderer, ctrl->indicator_color_light->r,
-            ctrl->indicator_color_light->g, ctrl->indicator_color_light->b, ctrl->indicator_color->a * 180 / 255);
-    SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 - 2, 0, xc_Sint16 - 2, (Sint16) ctrl->h);
-    SDL_SetRenderDrawColor(ctrl->renderer, ctrl->indicator_color_dark->r,
-            ctrl->indicator_color_dark->g, ctrl->indicator_color_dark->b, ctrl->indicator_color->a * 180 / 255);
-    SDL_RenderDrawLine(ctrl->renderer, xc_Sint16 + 2, 0, xc_Sint16 + 2, (Sint16) ctrl->h);
+    menu_draw_indicator(m, xc, yc, angle);
 
     menu_ctrl_apply_light(ctrl);
 
@@ -1193,14 +1182,93 @@ menu *menu_ctrl_get_root(menu_ctrl *ctrl) {
     return ctrl->root[0];
 }
 
+int menu_draw_indicator(menu *m, double xc, double yc, double angle) {
+
+    menu_ctrl *ctrl = m->ctrl;
+
+    double a = - M_PI * ctrl->angle_offset / 180.0 - M_PI_2;
+
+    double cos_a = cos(a);
+    double sin_a = sin(a);
+
+
+    double fx1 = xc + ctrl->w * cos_a;
+    double fy1 = yc - ctrl->w * sin_a;
+    double fx2 = xc - ctrl->w * cos_a;
+    double fy2 = yc + ctrl->w * sin_a;
+
+    SDL_SetRenderDrawBlendMode(
+            ctrl->renderer,
+            SDL_BLENDMODE_BLEND);
+
+    SDL_SetRenderDrawColor(
+            ctrl->renderer,
+            ctrl->indicator_color->r,
+            ctrl->indicator_color->g,
+            ctrl->indicator_color->b,
+            ctrl->indicator_color->a);
+
+    SDL_RenderDrawLineF(
+            ctrl->renderer,
+            fx1,
+            fy1,
+            fx2,
+            fy2);
+
+    SDL_RenderDrawLineF(
+            ctrl->renderer,
+            fx1-1.0,
+            fy1,
+            fx2-1.0,
+            fy2);
+
+    SDL_RenderDrawLineF(
+            ctrl->renderer,
+            fx1+1.0,
+            fy1,
+            fx2+1.0,
+            fy2);
+
+    SDL_SetRenderDrawColor(
+            ctrl->renderer,
+            ctrl->indicator_color_light->r,
+            ctrl->indicator_color_light->g,
+            ctrl->indicator_color_light->b,
+            ctrl->indicator_color->a * 180 / 255);
+
+    SDL_RenderDrawLineF(
+            ctrl->renderer,
+            fx1-2.0,
+            fy1,
+            fx2-2.0,
+            fy2);
+
+    SDL_SetRenderDrawColor(
+            ctrl->renderer,
+            ctrl->indicator_color_dark->r,
+            ctrl->indicator_color_dark->g,
+            ctrl->indicator_color_dark->b,
+            ctrl->indicator_color->a * 180 / 255);
+
+    SDL_RenderDrawLineF(
+            ctrl->renderer,
+            fx1+2.0,
+            fy1,
+            fx2+2.0,
+            fy2);
+
+    return 1;
+
+}
+
 int menu_draw_scale(menu *m, double xc, double yc, double r, double R, double angle, unsigned char alpha, int lines) {
+
     double a = M_PI * angle / 180.0;
     double cos_a = cos(a);
     double sin_a = sin(a);
     double fx1 = xc + r * cos_a;
     double fy1 = yc - r * sin_a;
-    double fx2 = xc + R * cos_a;
-    double fy2 = yc - R * sin_a;
+    double fx2 = xc + R * cos_a; double fy2 = yc - R * sin_a;
 
     menu_ctrl *ctrl = m->ctrl;
 

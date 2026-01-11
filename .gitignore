@@ -6,3 +6,4 @@ ve301_new.creator.user.d5b3508
 ve301_new.cxxflags
 ve301_new.files
 ve301_new.includes
+**/*.o

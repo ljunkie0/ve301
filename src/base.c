@@ -16,6 +16,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+#define _GNU_SOURCE
 
 #include "base.h"
 #include <stdlib.h>
@@ -420,6 +421,7 @@ int __check_internet() {
 
 void *__internet_thread_start(void *arg) {
     log_info(BASE_CTX, "Internet thread successfully started\n");
+    pthread_setname_np(pthread_self(), "Internet thread");
 
     const struct timespec duration = {
         0,
