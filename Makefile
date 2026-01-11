@@ -1,8 +1,8 @@
 WITH_SPOTIFY=1
 WITH_BLUETOOTH=1
 
-CC=$(ARCH)-gcc-11
-CXX=$(ARCH)-g++-13
+CC=$(ARCH)-gcc
+CXX=$(ARCH)-g++
 CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
 LDFLAGS_DBUS=-ldbus-1
 LDFLAGS=
@@ -32,7 +32,7 @@ ifeq ($(WITH_BLUETOOTH),1)
 	AUDIO_OBJS += audio/bluetooth.o
 endif
 
-WIFI_SCAN_DIRECTORY=../../wifi-scan
+WIFI_SCAN_DIRECTORY=$(CURDIR)/wifi-scan
 
 IR_LOG_LEVEL_OFF=-1
 IR_LOG_LEVEL_ERROR=0
@@ -50,6 +50,9 @@ CURL_LIB=/usr/lib/$(ARCH)/libcurl.so
 MPD_LIB=/usr/lib/$(ARCH)/libmpdclient.so
 SDL_LIB=/usr/lib/$(ARCH)/libSDL2.so
 DBUS_LIB=/usr/lib/$(ARCH)/libdbus-1.so
+WEBSOCKETS_LIB=/usr/lib/$(ARCH)/libwebsockets.so
+CJSON_LIB=/usr/lib/$(ARCH)/libcjson.so
+MNL_LIB=/usr/lib/$(ARCH)/libmnl.so
 
 all: ve301
 
@@ -72,6 +75,9 @@ $(WIFI_SCAN_DIRECTORY)/wifi-scan-all:
 $(WIFI_SCAN_DIRECTORY)/wifi-scan-station:
 	make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-station
 	
+$(WIFI_SCAN_DIRECTORY)/wifi_scan.h:
+	git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
+
 $(WIFI_SCAN_DIRECTORY)/wifi_scan.c:
 	git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
 
@@ -90,7 +96,16 @@ $(CURL_LIB):
 $(DBUS_LIB):
 	sudo apt-get -y install libdbus-1-dev$(DPKG_ARCH)
 
-debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB)
+$(WEBSOCKETS_LIB):
+	sudo apt-get -y install libwebsockets-dev$(DPKG_ARCH)
+
+$(CJSON_LIB):
+	sudo apt-get -y install libcjson-dev$(DPKG_ARCH)
+
+$(MNL_LIB):
+	sudo apt-get -y install libmnl-dev$(DPKG_ARCH)
+
+debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB) $(WEBSOCKETS_LIB) $(CJSON_LIB) $(MNL_LIB)
 
 %.o: ../src/%.c ../src/%.h
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
@@ -110,7 +125,7 @@ audio/%.o: ../src/audio/%.c ../src/audio/%.h audio
 menu/examples/%.o: ../src/menu/%.c ../src/menu/%.h ../src/menu/examples/%.c ../src/menu/examples/%.h
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-main.o: ../src/main.c
+main.o: ../src/main.c $(WIFI_SCAN_DIRECTORY)/wifi_scan.h 
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 audio/bluetooth.o: ../src/audio/bluetooth.c

@@ -256,7 +256,7 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
 
         }
     } else {
-        log_error(MENU_CTX, "No shadow\n");
+        log_config(MENU_CTX, "No shadow\n");
     }
 
     advance = - 0.5 * label->width;

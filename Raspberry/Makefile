@@ -21,23 +21,20 @@ armhf-docker:
 	docker run \
 			--rm \
 			--volume "$(CURDIR)/../:/mnt/ve301" \
-			--volume "/opt/vc:/mnt/vc" \
 			--env PERMFIX_UID="$$(id -u)" \
 			--env PERMFIX_GID="$$(id -g)" \
 			--env ARCHITECTURE="armhf" \
-			ve301 sh -c "make CC=$(CC) WIFI_SCAN_DIRECTORY=/tmp/wifi-scan WITH_SPOTIFY=$(WITH_SPOTIFY) WITH_BLUETOOTH=$(WITH_BLUETOOTH) -C /mnt/ve301/Raspberry WIRINGPI=/mnt/WiringPi VC=/mnt/vc"
+			ve301 sh -c "make CC=$(CC) WIFI_SCAN_DIRECTORY=/tmp/wifi-scan WITH_SPOTIFY=$(WITH_SPOTIFY) WITH_BLUETOOTH=$(WITH_BLUETOOTH) -C /mnt/ve301/Raspberry"
 
 armhf-docker-clean:
 	docker build -t ve301 .
 	docker run \
 			--rm \
-			--volume "$(CURDIR)/../../:/mnt/ve301" \
-			--volume "$(WIRINGPI):/mnt/WiringPi" \
-			--volume "/opt/vc:/mnt/vc" \
+			--volume "$(CURDIR)/../:/mnt/ve301" \
 			--env PERMFIX_UID="$$(id -u)" \
 			--env PERMFIX_GID="$$(id -g)" \
 			--env ARCHITECTURE="armhf" \
-			ve301 sh -c "make CC=$(CC) -C /mnt/ve301/ve301.ui/Raspberry WIRINGPI=/mnt/WiringPi VC=/mnt/vc clean"
+			ve301 sh -c "make CC=$(CC) WIFI_SCAN_DIRECTORY=/tmp/wifi-scan -C /mnt/ve301/Raspberry clean"
 
 armhf-docker-test-menu:
 	docker build -t ve301 .
