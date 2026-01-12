@@ -14,3 +14,4 @@
 ./base.o
 ./sdl_util.o
 ./main.o
+./wifi-scan/

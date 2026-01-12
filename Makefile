@@ -75,11 +75,10 @@ $(WIFI_SCAN_DIRECTORY)/wifi-scan-all:
 $(WIFI_SCAN_DIRECTORY)/wifi-scan-station:
 	make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-station
 	
-$(WIFI_SCAN_DIRECTORY)/wifi_scan.h:
-	git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
+$(WIFI_SCAN_DIRECTORY)/wifi_scan.h: $(WIFI_SCAN_DIRECTORY)/wifi_scan.c
+	GIT_SSL_NO_VERIFY=true git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
 
-$(WIFI_SCAN_DIRECTORY)/wifi_scan.c:
-	git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
+$(WIFI_SCAN_DIRECTORY)/wifi_scan.c: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
 
 libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o $(MENU_OBJS)
 	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o $(MENU_OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
