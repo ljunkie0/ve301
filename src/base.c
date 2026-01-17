@@ -440,7 +440,7 @@ void *__internet_thread_start(void *arg) {
 
         time_t diff = timer2 - timer;
 
-        if (diff > 5) {
+        if (diff > 3) {
             timer = timer2;
             __internet_available = __check_internet();
         }

@@ -59,6 +59,9 @@ all: ve301
 ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o wifi.o wifi_scan.o
 	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
 
+strip: ve301
+	$(STRIP) ve301
+
 wifi_scan.o: $(WIFI_SCAN_DIRECTORY)/wifi_scan.c
 	make -C $(WIFI_SCAN_DIRECTORY)
 	mv $(WIFI_SCAN_DIRECTORY)/wifi_scan.o .
@@ -75,7 +78,7 @@ $(WIFI_SCAN_DIRECTORY)/wifi-scan-all:
 $(WIFI_SCAN_DIRECTORY)/wifi-scan-station:
 	make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-station
 	
-$(WIFI_SCAN_DIRECTORY)/wifi_scan.h: $(WIFI_SCAN_DIRECTORY)/wifi_scan.c
+$(WIFI_SCAN_DIRECTORY)/wifi_scan.h:
 	GIT_SSL_NO_VERIFY=true git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
 
 $(WIFI_SCAN_DIRECTORY)/wifi_scan.c: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
@@ -115,10 +118,10 @@ menu:
 audio:
 	mkdir audio
 
-menu/%.o: ../src/menu/%.c ../src/menu/%.h menu
+menu/%.o: ../src/menu/%.c ../src/menu/%.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-audio/%.o: ../src/audio/%.c ../src/audio/%.h audio
+audio/%.o: ../src/audio/%.c ../src/audio/%.h | audio
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 menu/examples/%.o: ../src/menu/%.c ../src/menu/%.h ../src/menu/examples/%.c ../src/menu/examples/%.h

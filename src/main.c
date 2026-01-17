@@ -66,7 +66,7 @@
 #define DEFAULT_FONT_SIZE 24
 #define DEFAULT_INFO_FONT_SIZE 24
 #define CALLBACK_SECONDS 5
-#define CHECK_INTERNET_SECONDS 5
+#define CHECK_INTERNET_SECONDS 1
 #define INFO_MENU_SECONDS 14
 #define INFO_MENU_ITEM_SECONDS 5
 
@@ -158,7 +158,6 @@ static radio_theme *default_theme = NULL;
 static radio_theme *bluetooth_theme = NULL;
 static radio_theme *spotify_theme = NULL;
 
-static int last_tm_min;
 static struct tm* current_tm_info;
 static int hsv_style = 0;
 
@@ -406,8 +405,8 @@ void update_directory_menu(menu_item *directory_item) {
 }
 
 void update_time_item(menu_item *time_menu_item) {
-    last_tm_min = current_tm_info->tm_min;
     char *buffer = malloc(25 * sizeof(char));
+
     strftime(buffer, 25, time_menu_item_format, current_tm_info);
     menu_item_update_label(time_menu_item, buffer);
     log_debug(MAIN_CTX, "free(buffer))\n");
@@ -863,7 +862,12 @@ int menu_call_back(menu_ctrl *ctrl) {
     log_debug(MAIN_CTX, "Callback diff: %d\n", callback_diff);
 
     if (check_time_interval(check_internet_interval)) {
-        internet_available = check_internet();
+	log_info(MAIN_CTX, "Checking internet\n");
+        int ia = check_internet();
+	if (ia != internet_available) {
+		internet_available = ia;
+		log_info(MAIN_CTX, "Internet internet became %s\n", internet_available ? "available" : "unavailable");
+	}
     }
 
     int check_state = 0;
@@ -907,7 +911,7 @@ int menu_call_back(menu_ctrl *ctrl) {
         if (!current_menu || !current_menu->sticky) {
             if (internet_available) {
                 char *title_item_label = menu_item_get_label(title_item);
-                if (!strcpy(title_item_label,"No internet")) {
+                if (!strcmp(title_item_label,"No internet")) {
                     menu_item_update_label(title_item,"VE 301");
                 }
                 int current_id = ctrl->root[0]->current_id+1;
@@ -916,7 +920,10 @@ int menu_call_back(menu_ctrl *ctrl) {
                 }
                 menu_item_warp_to(ctrl->root[0]->item[current_id]);
             } else {
-                menu_item_update_label(title_item,"No internet");
+                char *title_item_label = menu_item_get_label(title_item);
+                if (strcmp(title_item_label,"No internet")) {
+                	menu_item_update_label(title_item,"No internet");
+		}
                 menu_item_warp_to(title_item);
             }
         }
@@ -954,6 +961,7 @@ menu_ctrl *create_menu() {
     int temp_font_size = get_config_value_int("temperature_font_size", info_font_size);
     int time_font_size = get_config_value_int("time_font_size",info_font_size);
     int w = get_config_value_int("window_width",DEFAULT_WINDOW_WIDTH);
+    int h = get_config_value_int("window_height",0);
     int y_offset = get_config_value_int("y_offset",DEFAULT_Y_OFFSET);
     int x_offset = get_config_value_int("x_offset",DEFAULT_Y_OFFSET);
     double angle_offset = get_config_value_double("angle_offset", DEFAULT_ANGLE_OFFSET);
@@ -1012,6 +1020,7 @@ menu_ctrl *create_menu() {
 
     menu_ctrl *ctrl = menu_ctrl_new (
             w,
+	    h,
             x_offset,
             y_offset,
             radius_labels,
@@ -1051,12 +1060,9 @@ menu_ctrl *create_menu() {
 
         time_t timer;
         time(&timer);
-        struct tm *tm_info = localtime(&timer);
-        last_tm_min = tm_info->tm_min;
-        char *buffer = malloc(25 * sizeof(char));
-        strftime(buffer, 25, time_menu_item_format, tm_info);
-        time_item = menu_item_new(ctrl->root[0], buffer, NULL, NULL, OBJ_TYPE_TIME, info_font, time_font_size, NULL, info_font, 0.6*time_font_size);
-        free(buffer);
+        current_tm_info = localtime(&timer);
+        time_item = menu_item_new(ctrl->root[0], NULL, NULL, NULL, OBJ_TYPE_TIME, info_font, time_font_size, NULL, info_font, 0.6*time_font_size);
+        update_time_item(time_item);
 
         const char *weather_api_key = get_config_value("weather_api_key", "");
         const char *weather_location = get_config_value("weather_location", "");

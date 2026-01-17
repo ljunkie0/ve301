@@ -26,6 +26,16 @@ armhf-docker:
 			--env ARCHITECTURE="armhf" \
 			ve301 sh -c "make CC=$(CC) WITH_SPOTIFY=$(WITH_SPOTIFY) WITH_BLUETOOTH=$(WITH_BLUETOOTH) -C /mnt/ve301/Raspberry"
 
+armhf-docker-strip:
+	docker build -t ve301 .
+	docker run \
+			--rm \
+			--volume "$(CURDIR)/../:/mnt/ve301" \
+			--env PERMFIX_UID="$$(id -u)" \
+			--env PERMFIX_GID="$$(id -g)" \
+			--env ARCHITECTURE="armhf" \
+			ve301 sh -c "make CC=$(CC) WITH_SPOTIFY=$(WITH_SPOTIFY) WITH_BLUETOOTH=$(WITH_BLUETOOTH) -C /mnt/ve301/Raspberry strip"
+
 armhf-docker-clean:
 	docker build -t ve301 .
 	docker run \

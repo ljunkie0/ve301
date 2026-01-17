@@ -233,7 +233,7 @@ void menu_free(menu *m);
  **/
 void menu_ctrl_quit(menu_ctrl *ctrl);
 void menu_ctrl_dispose(menu_ctrl *ctrl);
-menu_ctrl *menu_ctrl_new(int w, int x_offset, int y_offset, int radius_labels, int draw_scales, int radius_scales_start, int radius_scales_end, double angle_offset, const char *font, int font_size, int font_size2,
+menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_labels, int draw_scales, int radius_scales_start, int radius_scales_end, double angle_offset, const char *font, int font_size, int font_size2,
         item_action *action, menu_callback *call_back);
 void menu_ctrl_enable_mouse(menu_ctrl *ctrl, int mouse_control);
 int menu_ctrl_loop(menu_ctrl *ctrl);
