@@ -1,1 +1,1 @@
--std=c++17
+-std=c17 -DBLUETOOTH -DSPOTIFY -D__USE_POSIX199309 -I../PC/wifi-scan

@@ -9,20 +9,19 @@
 *   - an event queue where the thread puts what it read
 *
 **************************************************************/
+#define _GNU_SOURCE
 
-#include <stdint.h>
-#include <stdio.h>
-#include <time.h>
+#include "rotaryencoder.h"
+#include "base/log_contexts.h"
+#include "base/logging.h"
+#include <errno.h>
 #include <signal.h>
-#include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-
+#include <time.h>
+#include <unistd.h>
 #include <wiringPi.h>
-
-#include "base.h"
-#include "rotaryencoder.h"
 
 #define encoderA 11
 #define encoderB 10
@@ -324,8 +323,8 @@ void pi_renc_cancel(pi_renc_t *renc)
         timer_delete(*(renc->push_button_timer));
       }
 
-      log_debug(ENCODER_CTX, "free(renc -> %p)\n", renc);
-      free(renc);
+      log_debug(ENCODER_CTX, "free (renc -> %p)\n", renc);
+      free (renc);
    }
 }
 
@@ -337,8 +336,8 @@ int next_event() {
         if (event_pointer < queued_events) {
             next_event = event_queue[event_pointer];
         } else {
-            log_config(ENCODER_CTX, "free(event_queue -> %p)\n", event_queue);
-            free(event_queue);
+            log_config(ENCODER_CTX, "free (event_queue -> %p)\n", event_queue);
+            free (event_queue);
             event_queue = NULL;
             queued_events = 0;
             event_pointer = -1;

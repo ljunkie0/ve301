@@ -16,12 +16,11 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+#ifndef BLUETOOTH_H
+#define BLUETOOTH_H
+#include "player.h"
 
-void bt_init();
+player *bt_init(char *label, char *icon, int check_seconds);
 void bt_close();
-int bt_connection_signal(int proces_prop_changes);
-int bt_is_connected();
-char *bt_get_title();
-char *bt_get_album();
-char *bt_get_artist();
 
+#endif

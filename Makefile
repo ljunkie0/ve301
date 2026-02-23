@@ -8,9 +8,10 @@ LDFLAGS_DBUS=-ldbus-1
 LDFLAGS=
 STRIP=$(ARCH)-strip
 
-MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu.o
-AUDIO_OBJS=audio/audio.o audio/alsa.o
-OBJS=log_contexts.o base.o player.o sdl_util.o $(MENU_OBJS) $(AUDIO_OBJS) input_menu.o weather.o 
+BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
+MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
+AUDIO_OBJS=audio/player.o audio/audio.o audio/alsa.o audio/song.o audio/playlist.o
+OBJS=theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) input_menu.o weather.o 
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
@@ -118,10 +119,22 @@ menu:
 audio:
 	mkdir audio
 
-menu/%.o: ../src/menu/%.c ../src/menu/%.h | menu
+base:
+	mkdir base
+
+menu/menu.o: ../src/menu/menu.c ../src/menu/menu.h | menu
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+menu/%_obj.o: ../src/menu/%_obj.c ../src/menu/%_obj.h | menu
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+menu/menu_%.o: ../src/menu/menu_%.c ../src/menu/menu_%.h ../src/menu/menu_%_priv.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 audio/%.o: ../src/audio/%.c ../src/audio/%.h | audio
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+base/%.o: ../src/base/%.c ../src/base/%.h | base
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 menu/examples/%.o: ../src/menu/%.c ../src/menu/%.h ../src/menu/examples/%.c ../src/menu/examples/%.h
@@ -148,10 +161,10 @@ menu/Menu.o: ../src/menu/Menu.cpp
 menu/Menu%.o: ../src/menu/Menu%.cpp
 	$(CXX) $(CFLAGS) -c -o $@ "$<"
 
-mainObjective.o: base.o log_contexts.o sdl_util.o menu/menu.o menu/glyph_obj.o menu/text_obj.o ../src/mainObjective.cpp ../src/menu/MenuCtrl.cpp ../src/menu/Menu.cpp ../src/menu/MenuItem.cpp
+mainObjective.o: base.o sdl_util.o menu/menu.o menu/glyph_obj.o menu/text_obj.o ../src/mainObjective.cpp ../src/menu/MenuCtrl.cpp ../src/menu/Menu.cpp ../src/menu/MenuItem.cpp
 	$(CXX) $(CFLAGS) -c ../src/mainObjective.cpp
 
-mainObjective: mainObjective.o menu/menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o base.o sdl_util.o log_contexts.o
+mainObjective: mainObjective.o menu/menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o base.o sdl_util.o base/log_contexts.o
 	$(CXX) -o mainObjective mainObjective.o base.o sdl_util.o log_contexts.o menu/menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o $(LIBS_SDL)
 
 java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
@@ -160,7 +173,8 @@ java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 
 
 clean:
-	rm -f $(OBJS) main.o wifi.o wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) $(AUDIO_OBJS) libve301.so ve301 bt_devices
+	rm -f $(OBJS) main.o wifi.o wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301 bt_devices
 	rm -rf menu
 	rm -rf audio
+	rm -rf base 
 	make -C $(WIFI_SCAN_DIRECTORY) clean

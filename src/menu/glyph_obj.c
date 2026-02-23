@@ -1,10 +1,11 @@
 /**
  * Represents one single character to be rendered
  **/
-#include <SDL2/SDL2_rotozoom.h>
-#include "../base.h"
-#include "../sdl_util.h"
 #include "glyph_obj.h"
+#include "../base/log_contexts.h"
+#include "../base/logging.h"
+#include "../sdl_util.h"
+#include <SDL2/SDL2_rotozoom.h>
 
 /**
 * For bump mapping
@@ -27,39 +28,39 @@ void glyph_obj_free(glyph_obj *obj) {
     if (obj) {
 
         if (obj->colors) {
-            free(obj->colors);
-    	    obj->colors = NULL;
+            free (obj->colors);
+            obj->colors = NULL;
         }
 
         if (obj->normals) {
-            free(obj->normals);
-    	    obj->normals = NULL;
+            free (obj->normals);
+            obj->normals = NULL;
         }
 
         if (obj->surface) {
-	    log_debug(MENU_CTX,"SDL_FreeSurface(obj->surface => %p);\n", obj->surface); 
+            log_debug(MENU_CTX,"SDL_FreeSurface(obj->surface => %p);\n", obj->surface);
             SDL_FreeSurface(obj->surface);
-	    obj->surface = NULL;
+            obj->surface = NULL;
         }
 
         if (obj->texture) {
             SDL_DestroyTexture(obj->texture);
-	    obj->texture = NULL;
+            obj->texture = NULL;
         }
 
         if (obj->bumpmap_overlay) {
             SDL_DestroyTexture(obj->bumpmap_overlay);
-	    obj->bumpmap_overlay = NULL;
+            obj->bumpmap_overlay = NULL;
         }
 
         if (obj->rot_center) {
-            free(obj->rot_center);
-	    obj->rot_center = NULL;
+            free (obj->rot_center);
+            obj->rot_center = NULL;
         }
 
         if (obj->dst_rect) {
-            free(obj->dst_rect);
-	    obj->dst_rect = NULL;
+            free (obj->dst_rect);
+            obj->dst_rect = NULL;
         }
 
         if (obj->bumpmap_textures) {
@@ -68,11 +69,11 @@ void glyph_obj_free(glyph_obj *obj) {
                     SDL_DestroyTexture(obj->bumpmap_textures[a]);
                 }
             }
-	    free(obj->bumpmap_textures);
-	    obj->bumpmap_textures = NULL;
+            free (obj->bumpmap_textures);
+            obj->bumpmap_textures = NULL;
         }
 
-        free(obj);
+        free (obj);
 
     }
 }
@@ -132,20 +133,20 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, T
                     SDL_GetRGBA(p_x_pixel,glyph_o->surface->format,&r,&g,&b,&pax);
                 }
 
-                Uint8 pay;
+                Uint8 pay = 0;
                 if (y > 0) {
                     Uint32 p_y_pixel = pixels[pop + x];
                     SDL_GetRGBA(p_y_pixel,glyph_o->surface->format,&r,&g,&b,&pay);
                 }
 
-                Uint8 nax;
-                if (x < glyph_o->surface->w) {
+                Uint8 nax = 0;
+                if (x < glyph_o->surface->w - 1) {
                     Uint32 n_x_pixel = pixels[p + (x + 1)];
                     SDL_GetRGBA(n_x_pixel,glyph_o->surface->format,&r,&g,&b,&nax);
                 }
 
-                Uint8 nay;
-                if (y < glyph_o->surface->h) {
+                Uint8 nay = 0;
+                if (y < glyph_o->surface->h - 1) {
                     Uint32 n_y_pixel = pixels[pon + x];
                     SDL_GetRGBA(n_y_pixel,glyph_o->surface->format,&r,&g,&b,&nay);
                 }

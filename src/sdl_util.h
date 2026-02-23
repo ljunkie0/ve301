@@ -29,6 +29,7 @@
 #define DEFAULT_SDL_PIXELFORMAT SDL_PIXELFORMAT_RGBA32
 
 float Q_rsqrt( float number );
+TTF_Font *my_OpenTTF_Font(const char *path, const int size);
 SDL_Color *html_to_color_and_alpha(char *c, unsigned char *alpha);
 SDL_Color *html_to_color(char *c);
 SDL_Color *rgb_to_color(int r, int g, int b);
@@ -36,6 +37,7 @@ char *rgb_to_html(int r, int g, int b);
 void color_between_rgb(unsigned char rf, unsigned char gf, unsigned char bf, unsigned char rt, unsigned char gt, unsigned char bt, double t, unsigned char *r, unsigned char *g, unsigned char *b);
 SDL_Color *color_between(SDL_Color *from, SDL_Color *to, double t);
 SDL_Color *hsv_to_color(double h, double s, double v);
+SDL_Color *clone_color(SDL_Color *color);
 void color_temp_to_rgb(double temp, Uint8 *r, Uint8 *g, Uint8 *b, double value);
 void hsv_to_rgb(double h, double s, double v, Uint8 *r, Uint8 *g, Uint8 *b);
 void rgb_to_hsv(Uint8 r, Uint8 g, Uint8 b, double *h, double *s, double *v);

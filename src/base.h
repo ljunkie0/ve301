@@ -21,10 +21,8 @@
 #define BASE_H
 
 #include<stdio.h>
-#include<stdlib.h>
 #include<time.h>
 #include<inttypes.h>
-#include"log_contexts.h"
 
 #ifndef LOG_LEVEL
 #define LOG_LEVEL 5
@@ -38,57 +36,21 @@
 #define IR_LOG_LEVEL_DEBUG 5
 #define IR_LOG_LEVEL_TRACE 6
 
+#ifndef M_PI_2
+#define M_PI_2 1.57079632679489661923132
+#endif
+
+#ifndef M_PI
+#define M_PI 3.1415926536
+#endif
+
 char *my_copystr (const char *str);
-char *my_copynstr (const char *str, unsigned int max_length);
+char *my_copynstr(const char *str, size_t max_length);
 char *get_name_from_path(const char *path);
 int index_of(const char *str, const char chr);
 
 unsigned int unicode_len(const unsigned short *txt);
 unsigned short *unicode_copy(const unsigned short *txt);
-
-void __log_error(const int log_ctx, const char *__restrict __format, ...);
-#if LOG_LEVEL >= IR_LOG_LEVEL_ERROR
-#define log_error(...) __log_error(__VA_ARGS__)
-#else
-#define log_error(...)
-#endif
-
-void __log_warning(const int log_ctx, const char *__restrict __format, ...);
-#if LOG_LEVEL >= IR_LOG_LEVEL_WARNING
-#define log_warning(...) __log_warning(__VA_ARGS__)
-#else
-#define log_warning(...)
-#endif
-
-void __log_info(const int log_ctx, const char *__restrict __format, ...);
-#if LOG_LEVEL >= IR_LOG_LEVEL_INFO
-#define log_info(...) __log_info(__VA_ARGS__)
-#else
-#define log_info(...)
-#endif
-
-void __log_config(const int log_ctx, const char *__restrict __format, ...);
-#if LOG_LEVEL >= IR_LOG_LEVEL_CONFIG
-#define log_config(...) __log_config(__VA_ARGS__)
-#else
-#define log_config(...)
-#endif
-
-void __log_debug(const int log_ctx, const char *__restrict __format, ...);
-#if LOG_LEVEL >= IR_LOG_LEVEL_DEBUG
-#define log_debug(...) __log_debug(__VA_ARGS__)
-#else
-#define log_debug(...)
-#endif
-
-void __log_trace(const int log_ctx, const char *__restrict __format, ...);
-#if LOG_LEVEL >= IR_LOG_LEVEL_DEBUG
-#define log_trace(...) __log_trace(__VA_ARGS__)
-#else
-#define log_trace(...)
-#endif
-
-int log_level_enabled(const int log_ctx, const int lvl);
 
 typedef struct time_check_interval {
     time_t last_checked;
@@ -115,31 +77,7 @@ network_interfaces *get_network_interfaces();
 
 void free_network_interface(network_interface *interface);
 
-void set_config_value(char *key, char *value);
-void set_config_value_int (char *key, int value);
-void set_config_value_double (char *key, double value);
-
-char *get_config_value(char *key, const char *dflt);
-char *get_config_value_group(char *key, const char *dflt, const char *group);
-int get_config_value_int(char *key, int dflt);
-int get_config_value_int_group(char *key, int dflt, const char *group);
-float get_config_value_float(char *key, float dflt);
-float get_config_value_float_group(char *key, float dflt, const char *group);
-double get_config_value_double(char *key, double dflt);
-double get_config_value_double_group(char *key, double dflt, const char *group);
-char *get_config_value_path_group (char *key, const char *dflt, const char *group);
-char *get_config_value_path (char *key, const char *dflt);
-
 void base_close(void);
 void base_init(const char *appname, FILE *dflt_log_file, int log_level);
-void init_config_file(const char *appname);
-void write_config ();
-
-uint16_t *to_unicode(const char *txt, uint32_t *length, uint16_t **second_line, uint32_t *length2);
-char *to_utf8(uint32_t utf, uint32_t *length);
-
-char *my_catstr (const char *str1, const char *str2);
-char *my_cat3str (const char *str1, const char *str2, const char *str3);
-int my_strcmp(const char *str1, const char *str2);
 
 #endif

@@ -1,8 +1,12 @@
+#define _GNU_SOURCE
+
 #include "alsa.h"
-#include "../base.h"
+#include "../base/log_contexts.h"
+#include "../base/logging.h"
+#include <alsa/asoundlib.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <alsa/asoundlib.h>
+#include <string.h>
 
 const int alsa_set_volume(const char *mixer,const int value) {
     snd_mixer_t *handle;
@@ -95,7 +99,7 @@ const char **alsa_get_mixers(const char *mixer_device, int *n) {
             snd_mixer_selem_id_alloca(&sid);
             snd_mixer_selem_get_id(elem, sid);
             mixers[count] = strdup(snd_mixer_selem_id_get_name(sid));
-	    log_info(AUDIO_CTX, "Found mixer: %s\n", mixers[count]);
+            log_info(AUDIO_CTX, "Found mixer: %s\n", mixers[count]);
             count++;
         }
     }
@@ -149,6 +153,11 @@ const int alsa_get_volume(const char *mixer) {
     snd_mixer_selem_get_playback_volume(elem, SND_MIXER_SCHN_FRONT_LEFT, &vol);
     
     snd_mixer_close(handle);
+
+    if (max-min == 0) {
+        return 0;
+    }
+
     return (int)((vol - min) * 100 / (max - min));
 
 }

@@ -21,47 +21,27 @@
 #define AUDIO_H_
 
 #include<inttypes.h>
-
-typedef struct song {
-    char *artist;
-    char *name;
-    char *title;
-    const char *url;
-    unsigned int id;
-} song;
+#include<limits.h>
+#include "playlist.h"
+#include "song.h"
 
 typedef struct directory {
     char *name;
     char *url;
 } directory;
 
-typedef struct playlist {
-    const char *name;
-    song **songs;
-    unsigned int n_songs;
-} playlist;
-
 int init_audio(void);
-int add_station(const char *url);
-int play_station(int station_id);
 int play_song(song *s);
-int dispose_song(song *s);
 int audio_disconnect(void);
 song *get_playing_song(void);
 playlist *get_internet_radios(void);
 playlist *get_album_songs(char *album);
+playlist *get_artist_songs(char *artist);
+playlist *get_artist_album_songs(char *artist, char *album);
+
 char **get_albums(unsigned int *length);
-int increase_volume(void);
-int decrease_volume(void);
-void set_volume(unsigned int volume);
-int get_volume(void);
-int toggle_pause(void);
+char **get_artists(unsigned int *length);
+char **get_artist_albums(char *artist, unsigned int *length);
 int stop(void);
-int list_playlists(void);
-int dispose_playlist(playlist *p);
-song *new_song(unsigned int id, const char *url, const char *name, const char *title);
-void song_free(song *s);
-struct mpd_connection *get_mpd_connection(void);
-//void **get_directory(char *path);
 
 #endif /* AUDIO_H_ */

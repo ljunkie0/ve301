@@ -17,14 +17,26 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "sdl_util.h"
+#include "base/log_contexts.h"
+#include "base/logging.h"
 #include <math.h>
-#include"sdl_util.h"
-#include"base.h"
 
 inline float Q_rsqrt( float number ) {
 
     return 1/SDL_sqrt(number);
 
+}
+
+TTF_Font *my_OpenTTF_Font(const char *path, const int size) {
+    if (!path) {
+        return NULL;
+    }
+    if (size == 0) {
+        return NULL;
+    }
+    log_config(MENU_CTX, "Opening font %s with size %d\n", path, size);
+    return TTF_OpenFont(path,size);
 }
 
 SDL_Color *html_to_color_and_alpha(char *c, unsigned char *alpha) {
@@ -305,6 +317,15 @@ SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x
     SDL_UpdateTexture(light_texture,NULL,pixels,4*w);
 
     return light_texture;
+}
+
+SDL_Color *clone_color(SDL_Color *color) {
+    SDL_Color *new_color = malloc(sizeof(SDL_Color));
+    new_color->a = color->a;
+    new_color->r = color->r;
+    new_color->g = color->g;
+    new_color->b = color->b;
+    return new_color;
 }
 
 int init_SDL() {

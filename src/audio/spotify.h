@@ -16,11 +16,11 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+#ifndef SPOTIFY_H
+#define SPOTIFY_H
 
-void spotify_init(char *host);
+#include "player.h"
+
+player *spotify_init(char *host, char *label, char *icon, int check_seconds);
 void spotify_close();
-int spotify_is_connected();
-char *spotify_get_title();
-char *spotify_get_album();
-char *spotify_get_artist();
-
+#endif

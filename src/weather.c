@@ -19,16 +19,18 @@
 
 #define _GNU_SOURCE
 
-#include"base.h"
-#include"weather.h"
-#include<curl/curl.h>
-#include<curl/easy.h>
-#include<cjson/cJSON.h>
-#include<stdlib.h>
-#include<string.h>
-#include<pthread.h>
-#include<unistd.h>
-#include<time.h>
+#include "weather.h"
+#include "base/log_contexts.h"
+#include "base/logging.h"
+#include "base/util.h"
+#include <cjson/cJSON.h>
+#include <curl/curl.h>
+#include <curl/easy.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #define WEATHER_BASE_URL "http://api.openweathermap.org/data/2.5/weather"
 
@@ -448,7 +450,10 @@ int cleanup_weather() {
 
     /* always cleanup */
     if (__weather_last_result) {
-        free(__weather_last_result);
+        if (__weather_last_result->weather_icon) {
+            free(__weather_last_result->weather_icon);
+        }
+        free (__weather_last_result);
     }
     return 1;
 
@@ -515,9 +520,9 @@ weather *get_weather() {
                 if (main_str) {
                     if (__weather_last_result) {
                         if (__weather_last_result->weather_icon) {
-                            free(__weather_last_result->weather_icon);
+                            free (__weather_last_result->weather_icon);
                         }
-                        free(__weather_last_result);
+                        free (__weather_last_result);
                     }
                     __weather_last_result = malloc(sizeof(weather));
                     __weather_last_result->weather_icon = get_day_weather_icon_character(main_id);
@@ -527,9 +532,9 @@ weather *get_weather() {
                 cJSON_Delete(json);
             }
             if (r->text) {
-                free(r->text);
+                free (r->text);
             }
-            free(r);
+            free (r);
             curl_easy_cleanup(__weather_curl);
         }
     }
@@ -545,8 +550,8 @@ void *on_weather_thread_start(void *__weather_listener) {
     weather_listener *listener = (weather_listener *) __weather_listener;
 
     const struct timespec duration = {
-        10,
-        0
+        1,
+        0,
     };
 
     time_t timer;
@@ -587,5 +592,6 @@ void stop_weather_thread() {
 
     void *res;
     pthread_join(__weather_thread, &res);
+    cleanup_weather();
 
 }

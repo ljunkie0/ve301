@@ -1,6 +1,6 @@
-#include <stdlib.h>
 #include "wifi.h"
-#include "base.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 const char *bssid_to_string(const uint8_t bssid[BSSID_LENGTH], char bssid_string[BSSID_STRING_LENGTH]) {
     snprintf(bssid_string, BSSID_STRING_LENGTH, "%02x:%02x:%02x:%02x:%02x:%02x",
