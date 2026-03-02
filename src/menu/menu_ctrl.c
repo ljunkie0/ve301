@@ -787,7 +787,6 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
         he = next_event ();
     }
 
-    if (ctrl->mouse_control) {
 #endif
         SDL_Event e;
 
@@ -846,10 +845,8 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
                 }
             }
         }
-#ifdef RASPBERRY
-    }
-#endif
-    return redraw;
+
+        return redraw;
 }
 
 void menu_ctrl_free(menu_ctrl *ctrl) {
