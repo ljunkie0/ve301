@@ -11,7 +11,6 @@ static char *unknown_song_url = "Unknown";
 song *song_new(unsigned int id, const char *url, const char *name, const char *title) {
     song *s = malloc(sizeof(song));
     s->id = id;
-    s->disposed = 0;
     if (url) {
         s->url = my_copynstr(url, __SONG_MAX_URL_LENGTH);
     } else {

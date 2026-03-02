@@ -82,7 +82,6 @@ menu_ctrl *menu_ctrl_new(int w,
                          int font_size2,
                          item_action *action,
                          menu_callback *call_back);
-void menu_ctrl_enable_mouse(menu_ctrl *ctrl, int mouse_control);
 int menu_ctrl_loop(menu_ctrl *ctrl);
 void menu_ctrl_set_radii(menu_ctrl *ctrl,
                          int radius_labels,

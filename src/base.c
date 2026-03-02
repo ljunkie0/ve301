@@ -47,10 +47,13 @@ char *user_home;
 static char *__app;
 
 char *my_copystr(const char *str) {
-    return str ? strdup(str) : NULL;
+    if (str) {
+        return strdup(str);
+    }
+    return NULL;
 }
 
-void free_time_check_interval(time_check_interval *i) {
+void time_check_interval_free(time_check_interval *i) {
     free(i);
 }
 
@@ -69,28 +72,6 @@ int check_time_interval(time_check_interval *i) {
         return 1;
     }
     return 0;
-}
-
-void time_check_interval_set_check_seconds(time_check_interval *i, int check_seconds) {
-    i->check_seconds = check_seconds;
-}
-
-char *get_name_from_path(const char *path) {
-    char *n = strrchr(path, '/');
-    if (!n) {
-        n = my_copystr(path);
-    } else {
-        n = my_copystr(n + 1);
-    }
-    return n;
-}
-
-int index_of(const char *str, const char chr) {
-    char *substr = strchr(str, chr);
-    if (substr) {
-        return substr - str - 1;
-    }
-    return -1;
 }
 
 network_interfaces *get_network_interfaces() {
@@ -137,14 +118,17 @@ network_interfaces *get_network_interfaces() {
 
 void free_network_interface(network_interface *interface) {
     if (interface) {
-        if (interface->ifname) {
-            free(interface->ifname);
-        }
-        if (interface->ipaddress) {
-            free(interface->ipaddress);
-        }
-        free(interface);
+        free_and_set_null((void **) &interface->ifname);
+        free_and_set_null((void **) &interface->ipaddress);
+        free_and_set_null((void **) &interface);
     }
+}
+
+void free_network_interfaces(network_interfaces *interfaces) {
+    for (int n = 0; n < interfaces->n; n++) {
+        free_network_interface(interfaces->interfaces[n]);
+    }
+    free(interfaces);
 }
 
 int __check_internet() {

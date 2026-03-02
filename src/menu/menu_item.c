@@ -63,7 +63,12 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
         return 0;
     }
 
-    log_config(MENU_CTX, "menu_item_draw: label = %s, line = %d, state = %d, angle = %f\n", item->label, item->line, st, angle);
+    log_debug(MENU_CTX,
+              "menu_item_draw: label = %s, line = %d, state = %d, angle = %f\n",
+              item->label,
+              item->line,
+              st,
+              angle);
 
     int lines = 1;
     if (item->num_label_chars2 > 0) {
@@ -94,6 +99,12 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
 
 const void *menu_item_get_object(menu_item *item) {
     return item->object;
+}
+
+void menu_item_free_object(menu_item *item) {
+    if (item->object) {
+        free_and_set_null((void **) &item->object);
+    }
 }
 
 void menu_item_set_object(menu_item *item, void *object) {
@@ -304,28 +315,16 @@ menu_item *menu_item_new(menu *m, const char *label, const char *icon, const voi
 
 void menu_item_free(menu_item *item) {
     if (item) {
+        log_config(MENU_CTX, "Freeing menu item %s\n", item->label);
 
-        if (item->unicode_label) {
-            free (item->unicode_label);
-        }
+        free_and_set_null((void **) &item->unicode_label);
+        free_and_set_null((void **) &item->unicode_label2);
+        free_and_set_null((void **) &item->label);
+        free_and_set_null((void **) &item->object);
 
-        if (item->unicode_label2) {
-            free (item->unicode_label2);
-        }
-
-        if (item->label) {
-            free (item->label);
-        }
-
-        if (item->label_active) {
-            text_obj_free(item->label_active);
-        }
-        if (item->label_current) {
-            text_obj_free(item->label_current);
-        }
-        if (item->label_default) {
-            text_obj_free(item->label_default);
-        }
+        text_obj_free(item->label_active);
+        text_obj_free(item->label_current);
+        text_obj_free(item->label_default);
 
         if (item->font) {
             TTF_CloseFont(item->font);
@@ -339,11 +338,9 @@ void menu_item_free(menu_item *item) {
             menu_free(item->sub_menu);
         }
 
-        if (item->icon) {
-            free(item->icon);
-        }
+        free_and_set_null((void **) &item->icon);
 
-        free (item);
+        free(item);
     }
 }
 

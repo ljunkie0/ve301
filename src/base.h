@@ -46,11 +46,8 @@
 
 char *my_copystr (const char *str);
 char *my_copynstr(const char *str, size_t max_length);
-char *get_name_from_path(const char *path);
-int index_of(const char *str, const char chr);
 
 unsigned int unicode_len(const unsigned short *txt);
-unsigned short *unicode_copy(const unsigned short *txt);
 
 typedef struct time_check_interval {
     time_t last_checked;
@@ -60,7 +57,6 @@ typedef struct time_check_interval {
 int check_time_interval(time_check_interval *i);
 time_check_interval *time_check_interval_new(int check_seconds);
 void time_check_interval_free(time_check_interval *i);
-void time_check_interval_set_check_seconds(time_check_interval *i, int check_seconds); 
 
 typedef struct network_interface {
     char *ifname;
@@ -74,8 +70,8 @@ typedef struct network_interfaces {
 
 int check_internet (void);
 network_interfaces *get_network_interfaces();
-
 void free_network_interface(network_interface *interface);
+void free_network_interfaces(network_interfaces *interfaces);
 
 void base_close(void);
 void base_init(const char *appname, FILE *dflt_log_file, int log_level);

@@ -18,6 +18,7 @@ static struct lws *web_socket = NULL;
 static char *__spotify_host = NULL;
 static pthread_t __spotify_thread = 0;
 static int __spotify_thread_run = 0;
+static struct lws_context *context = NULL;
 
 player *__spotify_player;
 
@@ -121,7 +122,7 @@ void *__spotify_thread_func(void *) {
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
 
-    lws_set_log_level(LLL_ERR | LLL_WARN, NULL);
+    //lws_set_log_level(LLL_NOTICE | LLL_INFO | LLL_ERR | LLL_WARN, NULL);
 
     info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
     info.protocols = protocols;
@@ -129,7 +130,7 @@ void *__spotify_thread_func(void *) {
     info.uid = -1;
     info.timeout_secs = 2;
 
-    struct lws_context *context = lws_create_context(&info);
+    context = lws_create_context(&info);
 
     time_t old = 0;
     time_t old_conn_check = 0;
@@ -219,7 +220,7 @@ static size_t __spotify_write_memory_callback(void *contents, size_t size,
 void __spotify_get_device_status(const char *host) {
     CURL *curl;
     CURLcode res;
-    struct __spotify_memory_struct chunk = {0};
+    struct __spotify_memory_struct chunk = {NULL, 0};
 
     // Initialize empty response buffer
     chunk.memory = malloc(1);
@@ -284,6 +285,7 @@ void __start_spotify_thread(char *spotify_host) {
 void __stop_spotify_thread() {
     if (__spotify_thread_run) {
         __spotify_thread_run = 0;
+        lws_cancel_service(context);
         void *res;
         pthread_join(__spotify_thread, &res);
     }

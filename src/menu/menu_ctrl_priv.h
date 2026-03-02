@@ -31,7 +31,6 @@ struct menu_ctrl {
     int font_size;
     TTF_Font *font2;
     int font_size2;
-    int mouse_control;
     SDL_Color *scale_color; /* The color of the scales */
     SDL_Color *default_color; /* The default foregound color */
     SDL_Color *selected_color; /* The foreground color of the selected item */
@@ -59,7 +58,6 @@ struct menu_ctrl {
     /**
      * User data
     **/
-    unsigned int disposed;
     void *object;
 };
 

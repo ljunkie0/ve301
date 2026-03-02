@@ -52,7 +52,7 @@ void *__audio_connect_thread_func(void *p) {
     log_info(AUDIO_CTX, "init_mpd: No connection. Recreating one with time out 3sec.\n");
     mpd_conn = mpd_connection_new(mpd_host, mpd_port, 3000);
 
-    if (mpd_conn == NULL) {
+    if (!mpd_conn) {
         log_error(AUDIO_CTX,
                   "Can't connect to mpd running on host %s, port %d\n",
                   mpd_host,

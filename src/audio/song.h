@@ -11,7 +11,6 @@ typedef struct song {
     char *title;
     const char *url;
     unsigned int id;
-    unsigned int disposed;
 } song;
 
 song *song_new(unsigned int id, const char *url, const char *name, const char *title);

@@ -276,26 +276,25 @@ menu *menu_new(
 
 void menu_free(menu *m) {
     if (m) {
+        if (m->label) {
+            log_config(MENU_CTX, "Freeing menu %s\n", m->label);
+        } else {
+            log_config(MENU_CTX, "Freeing menu %p\n", m);
+        }
         for (int i = 0; i <= m->max_id; i++) {
             menu_item_dispose(m->item[i]);
             m->item[i] = NULL;
         }
 
-        free (m->item);
-        m->item = NULL;
-
-        if (m->label) {
-            free (m->label);
-            m->label = NULL;
-        }
+        free(m->item);
+        free_and_set_null((void **) &m->label);
+        free_and_set_null((void **) &m->default_color);
+        free_and_set_null((void **) &m->selected_color);
+        free_and_set_null((void **) &m->scale_color);
+        free_and_set_null((void **) &m->object);
 
         if (m->bg_image) {
             SDL_DestroyTexture(m->bg_image);
-        }
-
-        if (m->default_color) {
-            free (m->default_color);
-            m->default_color = NULL;
         }
         if (m->selected_color) {
             free (m->selected_color);
@@ -304,19 +303,6 @@ void menu_free(menu *m) {
         if (m->scale_color) {
             free (m->scale_color);
             m->scale_color = NULL;
-        }
-
-        if (m->font) {
-            TTF_CloseFont(m->font);
-        }
-
-        if (m->font2) {
-            TTF_CloseFont(m->font2);
-        }
-
-        if (m->object) {
-            free((void *) m->object);
-            m->object = NULL;
         }
 
         free (m);
@@ -413,16 +399,15 @@ void menu_set_radius(menu *m, int radius_labels, int radius_scales_start, int ra
         m->radius_scales_end = radius_scales_end;
 
     int i = 0;
-    for (i = 0; i < m->max_id; i++) {
+    for (i = 0; i <= m->max_id; i++) {
         if (m->item[i] && m->item[i]->sub_menu) {
             menu_set_radius((menu *) m->item[i]->sub_menu, radius_labels, radius_scales_start, radius_scales_end);
         }
     }
-
 }
 
 void menu_rebuild_glyphs(menu *m) {
-    for (int i = 0; i < m->max_id; i++) {
+    for (int i = 0; i <= m->max_id; i++) {
         if (m->item[i]) {
             if (m->item[i]->sub_menu) {
                 menu_rebuild_glyphs((menu *) m->item[i]->sub_menu);
@@ -497,6 +482,10 @@ void menu_set_active_id(menu *m, int id) {
 
 char *menu_get_label(menu *m) {
     return m->label;
+}
+
+void menu_set_label(menu *m, const char *label) {
+    m->label = my_copystr(label);
 }
 
 int menu_is_transient(menu *m) {

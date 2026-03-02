@@ -78,6 +78,8 @@ src/menu/text_obj.c
 src/menu/text_obj.h
 src/mpris_audio.c
 src/player.h
+src/radio_app.c
+src/radio_app.h
 src/rotaryencoder.c
 src/rotaryencoder.h
 src/sdl_util.c

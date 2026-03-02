@@ -28,6 +28,8 @@ struct station_info *scan_wifi_station(char *interface) {
         return station;
     }
 
+    free(station);
+
     return 0;
 
 }

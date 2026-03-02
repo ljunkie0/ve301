@@ -10,7 +10,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-const char *config_path = 0;
+const char *config_path = NULL;
 
 typedef struct config_entry {
     char *key;
@@ -26,35 +26,23 @@ typedef struct __config_rec {
     int no_of_entries;
 } __config_rec;
 
-static __config_rec *__config = 0;
+static __config_rec *__config = NULL;
 
 void free_config_entry(config_entry *entry) {
-    log_config(BASE_CTX, "Freeing entry %s=%s\n", entry->key, entry->value);
-
-    if (entry->config_file_name) {
-        log_config(BASE_CTX, "entry->config_file_name = %p\n", entry->config_file_name);
-        free(entry->config_file_name);
-    }
-    if (entry->group) {
-        log_config(BASE_CTX, "entry->group = %p\n", entry->group);
-        free(entry->group);
-    }
-    if (entry->key) {
-        log_config(BASE_CTX, "entry->key = %p\n", entry->key);
-        free(entry->key);
-    }
-    if (entry->value) {
-        log_config(BASE_CTX, "entry->value = %p\n", entry->value);
-        free(entry->value);
-    }
-
-    log_config(BASE_CTX, "...Done\n");
+    free_and_set_null((void **) &entry->config_file_name);
+    free_and_set_null((void **) &entry->group);
+    free_and_set_null((void **) &entry->key);
+    free_and_set_null((void **) &entry->value);
+    free_and_set_null((void **) &entry);
 }
 
 void free_config() {
     for (int e = 0; e < __config->no_of_entries; e++) {
         free_config_entry(__config->entries[e]);
     }
+    free_and_set_null((void **) &__config->entries);
+    free_and_set_null((void **) &__config->path);
+    free_and_set_null((void **) &__config);
 }
 
 config_entry *find_config_entry(const __config_rec *config, const char *key, const char *group) {
@@ -79,29 +67,20 @@ config_entry *add_config_entry(__config_rec *config,
                                const char *value,
                                const char *group) {
     config_entry *e = find_config_entry(config, key, group);
-    if (e == NULL) {
+    if (!e) {
         e = malloc(sizeof(config_entry));
         e->id = config->no_of_entries++;
+        e->key = my_copystr(key);
         config->entries = realloc(config->entries, config->no_of_entries * sizeof(config_entry *));
         config->entries[config->no_of_entries - 1] = e;
     } else {
-        if (e->config_file_name) {
-            free(e->config_file_name);
-        }
-        if (e->group) {
-            free(e->group);
-            e->group = NULL;
-        }
-        free(e->key);
-        if (e->value) {
-            free(e->value);
-            e->value = NULL;
-        }
+        free_and_set_null((void **) &e->config_file_name);
+        free_and_set_null((void **) &e->group);
+        free_and_set_null((void **) &e->value);
     }
 
     e->config_file_name = my_copystr(config_file_name);
 
-    e->key = my_copystr(key);
     if (value) {
         e->value = my_copystr(value);
     } else {
@@ -118,7 +97,7 @@ config_entry *add_config_entry(__config_rec *config,
 }
 
 char *get_config_value_group(char *key, const char *dflt, const char *group) {
-    char *value = 0;
+    char *value = NULL;
     if (__config) {
         config_entry *entry = find_config_entry(__config, key, group);
         if (entry) {
@@ -138,7 +117,7 @@ char *get_config_value_group(char *key, const char *dflt, const char *group) {
 }
 
 void config_value_group(char *buffer, char *key, const char *dflt, const char *group) {
-    char *value = 0;
+    char *value = NULL;
     if (__config) {
         config_entry *entry = find_config_entry(__config, key, group);
         if (entry) {
@@ -189,16 +168,6 @@ char *get_absolute_path(char *directory, char *path) {
     return absolute_path;
 }
 
-void absolute_path(char *directory, char *path) {
-    if (path && path[0] != '/') {
-        int l = strlen(directory);
-        inschar(path, '/', l);
-        for (int i = 0; i < l; i++) {
-            path[i] = directory[i];
-        }
-    }
-}
-
 char *get_config_value_path_group(char *key, const char *dflt, const char *group) {
     char *value = NULL;
     config_entry *entry = NULL;
@@ -243,12 +212,13 @@ void config_value_path_group(char *buffer, char *key, const char *dflt, const ch
             value = (char *) dflt;
         }
     }
+
     if (value && entry) {
         char *directory = get_directory(entry->config_file_name);
-        value = get_absolute_path(directory, value);
-        strncpy(buffer, value, MAX_CONFIG_LINE_LENGTH);
+        char *abs_path = get_absolute_path(directory, value);
+        strncpy(buffer, abs_path, MAX_CONFIG_LINE_LENGTH);
+        free(abs_path);
         free(directory);
-        free(value);
     } else {
         buffer[0] = 0;
     }
@@ -288,24 +258,6 @@ int get_config_value_int(char *key, int dflt) {
     return get_config_value_int_group(key, dflt, NULL);
 }
 
-float get_config_value_float_group(char *key, float dflt, const char *group) {
-    char *value_string = get_config_value_group(key, NULL, group);
-    float value_float = 0;
-    if (value_string) {
-        log_info(BASE_CTX, "%s: %s\n", key, value_string);
-        value_float = (float) atof(value_string);
-        free(value_string);
-    } else {
-        value_float = dflt;
-    }
-
-    return value_float;
-}
-
-float get_config_value_float(char *key, float dflt) {
-    return get_config_value_float_group(key, dflt, NULL);
-}
-
 double get_config_value_double_group(char *key, double dflt, const char *group) {
     char *value_string = get_config_value_group(key, NULL, group);
     double value_double = 0;
@@ -321,7 +273,7 @@ double get_config_value_double_group(char *key, double dflt, const char *group) 
 }
 
 double get_config_value_double(char *key, double dflt) {
-    return get_config_value_float_group(key, dflt, NULL);
+    return get_config_value_double_group(key, dflt, NULL);
 }
 
 void write_config() {
@@ -435,7 +387,7 @@ void read_config_file(const char *config_file_name) {
 void init_config_file(const char *appname) {
     if (appname) {
         __config = malloc(sizeof(__config_rec));
-        __config->entries = 0;
+        __config->entries = NULL;
         __config->no_of_entries = 0;
 
         const char *user_home = getenv("HOME");

@@ -1,7 +1,7 @@
 #ifndef THEME_H
 #define THEME_H
 
-#include "menu/menu.h"
+#include "menu/menu_ctrl.h"
 
 typedef struct radio_theme {
     theme *menu_theme;

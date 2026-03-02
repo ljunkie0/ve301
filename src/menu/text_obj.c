@@ -187,11 +187,13 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
                    int shadow_offset, int shadow_alpha) {
     double circumference = M_2_X_PI * radius;
 
-    log_config(MENU_CTX,
-               "text_obj_draw: angle: %f, radius: %d, circumference: %f\n", angle,
-               radius, circumference);
+    log_debug(MENU_CTX,
+              "text_obj_draw: angle: %f, radius: %d, circumference: %f\n",
+              angle,
+              radius,
+              circumference);
     if (radius == 0) {
-        log_config(MENU_CTX, "text_obj_draw: radius = 0, returning\n");
+        log_debug(MENU_CTX, "text_obj_draw: radius = 0, returning\n");
         return;
     }
 

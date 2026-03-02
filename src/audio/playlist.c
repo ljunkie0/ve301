@@ -13,7 +13,7 @@ playlist *playlist_new(char *name) {
     playlist *p = malloc(sizeof(playlist));
 
     p->n_songs = 0;
-    p->songs = 0;
+    p->songs = NULL;
 
     if (name) {
         p->name = my_copystr(name);
@@ -28,7 +28,7 @@ int playlist_clear(playlist *p) {
         for (unsigned int i = 0; i < p->n_songs; i++) {
             song *s = p->songs[i];
             song_free(s);
-            p->songs[i] = 0;
+            p->songs[i] = NULL;
         }
         free (p->songs);
         p->songs = NULL;
@@ -42,7 +42,7 @@ int playlist_dispose(playlist *p) {
     for (unsigned int i = 0; i < p->n_songs; i++) {
         song *s = p->songs[i];
         song_free(s);
-        p->songs[i] = 0;
+        p->songs[i] = NULL;
     }
     if (p->name)
         free((void *)p->name);

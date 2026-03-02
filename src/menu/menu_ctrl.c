@@ -21,6 +21,7 @@
 
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
+#include "../base/util.h"
 #include "../sdl_util.h"
 #include <SDL2/SDL2_rotozoom.h>
 #include <execinfo.h>
@@ -64,12 +65,9 @@ static SDL_Color white = { 255, 255, 255, 255 };
 void __menu_turn_left(menu *m, int redraw);
 void __menu_turn_right(menu *m, int redraw);
 void menu_fade_out(menu *menu_frm, menu *menu_to);
-int menu_draw_scale(menu *m, double xc, double yc, double r, double R, double angle, unsigned char alpha, int lines);
-int menu_ctrl_clear(menu_ctrl *ctrl, double angle);
 int menu_ctrl_process_events(menu_ctrl *ctrl);
 int menu_draw(menu *m, int clear, int render);
 int menu_ctrl_apply_light(menu_ctrl *ctrl);
-int menu_draw_indicator(menu *m, double xc, double yc, double angle);
 
 int menu_action(menu_event evt, menu_ctrl *ctrl, menu *menu) {
 
@@ -190,9 +188,6 @@ void menu_update_cnt_rad(menu *m, SDL_Point center, int radius, int recursive) {
 
 void menu_fade_out(menu *menu_frm, menu *menu_to) {
     menu_ctrl *ctrl = (menu_ctrl *) menu_frm->ctrl;
-    if (ctrl->disposed) {
-        return;
-    }
     ctrl->warping = 1;
     double R_frm = menu_frm ? menu_frm->radius_scales_end : 0.0;
     double r_frm = menu_frm ? menu_frm->radius_labels : 0.0;
@@ -240,9 +235,7 @@ void menu_fade_out(menu *menu_frm, menu *menu_to) {
 
 void menu_fade_in(menu *menu_frm, menu *menu_to) {
     menu_ctrl *ctrl = (menu_ctrl *) menu_frm->ctrl;
-    if (ctrl->disposed) {
-        return;
-    }
+
     ctrl->warping = 1;
     double R_frm = menu_frm->radius_scales_end;
     double r_frm = menu_frm->radius_labels;
@@ -308,10 +301,6 @@ int menu_open(menu *m) {
 
 void __menu_turn(menu *m, int direction, int redraw) {
     menu_ctrl *ctrl = (menu_ctrl *) m->ctrl;
-
-    if (ctrl->disposed) {
-        return;
-    }
 
     ctrl->warping = 1;
     unsigned int total_n_o_segments = m->n_o_items_on_scale * (2.0*m->segments_per_item+1);
@@ -395,82 +384,6 @@ void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset) {
         menu_update_cnt_rad(ctrl->root[r],ctrl->center,ctrl->radius_labels, 1);
     }
 
-}
-
-int menu_ctrl_get_x_offset(menu_ctrl *ctrl) {
-    return ctrl->x_offset;
-}
-
-void menu_ctrl_set_x_offset(menu_ctrl *ctrl, int x) {
-    menu_ctrl_set_offset(ctrl,x,ctrl->y_offset);
-}
-
-int menu_ctrl_get_y_offset(menu_ctrl *ctrl) {
-    return ctrl->y_offset;
-}
-
-void menu_ctrl_set_y_offset(menu_ctrl *ctrl, int y) {
-    ctrl->y_offset = y;
-}
-
-void menu_ctrl_set_angle_offset(menu_ctrl *ctrl, double a) {
-    ctrl->angle_offset = a;
-}
-
-int menu_ctrl_get_label_radius(menu_ctrl *ctrl) {
-    return ctrl->root[0]->radius_labels;
-}
-
-void menu_ctrl_set_label_radius(menu_ctrl *ctrl, int radius) {
-
-    if (ctrl->root) {
-        for (int r = 0; r < ctrl->n_roots; r++) {
-            menu_set_radius(ctrl->root[r], radius, ctrl->root[r]->radius_scales_start, ctrl->root[r]->radius_scales_end);
-        }
-    }
-
-}
-
-int menu_ctrl_get_scales_radius_start(menu_ctrl *ctrl) {
-    if (ctrl->root) {
-        return ctrl->root[0]->radius_scales_start;
-    }
-    return 0;
-}
-
-void menu_ctrl_set_scales_radius_start(menu_ctrl *ctrl, int radius) {
-
-    if (ctrl->root) {
-        for (int r = 0; r < ctrl->n_roots; r++) {
-            menu_set_radius(ctrl->root[r], ctrl->root[r]->radius_labels, radius, ctrl->root[r]->radius_scales_end);
-        }
-    }
-
-}
-
-int menu_ctrl_get_scales_radius_end(menu_ctrl *ctrl) {
-    if (ctrl->root) {
-        return ctrl->root[0]->radius_scales_end;
-    }
-    return 0;
-}
-
-void menu_ctrl_set_scales_radius_end(menu_ctrl *ctrl, int radius) {
-
-    if (ctrl->root) {
-        for (int r = 0; r < ctrl->n_roots; r++) {
-            menu_set_radius(ctrl->root[r], ctrl->root[r]->radius_labels, ctrl->root[r]->radius_scales_end, radius);
-        }
-    }
-
-}
-
-menu *menu_ctrl_get_current(menu_ctrl *ctrl) {
-    return ctrl->current;
-}
-
-void menu_ctrl_set_current(menu_ctrl *ctrl, menu *menu) {
-    ctrl->current = menu;
 }
 
 menu *menu_ctrl_get_root(menu_ctrl *ctrl) {
@@ -568,22 +481,6 @@ int menu_ctrl_apply_light(menu_ctrl *ctrl) {
 
 }
 
-int menu_ctrl_clear(menu_ctrl *ctrl, double angle) {
-    do_clear(ctrl, angle, ctrl->background_color, ctrl->bg_image);
-    if (ctrl->background_color) {
-        SDL_SetRenderDrawColor(ctrl->renderer,
-                               ctrl->background_color->r,
-                               ctrl->background_color->g,
-                               ctrl->background_color->b,
-                               255);
-        if (SDL_RenderClear(ctrl->renderer) < 0) {
-            log_error(MENU_CTX, "Failed to render background: %s\n", SDL_GetError());
-            return 0;
-        }
-    }
-    return 1;
-}
-
 void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_start, int radius_scales_end) {
 
     if (ctrl->root) {
@@ -591,57 +488,6 @@ void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_s
             menu_set_radius(ctrl->root[r], radius_labels, radius_scales_start, radius_scales_end);
         }
     }
-
-}
-
-void menu_ctrl_enable_mouse(menu_ctrl *ctrl, int mouse_control) {
-    ctrl->mouse_control = mouse_control;
-}
-
-int menu_ctrl_set_bg_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b) {
-    log_config(MENU_CTX, "free (ctrl->background_color -> %p)\n", ctrl->background_color);
-    free (ctrl->background_color);
-    ctrl->background_color = rgb_to_color(r,g,b);
-    return 1;
-}
-
-int menu_ctrl_set_default_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b) {
-    log_config(MENU_CTX, "free (ctrl->default_color -> %p)\n", ctrl->default_color);
-    free (ctrl->default_color);
-    ctrl->default_color = rgb_to_color(r,g,b);
-
-    for (int r = 0; r < ctrl->n_roots; r++) {
-        menu_rebuild_glyphs(ctrl->root[r]);
-    }
-
-    return 1;
-}
-
-int menu_ctrl_set_active_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b) {
-    log_config(MENU_CTX, "menu_ctrl_set_active_color_rgb: (%d,%d,%d)\n", ctrl->activated_color->r,ctrl->activated_color->g,ctrl->activated_color->b);
-    free (ctrl->activated_color);
-    ctrl->activated_color = rgb_to_color(r,g,b);
-    ctrl->default_color = ctrl->activated_color;
-    ctrl->selected_color = ctrl->activated_color;
-    log_config(MENU_CTX, " -> (%d,%d,%d)\n", ctrl->activated_color->r,ctrl->activated_color->g,ctrl->activated_color->b);
-
-    for (int r = 0; r < ctrl->n_roots; r++) {
-        menu_rebuild_glyphs(ctrl->root[r]);
-    }
-
-    return 1;
-}
-
-int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, Uint8 r, Uint8 g, Uint8 b) {
-    log_config(MENU_CTX, "free (ctrl->selected_color -> %p)\n", ctrl->selected_color);
-    free (ctrl->selected_color);
-    ctrl->selected_color = rgb_to_color(r,g,b);
-
-    for (int r = 0; r < ctrl->n_roots; r++) {
-        menu_rebuild_glyphs(ctrl->root[r]);
-    }
-
-    return 1;
 
 }
 
@@ -677,44 +523,29 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
     log_config(MENU_CTX, ", indicator -> %s", indicator);
     log_config(MENU_CTX, ", bgImagePath -> %s", bgImagePath);
     log_config(MENU_CTX, ")\n");
-    if (ctrl->background_color) {
-        free (ctrl->background_color);
-    }
+
+    free_and_set_null((void **) &ctrl->background_color);
     ctrl->background_color = html_to_color(background);
 
-    if (ctrl->scale_color) {
-        free (ctrl->scale_color);
-    }
+    free_and_set_null((void **) &ctrl->scale_color);
     ctrl->scale_color = html_to_color(scale);
 
-    if (ctrl->default_color) {
-        free (ctrl->default_color);
-    }
+    free_and_set_null((void **) &ctrl->default_color);
     ctrl->default_color = html_to_color(def);
 
-    if (ctrl->selected_color) {
-        free (ctrl->selected_color);
-    }
+    free_and_set_null((void **) &ctrl->selected_color);
     ctrl->selected_color = html_to_color(selected);
 
-    if (ctrl->activated_color) {
-        free (ctrl->activated_color);
-    }
+    free_and_set_null((void **) &ctrl->activated_color);
     ctrl->activated_color = html_to_color(activated);
 
-    if (ctrl->indicator_color) {
-        free (ctrl->indicator_color);
-    }
+    free_and_set_null((void **) &ctrl->indicator_color);
     ctrl->indicator_color = html_to_color_and_alpha(indicator,&(ctrl->indicator_alpha));
 
-    if (ctrl->indicator_color_light) {
-        free (ctrl->indicator_color_light);
-    }
+    free_and_set_null((void **) &ctrl->indicator_color_light);
     ctrl->indicator_color_light = color_between(ctrl->indicator_color, &white, 0.85);
 
-    if (ctrl->indicator_color_dark) {
-        free (ctrl->indicator_color_dark);
-    }
+    free_and_set_null((void **) &ctrl->indicator_color_dark);
     ctrl->indicator_color_dark = color_between(ctrl->indicator_color, &black, 0.85);
 
     if (ctrl->bg_image) {
@@ -799,8 +630,6 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
     log_config(MENU_CTX, "Initializing menu of width %d\n", w);
     menu_ctrl *ctrl = calloc(1,sizeof(menu_ctrl));
 
-    ctrl->disposed = 0;
-
     ctrl->warping = 0;
 
     ctrl->radius_labels = radius_labels;
@@ -810,7 +639,6 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
     ctrl->no_of_scales = 36;
     ctrl->n_o_items_on_scale = 4;
     ctrl->segments_per_item = 3;
-    ctrl->mouse_control = 1;
     ctrl->light_texture = NULL;
     ctrl->warp_speed = 10;
 
@@ -842,7 +670,7 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
 
     ctrl->call_back = call_back;
     ctrl->action = action;
-    ctrl->bg_image = 0;
+    ctrl->bg_image = NULL;
 
     if (!init_SDL()) {
         log_error(MENU_CTX, "Failed to initialize SDL\n");
@@ -964,7 +792,7 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
         SDL_Event e;
 
         while (SDL_PollEvent(&e)) {
-            log_info(MENU_CTX, "Caught event %03x\n", e.type);
+            log_debug(MENU_CTX, "Caught event %03x\n", e.type);
             if (e.type == SDL_QUIT) {
                 return -1;
             } else if (e.type == SDL_MOUSEBUTTONUP) {
@@ -1026,6 +854,7 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
 
 void menu_ctrl_free(menu_ctrl *ctrl) {
     if (ctrl) {
+        log_info(MENU_CTX, "Freeing menu ctrl %p\n", ctrl);
 
         ctrl->current = NULL;
 
@@ -1048,43 +877,15 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
             ctrl->root = NULL;
         }
 
-        if (ctrl->activated_color) {
-            free (ctrl->activated_color);
-            ctrl->activated_color = NULL;
-        }
-        if (ctrl->background_color) {
-            free (ctrl->background_color);
-            ctrl->background_color = NULL;
-        }
-        if (ctrl->default_color) {
-            free (ctrl->default_color);
-            ctrl->default_color = NULL;
-        }
-        if (ctrl->indicator_color) {
-            free (ctrl->indicator_color);
-            ctrl->indicator_color = NULL;
-        }
-        if (ctrl->indicator_color_dark) {
-            free (ctrl->indicator_color_dark);
-            ctrl->indicator_color_dark = NULL;
-        }
-        if (ctrl->indicator_color_light) {
-            free (ctrl->indicator_color_light);
-            ctrl->indicator_color_light = NULL;
-        }
-        if (ctrl->scale_color) {
-            free (ctrl->scale_color);
-            ctrl->scale_color = NULL;
-        }
-        if (ctrl->selected_color) {
-            free (ctrl->selected_color);
-            ctrl->selected_color = NULL;
-        }
-
-        if (ctrl->object) {
-            free (ctrl->object);
-            ctrl->object = NULL;
-        }
+        free_and_set_null((void **) &ctrl->activated_color);
+        free_and_set_null((void **) &ctrl->background_color);
+        free_and_set_null((void **) &ctrl->default_color);
+        free_and_set_null((void **) &ctrl->indicator_color);
+        free_and_set_null((void **) &ctrl->indicator_color_dark);
+        free_and_set_null((void **) &ctrl->indicator_color_light);
+        free_and_set_null((void **) &ctrl->scale_color);
+        free_and_set_null((void **) &ctrl->selected_color);
+        free_and_set_null((void **) &ctrl->object);
 
         if (ctrl->font) {
             TTF_CloseFont(ctrl->font);
@@ -1098,30 +899,16 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
     }
 }
 
-void menu_ctrl_quit(menu_ctrl *ctrl) {
-
-    log_info(MENU_CTX, "Quit\n");
-    SDL_Event quitEvent;
-    SDL_memset(&quitEvent, 0, sizeof(quitEvent)); // clear it
-
-    quitEvent.type = SDL_QUIT;
-    SDL_PushEvent(&quitEvent);
-
-}
-
 void menu_ctrl_dispose(menu_ctrl *ctrl) {
     log_info(MENU_CTX, "Dispose\n");
-    log_info(MENU_CTX, "Cleaning up menu ctrl");
-    if (!ctrl->disposed) {
-        ctrl->disposed = 1;
-        menu_ctrl_free(ctrl);
-        log_info(MENU_CTX, "Closing TTF\n");
-        TTF_Quit();
-        log_info(MENU_CTX, "Closing IMG\n");
-        IMG_Quit();
-        log_info(MENU_CTX, "Closing SDL\n");
-        SDL_Quit();
-    }
+    log_info(MENU_CTX, "Cleaning up menu ctrl\n");
+    menu_ctrl_free(ctrl);
+    log_info(MENU_CTX, "Closing TTF\n");
+    TTF_Quit();
+    log_info(MENU_CTX, "Closing IMG\n");
+    IMG_Quit();
+    log_info(MENU_CTX, "Closing SDL\n");
+    SDL_Quit();
 }
 
 int menu_ctrl_loop(menu_ctrl *ctrl) {

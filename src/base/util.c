@@ -1,9 +1,53 @@
 #define _GNU_SOURCE
 
 #include <inttypes.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+static double *cosinuses = NULL;
+static double *sinuses = NULL;
+static double *square_roots = NULL;
+
+void free_and_set_null(void **p) {
+    if (p) {
+        if (*p) {
+            free(*p);
+            *p = NULL;
+        }
+    }
+}
+
+void get_sinus_and_cosinus(int angle, double *cos, double *sin) {
+    if (cosinuses == NULL) {
+        cosinuses = malloc(10000 * sizeof(double));
+        sinuses = malloc(10000 * sizeof(double));
+        square_roots = malloc(10000 * sizeof(double));
+        for (int i = 0; i < 10000; i++) {
+            cosinuses[i] = 2.0;
+            sinuses[i] = 2.0;
+            square_roots[i] = -100000.0;
+        }
+    }
+
+    int idx = (int) (10.0 * (angle + 360.0));
+    if (idx >= 10000) {
+        idx = 9999;
+    } else if (idx < 0) {
+        idx = 0;
+    }
+
+    *sin = sinuses[idx];
+    *cos = cosinuses[idx];
+    if (*cos > 1.0) {
+        double angle_rad = M_PI * angle / 180.0;
+        *cos = cosf(angle_rad);
+        cosinuses[idx] = *cos;
+        *sin = sinf(angle_rad);
+        sinuses[idx] = *sin;
+    }
+}
 
 char *my_copynstr(const char *str, size_t max_length) {
     char *res = NULL;

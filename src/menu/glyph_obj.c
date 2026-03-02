@@ -4,6 +4,7 @@
 #include "glyph_obj.h"
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
+#include "../base/util.h"
 #include "../sdl_util.h"
 #include <SDL2/SDL2_rotozoom.h>
 
@@ -15,10 +16,6 @@ struct normal_vector {
     double y;
 };
 
-static double *cosinuses = NULL;
-static double *sinuses = NULL;
-static double *square_roots = NULL;
-
 // the number of possible angles. Don't know yet
 #define N_ANGLES 180
 
@@ -26,16 +23,10 @@ static double *square_roots = NULL;
 void glyph_obj_free(glyph_obj *obj) {
     log_debug(MENU_CTX, "glyph_obj_free (%p)\n", obj);
     if (obj) {
-
-        if (obj->colors) {
-            free (obj->colors);
-            obj->colors = NULL;
-        }
-
-        if (obj->normals) {
-            free (obj->normals);
-            obj->normals = NULL;
-        }
+        free_and_set_null((void **) &obj->colors);
+        free_and_set_null((void **) &obj->normals);
+        free_and_set_null((void **) &obj->rot_center);
+        free_and_set_null((void **) &obj->dst_rect);
 
         if (obj->surface) {
             log_debug(MENU_CTX,"SDL_FreeSurface(obj->surface => %p);\n", obj->surface);
@@ -53,24 +44,13 @@ void glyph_obj_free(glyph_obj *obj) {
             obj->bumpmap_overlay = NULL;
         }
 
-        if (obj->rot_center) {
-            free (obj->rot_center);
-            obj->rot_center = NULL;
-        }
-
-        if (obj->dst_rect) {
-            free (obj->dst_rect);
-            obj->dst_rect = NULL;
-        }
-
         if (obj->bumpmap_textures) {
             for (int a = 0; a < N_ANGLES; a++) {
                 if (obj->bumpmap_textures[a]) {
                     SDL_DestroyTexture(obj->bumpmap_textures[a]);
                 }
             }
-            free (obj->bumpmap_textures);
-            obj->bumpmap_textures = NULL;
+            free_and_set_null((void **) &obj->bumpmap_textures);
         }
 
         free (obj);
@@ -112,11 +92,15 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, T
         int p = pitch*y;
         int pop = pitch * (y-1);
         int pon = pitch * (y+1);
-        for (int x = 0; x < glyph_o->surface->w; x++) {
 
-            Uint32 pixel = pixels[p + x];
+        for (int x = 0; x < glyph_o->surface->w; x++) {
             SDL_Color color;
-            SDL_GetRGBA(pixel,glyph_o->surface->format,&(color.r),&(color.g),&(color.b),&(color.a));
+            SDL_GetRGBA(pixels[p + x],
+                        glyph_o->surface->format,
+                        &(color.r),
+                        &(color.g),
+                        &(color.b),
+                        &(color.a));
 
             glyph_o->colors[o + x] = color;
 
@@ -124,37 +108,19 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, T
             double dy = 0.0;
 
             if (color.a) {
-
-                Uint8 r,g,b; // actually only needed for the call to SDL_GetRGBA
-
-                Uint8 pax = 0;
-                if (x > 0) {
-                    Uint32 p_x_pixel = pixels[p + (x - 1)];
-                    SDL_GetRGBA(p_x_pixel,glyph_o->surface->format,&r,&g,&b,&pax);
-                }
-
-                Uint8 pay = 0;
-                if (y > 0) {
-                    Uint32 p_y_pixel = pixels[pop + x];
-                    SDL_GetRGBA(p_y_pixel,glyph_o->surface->format,&r,&g,&b,&pay);
-                }
-
-                Uint8 nax = 0;
-                if (x < glyph_o->surface->w - 1) {
-                    Uint32 n_x_pixel = pixels[p + (x + 1)];
-                    SDL_GetRGBA(n_x_pixel,glyph_o->surface->format,&r,&g,&b,&nax);
-                }
-
-                Uint8 nay = 0;
-                if (y < glyph_o->surface->h - 1) {
-                    Uint32 n_y_pixel = pixels[pon + x];
-                    SDL_GetRGBA(n_y_pixel,glyph_o->surface->format,&r,&g,&b,&nay);
-                }
+                Uint8 pax = x > 0 ? get_alpha(pixels[p + (x - 1)], glyph_o->surface->format) : 0;
+                Uint8 pay = y > 0 ? get_alpha(pixels[pop + x], glyph_o->surface->format) : 0;
+                Uint8 nax = x < glyph_o->surface->w - 1
+                                ? get_alpha(pixels[p + (x + 1)], glyph_o->surface->format)
+                                : 0;
+                Uint8 nay = y < glyph_o->surface->h - 1
+                                ? get_alpha(pixels[pon + x], glyph_o->surface->format)
+                                : 0;
 
                 dx = (nax - pax);
                 dy = (nay - pay);
 
-                if (dx != 0 || dy != 0) {
+                if (dx || dy) {
                     double inv_dn = Q_rsqrt(dx * dx + dy * dy);
                     dx = dx * inv_dn;
                     dy = dy * inv_dn;
@@ -162,14 +128,9 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, T
                     dx = 0.0;
                     dy = 0.0;
                 }
-
             }
 
-            normal_vector df;
-            df.x = dx;
-            df.y = dy;
-            glyph_o->normals[o + x] = df;
-
+            glyph_o->normals[o + x] = (normal_vector){dx, dy};
         }
     }
 
@@ -217,9 +178,7 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, T
     SDL_QueryTexture(glyph_o->texture,&format,&access,&(dst->w),&(dst->h));
     glyph_o->dst_rect = dst;
 
-    SDL_Point *rot_center = malloc(sizeof(SDL_Point));
-    glyph_o->rot_center = rot_center;
-
+    glyph_o->rot_center = malloc(sizeof(SDL_Point));
     glyph_obj_update_cnt_rad(glyph_o,center,radius);
 
     glyph_o->minx = 0;
@@ -266,33 +225,9 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
 
     SDL_LockTexture(glyph_o->bumpmap_overlay,NULL,(void **) &bumpmap_pixels, &pitch);
 
-    if (cosinuses == NULL) {
-        cosinuses = malloc(10000*sizeof(double));
-        sinuses = malloc(10000*sizeof(double));
-        square_roots = malloc(10000*sizeof(double));
-        for (int i = 0; i < 10000; i++) {
-            cosinuses[i] = 2.0;
-            sinuses[i] = 2.0;
-            square_roots[i] = -100000.0;
-        }
-    }
+    double s, c;
 
-    int idx = (int) (10.0 * (angle + 360.0));
-    if (idx >= 10000) {
-	    idx = 9999;
-    } else if (idx < 0) {
-	    idx = 0;
-    }
-
-    double s = sinuses[idx];
-    double c = cosinuses[idx];
-    if (c > 1.0) {
-        double angle_rad = M_PI * angle / 180.0;
-        c = cosf(angle_rad);
-        cosinuses[idx] = c;
-        s = sinf(angle_rad);
-        sinuses[idx] = s;
-    }
+    get_sinus_and_cosinus(angle, &c, &s);
 
     SDL_PixelFormat *format = glyph_o->surface->format;
     Uint32 transparent = 0;
@@ -344,8 +279,7 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
                 Uint8 r = color.r,g = color.g,b = color.b,a = color.a;
                 normal_vector df = glyph_o->normals[o+x];
 
-                if (df.x != 0 || df.y != 0) {
-
+                if (df.x || df.y) {
                     // angle to light
                     double dx_rot = c * df.x - s * df.y;
                     double dy_rot = s * df.x + c * df.y;
@@ -361,7 +295,6 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
                         g = g * (1.0+light);
                         b = b * (1.0+light);
                     }
-
                 }
 
                 /**

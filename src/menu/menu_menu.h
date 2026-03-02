@@ -49,5 +49,6 @@ void menu_set_no_items_on_scale(menu *m, int n);
 void menu_set_radius_labels(menu *m, int radius);
 void menu_set_segments_per_item(menu *m, int segments);
 void menu_set_draw_only_active(menu *menu, int draw_only_active);
+void menu_set_label(menu *m, const char *label);
 
 #endif // MENU_H

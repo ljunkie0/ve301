@@ -18,7 +18,11 @@ typedef struct player {
     update_player_func *update;
 } player;
 
-player *player_new(char *name, char *icon, char *label, int seconds_to_check, update_player_func *update);
+player *player_new(const char *name,
+                   const char *icon,
+                   const char *label,
+                   int seconds_to_check,
+                   update_player_func *update);
 char *player_get_name(player *p);
 int player_update(player *p);
 void player_free(player *p);
@@ -26,10 +30,8 @@ int player_get_status(player *p);
 void player_set_status(player *p, int status);
 int player_status_changed(player *p);
 char *player_get_icon(player *p);
-void player_set_icon(player *p, char *icon);
 char *player_get_label(player *p);
 void player_set_label(player *p, char *label);
-void player_set_check_seconds(player *p, int check_seconds);
 void player_set_album(player *p, char *album);
 char *player_get_album(player *p);
 void player_set_artist(player *p, char *artist);

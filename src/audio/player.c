@@ -2,13 +2,11 @@
 #include "../base/util.h"
 #include <stdlib.h>
 
-player *player_new(
-    char *name,
-    char *icon,
-    char *label,
-    int seconds_to_check,
-    update_player_func *update
-) {
+player *player_new(const char *name,
+                   const char *icon,
+                   const char *label,
+                   int seconds_to_check,
+                   update_player_func *update) {
     player *p = malloc(sizeof(player));
     p->name = my_copystr(name);
     p->status = 0;
@@ -38,7 +36,7 @@ void player_free(player *p) {
         free(p->icon);
     }
     if (p->check_interval) {
-        free (p->check_interval);
+        time_check_interval_free(p->check_interval);
     }
     free (p);
 }
@@ -92,15 +90,11 @@ int player_status_changed(player *p) {
 char *player_get_icon(player *p) {
     return p->icon;
 }
-void player_set_icon(player *p, char *icon) {
-    if (p->icon) {
-        free(p->icon);
-    }
-    p->icon = my_copystr(icon);
-}
+
 char *player_get_label(player *p) {
     return p->label;
 }
+
 void player_set_label(player *p, char *label) {
     if (p->label) {
         free(p->label);
@@ -109,9 +103,6 @@ void player_set_label(player *p, char *label) {
 }
 int player_do_check(player *p) {
     return check_time_interval(p->check_interval);
-}
-void player_set_check_seconds(player *p, int check_seconds) {
-    p->check_interval->check_seconds = check_seconds;
 }
 
 void player_set_album(player *p, char *album) {

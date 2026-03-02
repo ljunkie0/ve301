@@ -4,6 +4,8 @@
 #include <inttypes.h>
 #include <stddef.h>
 
+void free_and_set_null(void **p);
+
 void strshift(char *str, int shift, int offset);
 void inschar(char *str, char c, int pos);
 char *my_copystr(const char *str);
@@ -16,5 +18,7 @@ char *my_catstr(const char *str1, const char *str2);
 char *my_cat3str(const char *str1, const char *str2, const char *str3);
 int my_strcmp(const char *str1, const char *str2);
 char *my_strdup(const char *str);
+
+void get_sinus_and_cosinus(int angle, double *cos, double *sin);
 
 #endif // UTIL_H

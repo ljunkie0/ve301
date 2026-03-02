@@ -21,6 +21,7 @@
 #include "base/config.h"
 #include "base/log_contexts.h"
 #include "base/logging.h"
+#include <stdlib.h>
 
 radio_theme *new_radio_theme(char *info_bg_image_path, char *info_color, char *info_scale_color, char *volume_bg_image_path, theme *menu_theme) {
     radio_theme *theme = malloc(sizeof(radio_theme));
@@ -75,7 +76,7 @@ radio_theme *get_config_theme(const char *theme_name) {
     menu_theme->fg_cp_colors = 0;
     menu_theme->bg_color_palette = NULL;
 
-    char *info_menu_bg_path = get_theme_value("info_bg_image_path", NULL, theme_name);
+    char *info_menu_bg_path = get_theme_path_value("info_bg_image_path", NULL, theme_name);
     char *volume_menu_bg_path = get_config_value_group("volume_bg_image_path", info_menu_bg_path, theme_name);
 
     char *info_color = get_config_value_group("info_color", NULL, "Default");
