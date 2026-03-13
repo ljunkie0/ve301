@@ -1,3 +1,22 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #define _GNU_SOURCE
 
 #include "radio_app.h"
@@ -112,10 +131,10 @@ static struct radio_app *app;
 
 void read_radio_config(radio_config *config) {
     config_value_path(config->font, "font", DEFAULT_FONT);
-    config_value_path(config->info_font, "info_font", config->font);
-    config_value_path(config->info_bg_image_path, "info_bg_image_path", NULL);
     config->font_size = get_config_value_int("font_size", DEFAULT_FONT_SIZE);
+    config_value_path(config->info_font, "info_font", config->font);
     config->info_font_size = get_config_value_int("info_font_size", DEFAULT_INFO_FONT_SIZE);
+    config_value_path(config->info_bg_image_path, "info_bg_image_path", NULL);
     config_value_path(config->weather_font, "weather_font", DEFAULT_FONT);
     config->weather_font_size = get_config_value_int("weather_font_size", config->info_font_size);
     config->temp_font_size = get_config_value_int("temperature_font_size", config->info_font_size);
@@ -138,11 +157,11 @@ void read_radio_config(radio_config *config) {
     config->light_img_x = get_config_value_int("light_image_x", 0);
     config->light_img_y = get_config_value_int("light_image_y", 0);
     config->warp_speed = get_config_value_int("warp_speed", 10);
-    config_value_path(config->mixer_device, "alsa_mixer_device", "default");
     config->radio_radius_labels = get_config_value_int("radio_radius_labels", config->radius_labels);
     config->info_menu_item_seconds = get_config_value_int("info_menu_item_seconds",
                                                           INFO_MENU_ITEM_SECONDS);
-    config_value_path(config->alsa_mixer_name, "alsa_mixer_name", "Master");
+    config_value(config->mixer_device, "alsa_mixer_device", "default");
+    config_value(config->alsa_mixer_name, "alsa_mixer_name", "Master");
     config_value(config->weather_api_key, "weather_api_key", "");
     config_value(config->weather_location, "weather_location", "");
     config_value(config->weather_units, "weather_units", "metric");
@@ -268,8 +287,8 @@ int check_player(player *p, radio_theme *player_theme) {
         log_config(MAIN_CTX, "Checking %s...\n", player_get_name(p));
         if (player_update(p)) {
             if (player_get_status(p)) {
-                log_config(MAIN_CTX, "%s is connected.\n", player_get_name(p));
                 if (player_status_changed(p)) {
+                    log_info(MAIN_CTX, "%s is connected.\n", player_get_name(p));
                     stop();
                     if (player_theme) {
                         apply_radio_theme(player_theme);
@@ -289,7 +308,7 @@ int check_player(player *p, radio_theme *player_theme) {
                                               player_get_label(p));
 
             } else if (player_status_changed(p)) {
-                log_config(MAIN_CTX, "%s not connected\n", player_get_name(p));
+                log_info(MAIN_CTX, "%s disconnected\n", player_get_name(p));
             }
         }
         log_config(MAIN_CTX, "%s checked.\n", player_get_name(p));
@@ -534,6 +553,7 @@ int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
         menu_item_set_object(item, interfaces->interfaces);
         for (int i = 0; i < interfaces->n; i++) {
             network_interface *interface = interfaces->interfaces[i];
+            interfaces->interfaces[i] = NULL;
             menu *interface_menu = menu_new(menu_get_ctrl(m), 1, NULL, 0, NULL, NULL, 0);
             menu_set_no_items_on_scale(interface_menu, 3);
             menu_item *interface_item = menu_add_sub_menu(menu_item_get_sub_menu(item),
@@ -543,6 +563,7 @@ int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
             menu_item_set_object(interface_item, interface);
         }
 
+        free(interfaces->interfaces);
         free(interfaces);
     }
 
@@ -607,6 +628,7 @@ void menu_action_activate(menu *m, menu_item *item) {
 void mixer_turn_action(menu *m_ptr, int direction) {
     if (menu_get_current_item(m_ptr)
         && menu_item_get_object_type(menu_get_current_item(m_ptr)) == OBJ_TYPE_MIXER) {
+        log_config(MAIN_CTX, "Mixer menu\n");
         menu_item *mixer_item = menu_get_current_item(m_ptr);
         char *mixer_name = (char *) menu_item_get_object(mixer_item);
         int vol = alsa_get_volume(mixer_name);
@@ -617,6 +639,7 @@ void mixer_turn_action(menu *m_ptr, int direction) {
         vol_label(label, vol);
         menu_item_update_label(mixer_item, label);
     } else {
+        log_config(MAIN_CTX, "Volume menu item\n");
         menu_item_show(app->volume_menu_item);
         int vol = alsa_get_volume(app->default_mixer);
         log_config(MAIN_CTX, "Current volume: %d\n", vol);
@@ -656,7 +679,6 @@ void init_mixer_menu(radio_config config) {
         vol_label(label, volume);
         menu_item_new(
             mixer_sub_menu, label, NULL, alsa_mixer, OBJ_TYPE_MIXER, NULL, -1, NULL, NULL, -1);
-        free((void *) alsa_mixer);
     }
     free(alsa_mixers);
 
@@ -709,10 +731,11 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
         }
         break;
     case DISPOSE:
-        const void *obj = menu_item_get_object(item_ptr);
-        if (obj && menu_item_get_menu(item_ptr) != app->radio_menu) {
+        if (menu_item_get_object(item_ptr) && menu_item_get_menu(item_ptr) != app->radio_menu) {
+            const void *obj = menu_item_get_object(item_ptr);
             switch (menu_item_get_object_type(item_ptr)) {
             case OBJ_TYPE_DIRECTORY:
+            case OBJ_TYPE_MIXER:
                 log_debug(MAIN_CTX, "free(%p)\n", obj);
                 free((void *) obj);
                 menu_item_set_object(item_ptr, NULL);
@@ -743,20 +766,12 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
 int menu_call_back(menu_ctrl *ctrl) {
     log_debug(MAIN_CTX, "Start: Callback\n");
 
-    time_t timer;
-    time(&timer);
-
-    long time_diff = timer - app->info_menu_t;
-    long callback_diff = timer - app->callback_t;
-
     if (menu_ctrl_get_active(ctrl) != app->info_menu) {
         app->current_menu = menu_ctrl_get_active(ctrl);
     }
 
-    log_debug(MAIN_CTX, "Callback diff: %d\n", callback_diff);
-
     if (check_time_interval(app->check_internet_interval)) {
-        log_info(MAIN_CTX, "Checking internet\n");
+        log_config(MAIN_CTX, "Checking internet\n");
         int ia = check_internet();
         if (ia != app->internet_available) {
             app->internet_available = ia;
@@ -784,7 +799,10 @@ int menu_call_back(menu_ctrl *ctrl) {
         player_set_status(app->radio_player, 0);
     }
 
-    if (callback_diff > CALLBACK_SECONDS) {
+    time_t timer;
+    time(&timer);
+
+    if (timer - app->callback_t > CALLBACK_SECONDS) {
         app->callback_t = timer;
 
         if (app->weather_item && app->temperature_item) {
@@ -800,7 +818,7 @@ int menu_call_back(menu_ctrl *ctrl) {
         update_time_item(timer);
     }
 
-    if (time_diff > app->info_menu_item_seconds) {
+    if (timer - app->info_menu_t > app->info_menu_item_seconds) {
         app->info_menu_t = timer;
         if (!app->current_menu || !menu_is_sticky(app->current_menu)) {
             if (app->internet_available) {
@@ -815,6 +833,19 @@ int menu_call_back(menu_ctrl *ctrl) {
                 if (current_id > menu_get_max_id(root)) {
                     current_id = 0;
                 }
+
+                char *lbl = menu_item_get_label(menu_get_item(root, current_id));
+                char *icon = menu_item_get_icon(menu_get_item(root, current_id));
+
+                // Go to the next item with a label
+                while (!icon && (!lbl || is_blank(lbl))) {
+                	if (++current_id > menu_get_max_id(root)) {
+                		current_id = 0;
+                	}
+                	lbl = menu_item_get_label(menu_get_item(root, current_id));
+                	icon = menu_item_get_icon(menu_get_item(root, current_id));
+                }
+
                 menu_item_warp_to(menu_get_item(root, current_id));
 
             } else {
@@ -837,12 +868,36 @@ void init_info_menu(radio_config config) {
     menu_set_label(app->info_menu, "Infos");
     menu_set_transient(app->info_menu, 1);
 
-    app->player_item = menu_item_new(
-        app->info_menu, "VE 301", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
-    app->title_item = menu_item_new(
-        app->info_menu, "VE 301", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
-    app->artist_item = menu_item_new(
-        app->info_menu, "VE 301", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
+    app->player_item = menu_item_new(app->info_menu,
+                                     "VE 301",
+                                     NULL,
+                                     NULL,
+                                     UNKNOWN_OBJECT_TYPE,
+                                     config.info_font,
+                                     config.info_font_size,
+                                     NULL,
+                                     NULL,
+                                     -1);
+    app->title_item = menu_item_new(app->info_menu,
+                                    "VE 301",
+                                    NULL,
+                                    NULL,
+                                    UNKNOWN_OBJECT_TYPE,
+                                    config.info_font,
+                                    config.info_font_size,
+                                    NULL,
+                                    NULL,
+                                    -1);
+    app->artist_item = menu_item_new(app->info_menu,
+                                     "VE 301",
+                                     NULL,
+                                     NULL,
+                                     UNKNOWN_OBJECT_TYPE,
+                                     config.info_font,
+                                     config.info_font_size,
+                                     NULL,
+                                     NULL,
+                                     -1);
 
     time_t timer;
     time(&timer);
@@ -929,6 +984,7 @@ void init_navigation_menu() {
 struct radio_app *radio_app_new() {
     struct radio_app *app = malloc(sizeof(struct radio_app));
     app->info_menu_t = 0;
+    app->callback_t = 0;
     app->wthr.temp = 0;
     app->wthr.weather_icon = NULL;
     return app;
@@ -950,16 +1006,18 @@ void radio_app_create_menu(radio_config config) {
                               &menu_action_listener,
                               &menu_call_back);
 
-    app->default_mixer = config.alsa_mixer_name;
+    app->default_mixer = my_copystr(config.alsa_mixer_name);
     app->time_menu_item_format = my_copystr(config.time_menu_item_format);
 
     app->info_menu_item_seconds = config.info_menu_item_seconds;
 
-    menu_ctrl_set_light(app->ctrl,
-                        config.light_x,
-                        config.light_y,
-                        config.light_radius,
-                        config.light_alpha);
+    if (config.light_alpha) {
+        menu_ctrl_set_light(app->ctrl,
+                            config.light_x,
+                            config.light_y,
+                            config.light_radius,
+                            config.light_alpha);
+    }
 
     if (config.light_img[0]) {
         menu_ctrl_set_light_img(app->ctrl, config.light_img, config.light_img_x, config.light_img_y);
@@ -984,9 +1042,12 @@ void radio_app_create_menu(radio_config config) {
     init_mixer_menu(config);
 
     app->default_theme = get_config_theme("Default");
+#ifdef BLUETOOTH
     app->bluetooth_theme = get_config_theme("Bluetooth");
+#endif
+#ifdef SPOTIFY
     app->spotify_theme = get_config_theme("Spotify");
-
+#endif
     apply_radio_theme(app->default_theme);
 }
 
@@ -1007,6 +1068,9 @@ void radio_app_loop() {
 }
 
 void radio_app_close() {
+    menu_item_update_label(app->title_item, "Bye");
+    menu_item_warp_to(app->title_item);
+
     log_info(MAIN_CTX, "Closing all\n");
     log_info(MAIN_CTX, "Stopping weather thread\n");
     stop_weather_thread();
@@ -1025,14 +1089,18 @@ void radio_app_close() {
         free_theme(app->default_theme);
         app->default_theme = NULL;
     }
+#ifdef BLUETOOTH
     if (app->bluetooth_theme) {
         free_theme(app->bluetooth_theme);
         app->bluetooth_theme = NULL;
     }
+#endif
+#ifdef SPOTIFY
     if (app->spotify_theme) {
         free_theme(app->spotify_theme);
         app->spotify_theme = NULL;
     }
+#endif
     log_info(MAIN_CTX, "Stopping audio\n");
     audio_disconnect();
     log_info(MAIN_CTX, "Audio stopped\n");

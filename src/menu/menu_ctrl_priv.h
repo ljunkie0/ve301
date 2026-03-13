@@ -1,5 +1,27 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #ifndef MENU_CTRL_PRIV_H
 #define MENU_CTRL_PRIV_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "menu_ctrl.h"
 
@@ -61,9 +83,10 @@ struct menu_ctrl {
     void *object;
 };
 
-
-int menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle);
+void menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle);
 int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Texture *bg_image);
-int menu_ctrl_apply_light(menu_ctrl *ctrl);
-
+void menu_ctrl_apply_light(menu_ctrl *ctrl);
+#ifdef __cplusplus
+}
+#endif
 #endif // MENU_CTRL_PRIV_H

@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #define _GNU_SOURCE
 
 #include "alsa.h"
@@ -55,6 +73,7 @@ const int alsa_set_volume(const char *mixer,const int value) {
 }
 
 const char **alsa_get_mixers(const char *mixer_device, int *n) {
+    log_config(AUDIO_CTX, "alsa_get_mixers(%s)\n", mixer_device);
     snd_mixer_t *handle;
     snd_mixer_elem_t *elem;
     snd_mixer_selem_id_t *sid;
@@ -86,24 +105,23 @@ const char **alsa_get_mixers(const char *mixer_device, int *n) {
             count++;
         }
     }
-    
-    const char **mixers = malloc(count * sizeof(char *));
-    count = 0;
-    for (elem = snd_mixer_first_elem(handle); elem; elem = snd_mixer_elem_next(elem)) {
-        if (snd_mixer_selem_is_active(elem)
-        	&& !snd_mixer_selem_has_common_volume(elem)
-        	&& !snd_mixer_selem_is_enumerated(elem)
-        	&& !snd_mixer_selem_has_capture_volume(elem)
-        	&& !snd_mixer_selem_has_capture_switch(elem)
-        ) {
-            snd_mixer_selem_id_alloca(&sid);
-            snd_mixer_selem_get_id(elem, sid);
-            mixers[count] = strdup(snd_mixer_selem_id_get_name(sid));
-            log_info(AUDIO_CTX, "Found mixer: %s\n", mixers[count]);
-            count++;
+
+    const char **mixers = count > 0 ? malloc(count * sizeof(char *)) : NULL;
+    if (mixers) {
+        count = 0;
+        for (elem = snd_mixer_first_elem(handle); elem; elem = snd_mixer_elem_next(elem)) {
+            if (snd_mixer_selem_is_active(elem) && !snd_mixer_selem_has_common_volume(elem)
+                && !snd_mixer_selem_is_enumerated(elem) && !snd_mixer_selem_has_capture_volume(elem)
+                && !snd_mixer_selem_has_capture_switch(elem)) {
+                snd_mixer_selem_id_alloca(&sid);
+                snd_mixer_selem_get_id(elem, sid);
+                mixers[count] = strdup(snd_mixer_selem_id_get_name(sid));
+                log_info(AUDIO_CTX, "Found mixer: %s\n", mixers[count]);
+                count++;
+            }
         }
     }
-    
+
     *n = count;
     snd_mixer_close(handle);
     return mixers;
@@ -143,7 +161,7 @@ const int alsa_get_volume(const char *mixer) {
     snd_mixer_selem_id_set_name(sid, mixer);
     elem = snd_mixer_find_selem(handle, sid);
     if (!elem) {
-        log_error(AUDIO_CTX, "Could not find  mixer %s\n", mixer);
+        log_error(AUDIO_CTX, "Could not find mixer %s\n", mixer);
         snd_mixer_close(handle);
         return -1;
     }

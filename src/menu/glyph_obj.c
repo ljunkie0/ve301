@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 /**
  * Represents one single character to be rendered
  **/
@@ -67,31 +85,20 @@ void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius) 
 
 }
 
-glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius) {
+void init_bumpmap_data(glyph_obj *glyph_o) {
+    glyph_o->normals = calloc(glyph_o->surface->w * glyph_o->surface->h, sizeof(normal_vector));
+    glyph_o->colors = calloc(glyph_o->surface->w * glyph_o->surface->h, sizeof(SDL_Color));
 
-    glyph_obj *glyph_o = malloc(sizeof(glyph_obj));
-
-    glyph_o->bumpmap_textures = NULL;
-
-    glyph_o->surface = surface;
-    glyph_o->radius = radius;
-
-    glyph_o->current_angle = -2000.0;
-
-    glyph_o->normals = calloc(glyph_o->surface->w * glyph_o->surface->h , sizeof(normal_vector));
-    glyph_o->colors = calloc(glyph_o->surface->w * glyph_o->surface->h , sizeof(SDL_Color));
-    
     Uint32 *pixels = (Uint32 *) glyph_o->surface->pixels;
 
     int bpp = glyph_o->surface->format->BytesPerPixel;
     int pitch = glyph_o->surface->pitch / bpp;
 
     for (int y = 0; y < glyph_o->surface->h; y++) {
-        
-	    int o = glyph_o->surface->w*y;
-        int p = pitch*y;
-        int pop = pitch * (y-1);
-        int pon = pitch * (y+1);
+        int o = glyph_o->surface->w * y;
+        int p = pitch * y;
+        int pop = pitch * (y - 1);
+        int pon = pitch * (y + 1);
 
         for (int x = 0; x < glyph_o->surface->w; x++) {
             SDL_Color color;
@@ -147,24 +154,50 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, T
     glyph_o->colors[0] = transparent;
 
     for (int y = 1; y < glyph_o->surface->h; y++) {
-        int p = glyph_o->surface->w * y; 
+        int p = glyph_o->surface->w * y;
         if (glyph_o->surface->w * glyph_o->surface->h - p <= 0)
-            log_error(MENU_CTX, "Pointer %d out of range %d\n", p, glyph_o->surface->w * glyph_o->surface->h); 
+            log_error(MENU_CTX,
+                      "Pointer %d out of range %d\n",
+                      p,
+                      glyph_o->surface->w * glyph_o->surface->h);
 
         glyph_o->normals[p] = df;
-        glyph_o->normals[p-1] = df;
+        glyph_o->normals[p - 1] = df;
         glyph_o->colors[p] = transparent;
-        glyph_o->colors[p-1] = transparent;
+        glyph_o->colors[p - 1] = transparent;
     }
 
     for (int x = 0; x < glyph_o->surface->w; x++) {
         glyph_o->normals[x] = df;
-        glyph_o->normals[glyph_o->surface->w * (glyph_o->surface->h-1) + x] = df;
+        glyph_o->normals[glyph_o->surface->w * (glyph_o->surface->h - 1) + x] = df;
         glyph_o->colors[x] = transparent;
-        glyph_o->colors[glyph_o->surface->w * (glyph_o->surface->h-1) + x] = transparent;
+        glyph_o->colors[glyph_o->surface->w * (glyph_o->surface->h - 1) + x] = transparent;
     }
+}
 
+glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer,
+                                 SDL_Surface *surface,
+                                 TTF_Font *font,
+                                 SDL_Color fg,
+                                 SDL_Point center,
+                                 int radius,
+                                 int bump_map) {
+    glyph_obj *glyph_o = malloc(sizeof(glyph_obj));
+
+    glyph_o->bumpmap_textures = NULL;
     glyph_o->bumpmap_overlay = NULL;
+
+    glyph_o->surface = surface;
+    glyph_o->radius = radius;
+
+    glyph_o->current_angle = -2000.0;
+
+    glyph_o->colors = NULL;
+    glyph_o->normals = NULL;
+
+    if (bump_map) {
+        init_bumpmap_data(glyph_o);
+    }
 
     glyph_o->texture = SDL_CreateTextureFromSurface(renderer,glyph_o->surface);
     if (!glyph_o->texture) {
@@ -188,18 +221,22 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, T
     glyph_o->advance = 0;
 
     return glyph_o;
-
 }
 
-glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius) {
-
-    SDL_Surface *surface = TTF_RenderGlyph_Blended(font,c,fg);
+glyph_obj *glyph_obj_new(SDL_Renderer *renderer,
+                         uint16_t c,
+                         TTF_Font *font,
+                         SDL_Color fg,
+                         SDL_Point center,
+                         int radius,
+                         int bump_map) {
+    SDL_Surface *surface = TTF_RenderGlyph_Blended(font, c, fg);
     if (surface == NULL) {
         log_error(MENU_CTX, "Could not render glyph %c: %s\n", c, TTF_GetError());
         return NULL;
     }
 
-    glyph_obj *glyph_o = glyph_obj_new_surface(renderer,surface,font,fg,center,radius);
+    glyph_obj *glyph_o = glyph_obj_new_surface(renderer, surface, font, fg, center, radius, bump_map);
 
     int minx = 0,maxx = 0,miny = 0,maxy = 0,advance = 0;
     TTF_GlyphMetrics(font,c,&minx,&maxx,&miny,&maxy,&advance);
@@ -210,7 +247,6 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL
     glyph_o->advance = advance;
 
     return glyph_o;
-
 }
 
 void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o, double center_x, double center_y, int angle, double l_x, double l_y) {

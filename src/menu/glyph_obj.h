@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #ifndef GLYPH_OBJ_H
 #define GLYPH_OBJ_H
 
@@ -28,8 +46,20 @@ typedef struct glyph_obj {
     double shadow_dy;
 } glyph_obj;
 
-glyph_obj *glyph_obj_new(SDL_Renderer *renderer, uint16_t c, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius);
-glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer, SDL_Surface *surface, TTF_Font *font, SDL_Color fg, SDL_Point center, int radius);
+glyph_obj *glyph_obj_new(SDL_Renderer *renderer,
+                         uint16_t c,
+                         TTF_Font *font,
+                         SDL_Color fg,
+                         SDL_Point center,
+                         int radius,
+                         int bump_map);
+glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer,
+                                 SDL_Surface *surface,
+                                 TTF_Font *font,
+                                 SDL_Color fg,
+                                 SDL_Point center,
+                                 int radius,
+                                 int bump_map);
 void glyph_obj_free(glyph_obj *obj);
 void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius);
 void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o, double center_x, double center_y, int angle, double l_x, double l_y);

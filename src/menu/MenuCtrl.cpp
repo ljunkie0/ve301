@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #include "MenuCtrl.h"
 
 MenuCtrl::MenuCtrl(int w,
@@ -16,6 +34,7 @@ MenuCtrl::MenuCtrl(int w,
 
 	this->ctrl = menu_ctrl_new(
 			w,
+			w,
 			xOffset,
 			yOffset,
 			radiusLabels,
@@ -31,8 +50,8 @@ MenuCtrl::MenuCtrl(int w,
 
 }
 
-void MenuCtrl::quit() {
-	menu_ctrl_quit(this->ctrl);
+void MenuCtrl::dispose() {
+    menu_ctrl_dispose(this->ctrl);
 }
 
 void MenuCtrl::loop() {
@@ -68,14 +87,14 @@ void MenuCtrl::setLightImage(char *path, int x, int y) {
 }
 
 void MenuCtrl::enableFontBumpmap() {
-	this->ctrl->font_bumpmap = 1;
+    this->ctrl->font_bumpmap = 1;
 }
 
 void MenuCtrl::disableFontBumpmap() {
-	this->ctrl->font_bumpmap = 0;
+    this->ctrl->font_bumpmap = 0;
 }
 
 MenuCtrl::~MenuCtrl() {
-	menu_ctrl_free(this->ctrl);
+	menu_ctrl_dispose(this->ctrl);
 }
 

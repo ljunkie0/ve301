@@ -1,10 +1,11 @@
 /*
- * Copyright 2022 LJunkie
- * https://github.com/ljunkie0/ve301
+ * VE301
  *
- * This program is free software; you can redistribute it and/or modify
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -12,9 +13,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "audio.h"
 #include "../base/config.h"
@@ -482,8 +482,9 @@ char **get_items(enum mpd_tag_type tag, enum mpd_tag_type matchTag1,
         struct mpd_pair *pair = mpd_recv_pair_tag(mpd_conn, tag);
         while (pair) {
             if (pair->value && strlen(pair->value) > 0) {
-                char *item = malloc((strlen(pair->value) + 1) * sizeof(char));
-                strcpy(item, pair->value);
+                int l = strlen(pair->value);
+                char *item = malloc((l + 1) * sizeof(char));
+                strncpy(item, pair->value, l);
                 log_config(AUDIO_CTX, "Item: %s\n", item);
                 result = realloc(result, (a + 1) * sizeof(char *));
                 result[a++] = item;

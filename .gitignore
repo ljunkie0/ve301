@@ -14,7 +14,7 @@ launch.json
 /PC/wifi-scan/
 /Raspberry/*.o
 /Raspberry/**/*.o
-/Raskberry/ve301
+/Raspberry/ve301
 /Raspberry/wifi-scan/
 ve301_new.cflags
 ve301_new.creator

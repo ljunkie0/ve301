@@ -4,6 +4,24 @@
 #include "../base/util.h"
 #include <SDL2/SDL_image.h>
 
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #define MAX_LABEL_LENGTH 25
 #define M_2_X_PI 6.28318530718
 #define VISIBLE_ANGLE 72.0
@@ -12,7 +30,9 @@ void text_obj_free(text_obj *obj) {
     if (obj) {
         if (obj->glyphs_objs) {
             for (int g = 0; g < obj->n_glyphs; g++) {
-                glyph_obj_free(obj->glyphs_objs[g]);
+                if (obj->glyphs_objs[g]) {
+                    glyph_obj_free(obj->glyphs_objs[g]);
+                }
             }
             free(obj->glyphs_objs);
             obj->glyphs_objs = NULL;
@@ -20,7 +40,9 @@ void text_obj_free(text_obj *obj) {
 
         if (obj->glyphs_objs_2nd_line) {
             for (int g = 0; g < obj->n_glyphs_2nd_line; g++) {
-                glyph_obj_free(obj->glyphs_objs_2nd_line[g]);
+                if (obj->glyphs_objs_2nd_line[g]) {
+                    glyph_obj_free(obj->glyphs_objs_2nd_line[g]);
+                }
             }
             free(obj->glyphs_objs_2nd_line);
             obj->glyphs_objs_2nd_line = NULL;
@@ -55,11 +77,19 @@ void text_obj_update_cnt_rad(text_obj *obj, SDL_Point center, int radius,
     }
 }
 
-text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, char *icon,
-                       TTF_Font *font, TTF_Font *font_2nd_line, SDL_Color fg,
-                       SDL_Point center, int radius, int line, int n_lines,
-                       int light_x, int light_y) {
-
+text_obj *text_obj_new(SDL_Renderer *renderer,
+                       char *txt,
+                       char *icon,
+                       TTF_Font *font,
+                       TTF_Font *font_2nd_line,
+                       SDL_Color fg,
+                       SDL_Point center,
+                       int radius,
+                       int line,
+                       int n_lines,
+                       int light_x,
+                       int light_y,
+                       int bump_map) {
     if ((txt && strlen(txt) > 0) || icon) {
         Uint32 unicode_length = MAX_LABEL_LENGTH;
         Uint16 *unicode_text_2nd_line = NULL;
@@ -97,6 +127,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, char *icon,
         if (text_surface == NULL) {
             log_error(MENU_CTX, "Could not create glyph surface for \"[%s]\": %s\n",
                       txt, icon ? IMG_GetError() : TTF_GetError());
+            text_obj_free(t);
             return NULL;
         }
 
@@ -111,14 +142,20 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, char *icon,
 
         unsigned int i = 0;
         for (i = 0; i < unicode_length; i++) {
-            glyph_obj *glyph_o = icon
-                                     ? glyph_obj_new_surface(renderer, text_surface,
-                                                             font, fg, center, radius)
-                                     : glyph_obj_new(renderer, unicode_text[i], font,
-                                                     fg, center, radius);
+            glyph_obj *glyph_o
+                = icon
+                      ? glyph_obj_new_surface(renderer,
+                                              text_surface,
+                                              font,
+                                              fg,
+                                              center,
+                                              radius,
+                                              bump_map)
+                      : glyph_obj_new(renderer, unicode_text[i], font, fg, center, radius, bump_map);
             if (!glyph_o) {
                 log_error(MENU_CTX, "Could not create glyph object for %c\n",
                           unicode_text[i]);
+                text_obj_free(t);
                 return NULL;
             }
             t->glyphs_objs[i] = glyph_o;
@@ -146,6 +183,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, char *icon,
                     "%s, unicode_length_2nd_line = %d): %s\n",
                     txt, unicode_text_2nd_line, unicode_length_second_line,
                     TTF_GetError());
+                text_obj_free(t);
                 return NULL;
             }
 
@@ -159,9 +197,13 @@ text_obj *text_obj_new(SDL_Renderer *renderer, char *txt, char *icon,
             unsigned int i = 0;
             int radius_new = radius - (0.6) * t->height - 1;
             for (i = 0; i < unicode_length_second_line; i++) {
-                t->glyphs_objs_2nd_line[i] =
-                    glyph_obj_new(renderer, unicode_text_2nd_line[i], font_2nd_line, fg,
-                                                           center, radius_new);
+                t->glyphs_objs_2nd_line[i] = glyph_obj_new(renderer,
+                                                           unicode_text_2nd_line[i],
+                                                           font_2nd_line,
+                                                           fg,
+                                                           center,
+                                                           radius_new,
+                                                           bump_map);
             }
         }
 
@@ -225,7 +267,7 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
                 Uint8 orig_a, orig_r, orig_g, orig_b;
                 SDL_GetTextureAlphaMod(texture, &orig_a);
                 SDL_GetTextureColorMod(texture, &orig_r, &orig_g, &orig_b);
-                SDL_SetTextureColorMod(texture, 0, 0, 0);
+                SDL_SetTextureColorMod(texture, 255, 255, 255);
 
                 SDL_Rect shadow_dst_rec;
                 shadow_dst_rec.w = glyph_obj->dst_rect->w;
@@ -287,7 +329,7 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
             advance += glyph_obj->advance;
         }
     } else {
-        log_config(MENU_CTX, "No shadow\n");
+        log_debug(MENU_CTX, "No shadow\n");
     }
 
     advance = -0.5 * label->width;

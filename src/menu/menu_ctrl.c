@@ -1,10 +1,11 @@
 /*
- * Copyright 2022 LJunkie
- * https://github.com/ljunkie0/ve301
+ * VE301
  *
- * This program is free software; you can redistribute it and/or modify
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -12,9 +13,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #define _GNU_SOURCE
@@ -67,7 +67,6 @@ void __menu_turn_right(menu *m, int redraw);
 void menu_fade_out(menu *menu_frm, menu *menu_to);
 int menu_ctrl_process_events(menu_ctrl *ctrl);
 int menu_draw(menu *m, int clear, int render);
-int menu_ctrl_apply_light(menu_ctrl *ctrl);
 
 int menu_action(menu_event evt, menu_ctrl *ctrl, menu *menu) {
 
@@ -90,8 +89,12 @@ void __menu_warp_sleep(menu_ctrl *ctrl) {
 }
 
 void menu_item_warp_to(menu_item *item) {
-
-    log_config(MENU_CTX, "menu_item_warp_to: menu_item->menu->ctrl->object = %p->%p->%p->%p\n", item, item->menu, item->menu->ctrl, item->menu->ctrl->object);
+    log_debug(MENU_CTX,
+              "menu_item_warp_to: menu_item->menu->ctrl->object = %p->%p->%p->%p\n",
+              item,
+              item->menu,
+              item->menu->ctrl,
+              item->menu->ctrl->object);
     menu *m = (menu *) item->menu;
     menu_ctrl *ctrl = (menu_ctrl *) m->ctrl;
     if (m != ctrl->current) {
@@ -136,8 +139,7 @@ void menu_item_warp_to(menu_item *item) {
 
     ctrl->warping = 0;
 
-    log_config(MENU_CTX, "menu_item_warp_to: ctrl->object = %p->%p\n", ctrl, ctrl->object);
-
+    log_debug(MENU_CTX, "menu_item_warp_to: ctrl->object = %p->%p\n", ctrl, ctrl->object);
 }
 
 int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Texture *bg_image) {
@@ -390,8 +392,7 @@ menu *menu_ctrl_get_root(menu_ctrl *ctrl) {
     return ctrl->root[0];
 }
 
-int menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle) {
-
+void menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle) {
     double a = - M_PI * ctrl->angle_offset / 180.0 - M_PI_2;
 
     double cos_a = cos(a);
@@ -462,12 +463,9 @@ int menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle
             fy1,
             fx2+2.0,
             fy2);
-
-    return 1;
-
 }
 
-int menu_ctrl_apply_light(menu_ctrl *ctrl) {
+void menu_ctrl_apply_light(menu_ctrl *ctrl) {
     if (ctrl->light_texture) {
         double w = ctrl->w;
         double h = ctrl->h;
@@ -476,9 +474,6 @@ int menu_ctrl_apply_light(menu_ctrl *ctrl) {
         const SDL_Rect dst_rect = {xo + ctrl->light_img_x, yo + ctrl->light_img_y, w, h};
         SDL_RenderCopy(ctrl->renderer,ctrl->light_texture,NULL,&dst_rect);
     }
-
-    return 0;
-
 }
 
 void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_start, int radius_scales_end) {
@@ -674,6 +669,7 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
 
     if (!init_SDL()) {
         log_error(MENU_CTX, "Failed to initialize SDL\n");
+        menu_ctrl_dispose(ctrl);
         return 0;
     }
 
@@ -700,31 +696,41 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
     }
 
     log_info(MENU_CTX, "Creating window...");
-    ctrl->display = SDL_CreateWindow("VE301", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ctrl->w, ctrl->h, 0);
+    ctrl->display = SDL_CreateWindow("VE301",
+                                     SDL_WINDOWPOS_UNDEFINED,
+                                     SDL_WINDOWPOS_UNDEFINED,
+                                     ctrl->w,
+                                     ctrl->h,
+                                     SDL_WINDOW_HIDDEN);
     log_info(MENU_CTX, "Done\n");
     if (ctrl->display) {
         log_info(MENU_CTX, "Creating renderer...");
 #ifdef RASPBERRY
-        ctrl->renderer = SDL_CreateRenderer(ctrl->display, 1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        ctrl->renderer = SDL_CreateRenderer(ctrl->display,
+                                            1,
+                                            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 #else
-        ctrl->renderer = SDL_CreateRenderer(ctrl->display, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        ctrl->renderer = SDL_CreateRenderer(ctrl->display,
+                                            -1,
+                                            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 #endif
         log_info(MENU_CTX, "Done\n");
         SDL_RendererInfo rendererInfo;
         log_info(MENU_CTX, "Getting renderer info...\n");
         SDL_GetRendererInfo(ctrl->renderer, &rendererInfo);
         log_info(MENU_CTX, "SDL chose the following renderer:\n");
-        log_info(MENU_CTX, "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
-                rendererInfo.name,
-                (rendererInfo.flags & SDL_RENDERER_SOFTWARE) != 0,
-                (rendererInfo.flags & SDL_RENDERER_ACCELERATED) != 0,
-                (rendererInfo.flags & SDL_RENDERER_PRESENTVSYNC) != 0,
-                (rendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) != 0 );
-
+        log_info(MENU_CTX,
+                 "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
+                 rendererInfo.name,
+                 (rendererInfo.flags & SDL_RENDERER_SOFTWARE) != 0,
+                 (rendererInfo.flags & SDL_RENDERER_ACCELERATED) != 0,
+                 (rendererInfo.flags & SDL_RENDERER_PRESENTVSYNC) != 0,
+                 (rendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) != 0);
     }
 
     if (!ctrl->display) {
         log_error(MENU_CTX, "Failed to create window: %s\n", SDL_GetError());
+        menu_ctrl_dispose(ctrl);
         return 0;
     }
 
@@ -909,13 +915,14 @@ void menu_ctrl_dispose(menu_ctrl *ctrl) {
 }
 
 int menu_ctrl_loop(menu_ctrl *ctrl) {
-
     log_info(MENU_CTX, "START: menu_ctrl_loop\n");
 #ifdef RASPBERRY
     setup_encoder ();
 #endif
 
     menu_ctrl_draw(ctrl);
+
+    SDL_ShowWindow(ctrl->display);
 
     while (1) {
         int res = menu_ctrl_process_events(ctrl);

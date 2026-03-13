@@ -58,6 +58,12 @@ src/java/org_ljunkie_ve301_MenuItem.h
 src/main.c
 src/menu.c
 src/menu.h
+src/menu/Menu.cpp
+src/menu/Menu.h
+src/menu/MenuCtrl.cpp
+src/menu/MenuCtrl.h
+src/menu/MenuItem.cpp
+src/menu/MenuItem.h
 src/menu/glyph_obj.c
 src/menu/glyph_obj.h
 src/menu/menu.h

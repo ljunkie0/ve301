@@ -1,8 +1,10 @@
+WITH_BLUETOOTH=0
+WITH_SPOTIFY=1
 ARCH=x86_64-linux-gnu
-ADD_CFLAGS=-O0 -g
-#ADD_CFLAGS+=-fsanitize=address
-ADDITIONAL_LIBS=-lgcov
-#ADDITIONAL_LIBS=-lc_p
+ifeq ($(FSANITIZE),1)
+	ADD_CFLAGS+=-fsanitize=address
+endif
 include ../Makefile
-#LDFLAGS=-fsanitize=address
-
+ifeq ($(FSANITIZE),1)
+	LDFLAGS=-fsanitize=address
+endif

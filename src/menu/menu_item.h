@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #ifndef MENU_ITEM_H
 #define MENU_ITEM_H
 
@@ -29,6 +47,7 @@ void menu_item_warp_to(menu_item *item);
 void menu_item_show(menu_item *item);
 menu_item *menu_item_update_label(menu_item *item, const char *label);
 char *menu_item_get_label(menu_item *item);
+char *menu_item_get_icon(menu_item *i);
 menu_item *menu_item_update_icon(menu_item *item, const char *icon);
 void menu_item_set_visible(menu_item *item, const int visible);
 int menu_item_get_visible(menu_item *item);

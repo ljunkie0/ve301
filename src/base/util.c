@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #define _GNU_SOURCE
 
 #include <inttypes.h>
@@ -64,8 +82,8 @@ char *my_catstr(const char *str1, const char *str2) {
     int l2 = strlen(str2);
     int l = l1 + l2;
     char *res = malloc((l + 1) * sizeof(char));
-    strncpy(res, str1, l1);
-    strncpy(res + l1, str2, l2);
+    memcpy(res, str1, l1);
+    memcpy(res + l1, str2, l2);
     res[l] = 0;
     return res;
 }
@@ -76,11 +94,29 @@ char *my_cat3str(const char *str1, const char *str2, const char *str3) {
     int l3 = strlen(str3);
     int l = l1 + l2 + l3;
     char *res = malloc((l + 1) * sizeof(char));
-    strncpy(res, str1, l1);
-    strncpy(res + l1, str2, l2);
-    strncpy(res + l1 + l2, str3, l3);
+    memcpy(res, str1, l1);
+    memcpy(res + l1, str2, l2);
+    memcpy(res + l1 + l2, str3, l3);
     res[l] = 0;
     return res;
+}
+
+int is_blank(const char *str) {
+	if (!str) {
+		return 1;
+	}
+
+	int c = 0;
+
+	while (*(str+c)) {
+		if (*(str+c) != ' ') {
+			return 0;
+		}
+		c++;
+	}
+
+	return 1;
+
 }
 
 int my_strcmp(const char *str1, const char *str2) {
@@ -265,11 +301,6 @@ void strshift(char *str, int shift, int offset) {
     }
 }
 
-void inschar(char *str, char c, int pos) {
-    strshift(str, 1, pos);
-    str[pos] = c;
-}
-
 unsigned int unicode_len(const unsigned short *txt) {
     if (!txt) {
         return 0;
@@ -278,15 +309,4 @@ unsigned int unicode_len(const unsigned short *txt) {
     while (txt[len])
         len++;
     return len;
-}
-
-unsigned short *unicode_copy(const unsigned short *txt) {
-    unsigned short *new_txt = malloc((unicode_len(txt) + 1) * sizeof(unsigned short));
-    unsigned int len = 0;
-    while (txt[len]) {
-        new_txt[len] = txt[len];
-        len++;
-    }
-    new_txt[len] = 0;
-    return new_txt;
 }

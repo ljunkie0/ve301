@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #include "../base.h"
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
@@ -8,35 +26,27 @@
 #include "menu_menu_priv.h"
 #include "text_obj.h"
 
-int menu_item_action(menu_event evt, menu_ctrl *ctrl, menu_item *item) {
-
+void menu_item_action(menu_event evt, menu_ctrl *ctrl, menu_item *item) {
     if (item) {
-        int result = 1;
         if (item->action) {
-            result |= ((item_action*)item->action)(evt, item->menu, item);
+            ((item_action *) item->action)(evt, item->menu, item);
         } else if (item->menu->action) {
-            result |= ((item_action*)item->menu->action)(evt, item->menu, item);
-        } else if (ctrl->current && ctrl->current->action) {
-            result |= ctrl->current->action(evt, ctrl->current, item);
+            ((item_action *) item->menu->action)(evt, item->menu, item);
         } else if (ctrl->action) {
-            result |= ((item_action*)ctrl->action)(evt, ctrl->current, item);
+            ((item_action *) ctrl->action)(evt, ctrl->current, item);
         }
 
         if (item->sub_menu && evt == ACTIVATE) {
-            result |= menu_open_sub_menu(ctrl, item);
+            menu_open_sub_menu(ctrl, item);
         }
 
     } else {
-
         if (ctrl->current && ctrl->current->action) {
-            return ctrl->current->action(evt, ctrl->current, item);
+            ctrl->current->action(evt, ctrl->current, item);
         } else if (ctrl->action) {
-            return ((item_action*)ctrl->action)(evt, ctrl->current, item);
+            ((item_action *) ctrl->action)(evt, ctrl->current, item);
         }
     }
-
-    return 0;
-
 }
 
 void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius) {
@@ -63,6 +73,10 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
         return 0;
     }
 
+    if (!item->label_default) {
+        menu_item_rebuild_glyphs(item);
+    }
+
     log_debug(MENU_CTX,
               "menu_item_draw: label = %s, line = %d, state = %d, angle = %f\n",
               item->label,
@@ -86,7 +100,18 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
         }
 
         if (label) {
-            text_obj_draw(item->menu->ctrl->renderer,NULL,label,item->menu->radius_labels,item->menu->ctrl->center.x,item->menu->ctrl->center.y,angle,item->menu->ctrl->light_x,item->menu->ctrl->light_y, item->menu->ctrl->font_bumpmap, item->menu->ctrl->shadow_offset, item->menu->ctrl->shadow_alpha);
+            text_obj_draw(item->menu->ctrl->renderer,
+                          NULL,
+                          label,
+                          item->menu->radius_labels,
+                          item->menu->ctrl->center.x,
+                          item->menu->ctrl->center.y,
+                          angle,
+                          item->menu->ctrl->light_x,
+                          item->menu->ctrl->light_y,
+                          item->menu->ctrl->font_bumpmap,
+                          item->menu->ctrl->shadow_offset,
+                          item->menu->ctrl->shadow_alpha);
         } else {
             log_info(MENU_CTX, "No label, no drawing\n");
         }
@@ -121,6 +146,10 @@ int menu_item_get_visible(menu_item *item) {
 
 char *menu_item_get_label(menu_item *i) {
     return i->label;
+}
+
+char *menu_item_get_icon(menu_item *i) {
+    return i->icon;
 }
 
 menu *menu_item_get_sub_menu(menu_item *item) {
@@ -192,10 +221,51 @@ void menu_item_rebuild_glyphs(menu_item *item) {
     }
 
     SDL_Renderer *renderer = m->ctrl->renderer;
-    item->label_default = text_obj_new(renderer,item->label,item->icon,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->default_color,m->ctrl->center,m->ctrl->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-    item->label_current = text_obj_new(renderer,item->label,item->icon,font,font2,m->selected_color != NULL ? *m->selected_color : *m->ctrl->selected_color,m->ctrl->center,m->ctrl->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
-    item->label_active = text_obj_new(renderer,item->label,item->icon,font,font2,m->default_color != NULL ? *m->default_color : *m->ctrl->activated_color,m->ctrl->center,m->ctrl->radius_labels,item->line, m->n_o_lines, item->menu->ctrl->light_x, item->menu->ctrl->light_y);
 
+    if (renderer) {
+        item->label_default = text_obj_new(renderer,
+                                           item->label,
+                                           item->icon,
+                                           font,
+                                           font2,
+                                           m->default_color != NULL ? *m->default_color
+                                                                    : *m->ctrl->default_color,
+                                           m->ctrl->center,
+                                           m->ctrl->radius_labels,
+                                           item->line,
+                                           m->n_o_lines,
+                                           item->menu->ctrl->light_x,
+                                           item->menu->ctrl->light_y,
+                                           item->menu->ctrl->font_bumpmap);
+        item->label_current = text_obj_new(renderer,
+                                           item->label,
+                                           item->icon,
+                                           font,
+                                           font2,
+                                           m->selected_color != NULL ? *m->selected_color
+                                                                     : *m->ctrl->selected_color,
+                                           m->ctrl->center,
+                                           m->ctrl->radius_labels,
+                                           item->line,
+                                           m->n_o_lines,
+                                           item->menu->ctrl->light_x,
+                                           item->menu->ctrl->light_y,
+                                           item->menu->ctrl->font_bumpmap);
+        item->label_active = text_obj_new(renderer,
+                                          item->label,
+                                          item->icon,
+                                          font,
+                                          font2,
+                                          m->default_color != NULL ? *m->default_color
+                                                                   : *m->ctrl->activated_color,
+                                          m->ctrl->center,
+                                          m->ctrl->radius_labels,
+                                          item->line,
+                                          m->n_o_lines,
+                                          item->menu->ctrl->light_x,
+                                          item->menu->ctrl->light_y,
+                                          item->menu->ctrl->font_bumpmap);
+    }
 }
 
 int menu_item_set_label(menu_item *item, const char *label) {
@@ -320,7 +390,6 @@ void menu_item_free(menu_item *item) {
         free_and_set_null((void **) &item->unicode_label);
         free_and_set_null((void **) &item->unicode_label2);
         free_and_set_null((void **) &item->label);
-        free_and_set_null((void **) &item->object);
 
         text_obj_free(item->label_active);
         text_obj_free(item->label_current);

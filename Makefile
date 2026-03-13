@@ -1,6 +1,3 @@
-WITH_SPOTIFY=1
-WITH_BLUETOOTH=1
-
 CC=$(ARCH)-gcc
 CXX=$(ARCH)-g++
 CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
@@ -45,7 +42,11 @@ IR_LOG_LEVEL_TRACE=5
 
 LOG_LEVEL=${IR_LOG_LEVEL_TRACE}
 
-CFLAGS=-I$(WIFI_SCAN_DIRECTORY) -Wall -O3 -DMPD_DEBUG -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
+ifeq ($(DEBUG),1)
+	CFLAGS=-I$(WIFI_SCAN_DIRECTORY) -Wall -g -DMPD_DEBUG -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
+else
+	CFLAGS=-I$(WIFI_SCAN_DIRECTORY) -Wall -O3 -DMPD_DEBUG -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
+endif
 
 CURL_LIB=/usr/lib/$(ARCH)/libcurl.so
 MPD_LIB=/usr/lib/$(ARCH)/libmpdclient.so
@@ -58,14 +59,10 @@ MNL_LIB=/usr/lib/$(ARCH)/libmnl.so
 all: ve301
 
 ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o wifi.o wifi_scan.o
-	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
+	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
 
 strip: ve301
 	$(STRIP) ve301
-
-wifi_scan.o: $(WIFI_SCAN_DIRECTORY)/wifi_scan.c
-	make -C $(WIFI_SCAN_DIRECTORY)
-	mv $(WIFI_SCAN_DIRECTORY)/wifi_scan.o .
 
 bt_devices: bt_devices.o
 	$(CC) -o bt_devices bt_devices.o $(LDFLAGS_DBUS)
@@ -73,16 +70,24 @@ bt_devices: bt_devices.o
 bt_devices.o: ../src/bt_devices.c
 	$(CC) -c bt_devices.o $(CFLAGS_DBUS) ../src/bt_devices.c
 
+wifi_scan.o: $(WIFI_SCAN_DIRECTORY)/wifi_scan.c
+	+make -C $(WIFI_SCAN_DIRECTORY)
+
 $(WIFI_SCAN_DIRECTORY)/wifi-scan-all:
-	make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-all
+	+make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-all
 
 $(WIFI_SCAN_DIRECTORY)/wifi-scan-station:
-	make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-station
+	+make -C $(WIFI_SCAN_DIRECTORY) wifi-scan-station
 	
 $(WIFI_SCAN_DIRECTORY)/wifi_scan.h:
 	GIT_SSL_NO_VERIFY=true git clone https://github.com/bmegli/wifi-scan.git $(WIFI_SCAN_DIRECTORY)
 
 $(WIFI_SCAN_DIRECTORY)/wifi_scan.c: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
+	
+../src/wifi.h: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
+
+radio_app.o: ../src/radio_app.c ../src/radio_app.h ../src/wifi.h
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o $(MENU_OBJS)
 	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o $(MENU_OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
@@ -161,11 +166,11 @@ menu/Menu.o: ../src/menu/Menu.cpp
 menu/Menu%.o: ../src/menu/Menu%.cpp
 	$(CXX) $(CFLAGS) -c -o $@ "$<"
 
-mainObjective.o: base.o sdl_util.o menu/menu.o menu/glyph_obj.o menu/text_obj.o ../src/mainObjective.cpp ../src/menu/MenuCtrl.cpp ../src/menu/Menu.cpp ../src/menu/MenuItem.cpp
+mainObjective.o: base.o sdl_util.o $(MENU_OBJS) ../src/mainObjective.cpp ../src/menu/MenuCtrl.cpp ../src/menu/Menu.cpp ../src/menu/MenuItem.cpp
 	$(CXX) $(CFLAGS) -c ../src/mainObjective.cpp
 
-mainObjective: mainObjective.o menu/menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o base.o sdl_util.o base/log_contexts.o
-	$(CXX) -o mainObjective mainObjective.o base.o sdl_util.o log_contexts.o menu/menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o $(LIBS_SDL)
+mainObjective: mainObjective.o menu/menu_menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o
+	$(CXX) -o mainObjective mainObjective.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o $(MENU_OBJS) menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o $(LIBS_SDL)
 
 java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 	mkdir -p java
@@ -173,8 +178,8 @@ java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 
 
 clean:
-	rm -f $(OBJS) main.o wifi.o wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301 bt_devices
+	rm -f $(OBJS) main.o wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301 bt_devices
 	rm -rf menu
 	rm -rf audio
 	rm -rf base 
-	make -C $(WIFI_SCAN_DIRECTORY) clean
+	+make -C $(WIFI_SCAN_DIRECTORY) clean

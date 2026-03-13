@@ -1,7 +1,26 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #ifndef MENUCTRL_H
 #define MENUCTRL_H
-#include "menu.h"
 #include "Menu.h"
+#include "menu_ctrl_priv.h"
+#include <stdint.h>
 
 class MenuCtrl {
 
@@ -23,14 +42,14 @@ public:
           item_action *action,
 	  menu_callback *callBack);
     ~MenuCtrl();
-    void quit();
+    void dispose();
     void loop();
     void setRadii(int radiusLabels, int radiusScalesStart, int radiusScalesEnd);
     int applyTheme(theme *theme);
-    int setBackgroundColor(Uint8 r, Uint8 g, Uint8 b);
-    int setDefaultColor(Uint8 r, Uint8 g, Uint8 b);
-    int setActiveColor(Uint8 r, Uint8 g, Uint8 b);
-    int setSelectedColor(Uint8 r, Uint8 g, Uint8 b);
+    int setBackgroundColor(u_int8_t r, u_int8_t g, u_int8_t b);
+    int setDefaultColor(u_int8_t r, u_int8_t g, u_int8_t b);
+    int setActiveColor(u_int8_t r, u_int8_t g, u_int8_t b);
+    int setSelectedColor(u_int8_t r, u_int8_t g, u_int8_t b);
     void setLight(double x, double y, double radius, double alpha);
     void setLightImage(char *path, int x, int y);
     void enableFontBumpmap();

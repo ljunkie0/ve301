@@ -1,10 +1,11 @@
 /*
- * Copyright 2022 LJunkie
- * https://github.com/ljunkie0/ve301
+ * VE301
  *
- * This program is free software; you can redistribute it and/or modify
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -12,9 +13,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #define _GNU_SOURCE
@@ -425,16 +425,7 @@ int init_weather(time_t update_interval, const char *api_key, const char *locati
     __weather_url = malloc((l1+l2+l3+l4+1) * sizeof(char));
     __weather_url[0] = 0;
 
-    strcat(__weather_url,WEATHER_BASE_URL);
-
-    strcat(__weather_url,"?units=");
-    strcat(__weather_url,units);
-
-    strcat(__weather_url,"&q=");
-    strcat(__weather_url,location);
-
-    strcat(__weather_url,"&appid=");
-    strcat(__weather_url,api_key);
+    sprintf(__weather_url, "%s?units=%s&q=%s&appid=%s", WEATHER_BASE_URL, units, location, api_key);
 
     log_info(WEATHER_CTX,"Weather URL: %s\n", __weather_url);
 

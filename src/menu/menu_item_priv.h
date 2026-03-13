@@ -1,3 +1,21 @@
+/*
+ * VE301
+ *
+ * Copyright (C) 2024 LJunkie <christoph.pickart@gmx.de>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #ifndef MENU_ITEM_PRIV_H
 #define MENU_ITEM_PRIV_H
 
@@ -39,6 +57,6 @@ typedef struct menu_item {
 void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius);
 int menu_item_draw(menu_item *item, menu_item_state st, double angle);
 void menu_item_rebuild_glyphs(menu_item *item);
-int menu_item_action(menu_event evt, menu_ctrl *ctrl, menu_item *item);
+void menu_item_action(menu_event evt, menu_ctrl *ctrl, menu_item *item);
 
 #endif // MENU_ITEM_PRIV_H
