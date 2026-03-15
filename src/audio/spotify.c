@@ -114,6 +114,7 @@ static int __spotify_callback(struct lws *wsi, enum lws_callback_reasons reason,
         web_socket = NULL;
     } else if (reason == LWS_CALLBACK_CLIENT_CLOSED) {
         log_info(SPOTIFY_CTX, "WebSocket connection closed\n");
+        web_socket = NULL;
     }
     return 0;
 }
@@ -160,35 +161,26 @@ void *__spotify_thread_func(void *data) {
         if (__spotify_thread_run && tv.tv_sec != old) {
             /* Connect if we are not connected to the server. */
             if (__spotify_thread_run && !web_socket && tv.tv_sec - old_conn_check > 5) {
-                if (++connection_tries <= SPOTIFY_MAX_CONNECT_TRIES) {
-                    connection_tries++;
-                    struct lws_client_connect_info ccinfo;
-                    memset(&ccinfo, 0, sizeof(ccinfo));
+                connection_tries++;
+                struct lws_client_connect_info ccinfo;
+                memset(&ccinfo, 0, sizeof(ccinfo));
 
-                    ccinfo.context = context;
-                    ccinfo.address = __spotify_host;
-                    ccinfo.port = 3678;
-                    ccinfo.path = "/events";
-                    ccinfo.host = lws_canonical_hostname(context);
-                    ccinfo.origin = ccinfo.host;
-                    ccinfo.protocol = protocols[PROTOCOL_EXAMPLE].name;
+                ccinfo.context = context;
+                ccinfo.address = __spotify_host;
+                ccinfo.port = 3678;
+                ccinfo.path = "/events";
+                ccinfo.host = lws_canonical_hostname(context);
+                ccinfo.origin = ccinfo.host;
+                ccinfo.protocol = protocols[PROTOCOL_EXAMPLE].name;
 
-                    log_info(SPOTIFY_CTX, "Trying to connect to %s\n", __spotify_host);
-                    web_socket = lws_client_connect_via_info(&ccinfo);
+                log_info(SPOTIFY_CTX, "Trying to connect to %s\n", __spotify_host);
+                web_socket = lws_client_connect_via_info(&ccinfo);
 
-                    if (web_socket) {
-                        log_info(SPOTIFY_CTX, "Connection successfull\n");
-                        lws_set_timeout(web_socket, PENDING_TIMEOUT_AWAITING_CONNECT_RESPONSE, 1);
-                    } else {
-                        log_info(SPOTIFY_CTX, "Connection failed\n");
-                    }
-
+                if (web_socket) {
+                    log_info(SPOTIFY_CTX, "Connection successfull\n");
+                    lws_set_timeout(web_socket, PENDING_TIMEOUT_AWAITING_CONNECT_RESPONSE, 1);
                 } else {
-                    log_warning(SPOTIFY_CTX,
-                                "Could not establish connection to spotify after %d "
-                                "tries. Giving up.\n",
-                                SPOTIFY_MAX_CONNECT_TRIES);
-                    __spotify_thread_run = 0;
+                    log_info(SPOTIFY_CTX, "Connection failed\n");
                 }
 
                 old_conn_check = tv.tv_sec;
@@ -196,9 +188,9 @@ void *__spotify_thread_func(void *data) {
         }
 
         if (__spotify_thread_run && web_socket) {
-            log_info(SPOTIFY_CTX, "Processing websocket activities\n");
+            log_config(SPOTIFY_CTX, "Processing websocket activities\n");
             lws_service(context, /* timeout_ms = */ 1000);
-            log_info(SPOTIFY_CTX, "Done processing websocket activities\n");
+            log_config(SPOTIFY_CTX, "Done processing websocket activities\n");
         }
 
         old = tv.tv_sec;

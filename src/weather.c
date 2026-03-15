@@ -41,11 +41,19 @@ typedef struct response {
 
 size_t write_fnc(char *ptr, size_t size, size_t nmemb, void *userdata) {
     response *r = (response *) userdata;
-    r->text = realloc(r->text,(r->length+nmemb+1)*sizeof(char));
-    strncpy(r->text+r->length, ptr, nmemb);
-    r->length += nmemb;
+    size_t bytes = size * nmemb;
+    if (bytes == 0) {
+        return 0;
+    }
+    char *new_text = realloc(r->text, (r->length + bytes + 1) * sizeof(char));
+    if (!new_text) {
+        return 0;
+    }
+    r->text = new_text;
+    memcpy(r->text + r->length, ptr, bytes);
+    r->length += bytes;
     r->text[r->length] = 0;
-    return nmemb;
+    return bytes;
 }
 
 static char *__weather_url;
@@ -56,6 +64,7 @@ weather *__weather_last_result = NULL;
 
 static pthread_t __weather_thread;
 static int __weather_thread_run = 0;
+static int __weather_thread_started = 0;
 
 #define DAY_SUNNY 0xF00D
 #define DAY_CLOUDY 0xF002
@@ -445,6 +454,11 @@ int cleanup_weather() {
             free(__weather_last_result->weather_icon);
         }
         free (__weather_last_result);
+        __weather_last_result = NULL;
+    }
+    if (__weather_url) {
+        free(__weather_url);
+        __weather_url = NULL;
     }
     return 1;
 
@@ -489,38 +503,40 @@ weather *get_weather() {
                 double main_id = 0;
                 double temp = 0.0;
 
-                cJSON *json = cJSON_Parse(r->text);
-                cJSON *weather_array = cJSON_GetObjectItem(json,"weather");
-                if (cJSON_GetArraySize(weather_array)) {
-                    cJSON *weather_obj = cJSON_GetArrayItem(weather_array,0);
-                    cJSON *weather_main_obj = cJSON_GetObjectItem(weather_obj,"main");
-                    main_str = cJSON_GetStringValue(weather_main_obj);
-                    main_id = cJSON_GetNumberValue(weather_main_obj);
-                    cJSON *weather_main_id_obj = cJSON_GetObjectItem(weather_obj,"id");
-                    if (weather_main_id_obj) {
-                        main_id = cJSON_GetNumberValue(weather_main_id_obj);
-                    }
-                }
-
-                cJSON *main_obj = cJSON_GetObjectItem(json,"main");
-                if (main_obj) {
-                    cJSON *temp_obj = cJSON_GetObjectItem(main_obj,"temp");
-                    temp = cJSON_GetNumberValue(temp_obj);
-                }
-
-                if (main_str) {
-                    if (__weather_last_result) {
-                        if (__weather_last_result->weather_icon) {
-                            free (__weather_last_result->weather_icon);
+                cJSON *json = r->text ? cJSON_Parse(r->text) : NULL;
+                if (json) {
+                    cJSON *weather_array = cJSON_GetObjectItem(json,"weather");
+                    if (cJSON_GetArraySize(weather_array)) {
+                        cJSON *weather_obj = cJSON_GetArrayItem(weather_array,0);
+                        cJSON *weather_main_obj = cJSON_GetObjectItem(weather_obj,"main");
+                        main_str = cJSON_GetStringValue(weather_main_obj);
+                        main_id = cJSON_GetNumberValue(weather_main_obj);
+                        cJSON *weather_main_id_obj = cJSON_GetObjectItem(weather_obj,"id");
+                        if (weather_main_id_obj) {
+                            main_id = cJSON_GetNumberValue(weather_main_id_obj);
                         }
-                        free (__weather_last_result);
                     }
-                    __weather_last_result = malloc(sizeof(weather));
-                    __weather_last_result->weather_icon = get_day_weather_icon_character(main_id);
-                    __weather_last_result->temp = temp;
-                }
 
-                cJSON_Delete(json);
+                    cJSON *main_obj = cJSON_GetObjectItem(json,"main");
+                    if (main_obj) {
+                        cJSON *temp_obj = cJSON_GetObjectItem(main_obj,"temp");
+                        temp = cJSON_GetNumberValue(temp_obj);
+                    }
+
+                    if (main_str) {
+                        if (__weather_last_result) {
+                            if (__weather_last_result->weather_icon) {
+                                free (__weather_last_result->weather_icon);
+                            }
+                            free (__weather_last_result);
+                        }
+                        __weather_last_result = malloc(sizeof(weather));
+                        __weather_last_result->weather_icon = get_day_weather_icon_character(main_id);
+                        __weather_last_result->temp = temp;
+                    }
+
+                    cJSON_Delete(json);
+                }
             }
             if (r->text) {
                 free (r->text);
@@ -570,19 +586,27 @@ void *on_weather_thread_start(void *__weather_listener) {
 }
 
 void start_weather_thread(weather_listener *listener) {
+    if (__weather_thread_started) {
+        return;
+    }
     __weather_thread_run = 1;
     int r = pthread_create(&__weather_thread, NULL, on_weather_thread_start, listener);
     if (r) {
         __weather_thread_run = 0;
         log_error(WEATHER_CTX, "Could not start weather thread: %d\n", r);
+    } else {
+        __weather_thread_started = 1;
     }
 }
 
 void stop_weather_thread() {
     __weather_thread_run = 0;
 
-    void *res;
-    pthread_join(__weather_thread, &res);
+    if (__weather_thread_started) {
+        void *res;
+        pthread_join(__weather_thread, &res);
+        __weather_thread_started = 0;
+    }
     cleanup_weather();
 
 }

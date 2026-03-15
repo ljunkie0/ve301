@@ -378,7 +378,7 @@ void update_album_menu(char *artist) {
         log_config(MAIN_CTX, "Album successfully received\n");
         unsigned int r = 0;
         for (r = 0; r < a; r++) {
-            log_config(MAIN_CTX, "Getting album %d\n", albums[r]);
+            log_config(MAIN_CTX, "Getting album %s\n", albums[r]);
             menu_item *mi = menu_add_sub_menu(app->album_menu, albums[r], app->song_menu, NULL);
             menu_item_set_object_type(mi, OBJ_TYPE_ALBUM);
         }
@@ -1140,5 +1140,29 @@ void radio_app_close() {
     audio_disconnect();
     log_info(MAIN_CTX, "Audio stopped\n");
     menu_ctrl_dispose(app->ctrl);
+    if (app->radio_player) {
+        player_free(app->radio_player);
+        app->radio_player = NULL;
+    }
+    if (app->check_internet_interval) {
+        time_check_interval_free(app->check_internet_interval);
+        app->check_internet_interval = NULL;
+    }
+#ifdef ALSA
+    if (app->default_mixer) {
+        free(app->default_mixer);
+        app->default_mixer = NULL;
+    }
+#endif
+    if (app->time_menu_item_format) {
+        free(app->time_menu_item_format);
+        app->time_menu_item_format = NULL;
+    }
+    if (app->wthr.weather_icon) {
+        free(app->wthr.weather_icon);
+        app->wthr.weather_icon = NULL;
+    }
     base_close();
+    free(app);
+    app = NULL;
 }

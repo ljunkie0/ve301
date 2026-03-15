@@ -50,35 +50,40 @@ void *__audio_connect_thread_func(void *p) {
     unsigned int mpd_port = (unsigned int) get_config_value_int("mpd_port", MPD_PORT);
 
     log_info(AUDIO_CTX, "init_mpd: No connection. Recreating one with time out 3sec.\n");
-    mpd_conn = mpd_connection_new(mpd_host, mpd_port, 3000);
+    struct mpd_connection *conn = mpd_connection_new(mpd_host, mpd_port, 3000);
 
-    if (!mpd_conn) {
+    if (!conn) {
         log_error(AUDIO_CTX,
                   "Can't connect to mpd running on host %s, port %d\n",
                   mpd_host,
                   mpd_port);
     } else {
-        enum mpd_error err = mpd_connection_get_error(mpd_conn);
+        enum mpd_error err = mpd_connection_get_error(conn);
         if (err != MPD_ERROR_SUCCESS) {
             log_error(AUDIO_CTX,
                       "Can't connect to mpd: %s\n",
-                      mpd_connection_get_error_message(mpd_conn));
-            mpd_connection_free(mpd_conn);
-            mpd_conn = NULL;
+                      mpd_connection_get_error_message(conn));
+            mpd_connection_free(conn);
+            conn = NULL;
         } else {
             log_info(AUDIO_CTX, "Successfully connected to mpd.\n");
         }
     }
 
-    if (mpd_conn) {
+    if (conn) {
         log_info(AUDIO_CTX, "Running update\n");
-        if (!mpd_run_update(mpd_conn, NULL)) {
-            log_error(AUDIO_CTX,
-                      "Can't run update: %s\n",
-                      mpd_connection_get_error_message(mpd_conn));
-            mpd_connection_clear_error(mpd_conn);
+        if (!mpd_run_update(conn, NULL)) {
+            if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
+                log_error(AUDIO_CTX,
+                          "Can't run update: %s\n",
+                          mpd_connection_get_error_message(conn));
+                mpd_connection_clear_error(conn);
+            } else {
+                log_error(AUDIO_CTX, "Can't run update\n");
+            }
         }
 
+        mpd_conn = conn;
         current_song = song_new(0, NULL, NULL, NULL);
     }
 
@@ -524,6 +529,7 @@ char **get_items(enum mpd_tag_type tag, enum mpd_tag_type matchTag1,
                 int l = strlen(pair->value);
                 char *item = malloc((l + 1) * sizeof(char));
                 strncpy(item, pair->value, l);
+                item[l] = 0;
                 log_config(AUDIO_CTX, "Item: %s\n", item);
                 result = realloc(result, (a + 1) * sizeof(char *));
                 result[a++] = item;

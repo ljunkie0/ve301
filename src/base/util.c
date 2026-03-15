@@ -67,6 +67,12 @@ void get_sinus_and_cosinus(int angle, double *cos, double *sin) {
     }
 }
 
+void util_cleanup(void) {
+    free_and_set_null((void **) &cosinuses);
+    free_and_set_null((void **) &sinuses);
+    free_and_set_null((void **) &square_roots);
+}
+
 char *my_copynstr(const char *str, size_t max_length) {
     char *res = NULL;
     if (str) {

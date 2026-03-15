@@ -236,6 +236,8 @@ void base_init(const char *appname, FILE *dflt_log_file, int log_level) {
 
 void base_close() {
     __stop_internet_thread();
+    util_cleanup();
     free_config();
     close_log_file();
+    free_and_set_null((void **) &__app);
 }

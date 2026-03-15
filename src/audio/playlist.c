@@ -22,7 +22,12 @@
 
 int playlist_add_song(playlist *p, song *s) {
     p->n_songs++;
-    p->songs = realloc(p->songs, (p->n_songs * sizeof(song *)));
+    song **new_songs = realloc(p->songs, (p->n_songs * sizeof(song *)));
+    if (!new_songs) {
+        p->n_songs--;
+        return 0;
+    }
+    p->songs = new_songs;
     p->songs[p->n_songs - 1] = s;
     return 1;
 }

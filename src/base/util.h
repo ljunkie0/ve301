@@ -38,5 +38,6 @@ char *my_strdup(const char *str);
 int is_blank(const char *str);
 
 void get_sinus_and_cosinus(int angle, double *cos, double *sin);
+void util_cleanup(void);
 
 #endif // UTIL_H

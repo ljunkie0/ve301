@@ -314,6 +314,12 @@ void menu_free(menu *m) {
         if (m->bg_image) {
             SDL_DestroyTexture(m->bg_image);
         }
+        if (m->font) {
+            TTF_CloseFont(m->font);
+        }
+        if (m->font2) {
+            TTF_CloseFont(m->font2);
+        }
         if (m->selected_color) {
             free (m->selected_color);
             m->selected_color = NULL;
@@ -503,6 +509,10 @@ char *menu_get_label(menu *m) {
 }
 
 void menu_set_label(menu *m, const char *label) {
+    if (m->label) {
+        free(m->label);
+        m->label = NULL;
+    }
     m->label = my_copystr(label);
 }
 

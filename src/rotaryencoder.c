@@ -84,7 +84,8 @@ struct _pi_renc_s
    int levRight;
    int levPush;
    int lastGpio;
-   timer_t *push_button_timer;
+   timer_t push_button_timer;
+   int has_push_button_timer;
    int timerFired;
 };
 
@@ -132,7 +133,12 @@ void print_event_queue() {
 
 void enqueue_event(int event) {
     log_config(ENCODER_CTX, "enqueue_event(%d)\n", event);
-    event_queue = realloc(event_queue,(queued_events+1)*sizeof(int));
+    int *new_queue = realloc(event_queue, (queued_events + 1) * sizeof(int));
+    if (!new_queue) {
+        log_error(ENCODER_CTX, "enqueue_event: realloc failed, dropping event %d\n", event);
+        return;
+    }
+    event_queue = new_queue;
     log_config(ENCODER_CTX, "enqueue_event: queued events: %d\n", queued_events);
     event_queue[queued_events++] = event;
 }
@@ -141,7 +147,7 @@ static void push_button_timer_handler(union sigval sv) {
     pi_renc_t *renc = sv.sival_ptr;
     log_config(ENCODER_CTX, "pushButtonTimerHandler: renc->levPush = %d\n", renc->levPush);
     if (renc->levPush == 0) {
-        if (renc->push_button_timer) {
+        if (renc->has_push_button_timer) {
             // Disarm timer
             struct itimerspec trigger;
             memset(&trigger, 0, sizeof(struct itimerspec));
@@ -185,9 +191,6 @@ static void _cb(int gpio, int level, void *user) {
                 renc->levPush = level;
 
                 log_config(ENCODER_CTX, "pushbutton %d pressed. Creating timer\n", renc->gpioPush);
-                timer_t *timerid = malloc(sizeof(timer_t));
-                renc->push_button_timer = timerid;
-
                 struct sigevent sev;
                 struct itimerspec trigger;
 
@@ -210,8 +213,10 @@ static void _cb(int gpio, int level, void *user) {
                  * clock, meaning that we're using a system-wide real-time clock for
                  * this timer.
                  */
-                if (timer_create(CLOCK_REALTIME, &sev, timerid) < 0) {
+                if (timer_create(CLOCK_REALTIME, &sev, &renc->push_button_timer) < 0) {
                     log_error(ENCODER_CTX, "Could not set timer: %d\n", errno);
+                } else {
+                    renc->has_push_button_timer = 1;
                 }
 
                 /* Timer expiration will occur HELD_(N)SEC after being armed
@@ -224,15 +229,17 @@ static void _cb(int gpio, int level, void *user) {
 
                 renc->timerFired = 0;
 
-                timer_settime(*timerid, 0, &trigger, NULL);
+                if (renc->has_push_button_timer) {
+                    timer_settime(renc->push_button_timer, 0, &trigger, NULL);
+                }
 
             } else { // level == 1 -> released (ergo pushed)
                 renc->levPush = level;
                 log_config(ENCODER_CTX, "pushbutton %d released.", renc->gpioPush);
-                if (renc->push_button_timer) {
+                if (renc->has_push_button_timer) {
                     log_config(ENCODER_CTX, " Deleting timer.");
                     timer_delete(renc->push_button_timer);
-                    renc->push_button_timer = 0;
+                    renc->has_push_button_timer = 0;
                 }
 
                 log_config(ENCODER_CTX, "\n");
@@ -264,7 +271,7 @@ pi_renc_t * pi_renc_new(int id, int gpioLeft, int gpioRight, int gpioPush, int g
    renc->gpioLeft = gpioLeft;
    renc->gpioRight = gpioRight;
    renc->callback = callback;
-   renc->push_button_timer = 0;
+   renc->has_push_button_timer = 0;
    renc->levLeft=digitalRead(renc->gpioLeft);
    renc->levRight=digitalRead(renc->gpioRight);
    renc->lastGpio = -1;
@@ -337,8 +344,9 @@ void pi_renc_cancel(pi_renc_t *renc)
 {
    if (renc) {
 
-      if (renc->push_button_timer) {
-        timer_delete(*(renc->push_button_timer));
+      if (renc->has_push_button_timer) {
+        timer_delete(renc->push_button_timer);
+        renc->has_push_button_timer = 0;
       }
 
       log_debug(ENCODER_CTX, "free (renc -> %p)\n", renc);
@@ -424,4 +432,3 @@ void setup_encoder() {
     }
 
 }
-
