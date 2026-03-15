@@ -20,7 +20,9 @@
 #define _GNU_SOURCE
 
 #include "radio_app.h"
+#ifdef ALSA
 #include "audio/alsa.h"
+#endif
 #include "audio/audio.h"
 #include "audio/bluetooth.h"
 #include "audio/player.h"
@@ -49,7 +51,6 @@ struct radio_app {
     menu *current_menu;
     menu *volume_menu;
     menu *message_menu;
-    menu *mixer_menu;
     menu_item *message_menu_item;
     menu_item *player_item;
     menu_item *title_item;
@@ -60,7 +61,10 @@ struct radio_app {
     menu_item *volume_menu_item;
     char *volume_mixer;
     char *time_menu_item_format;
+#ifdef ALSA
     char *default_mixer;
+    menu *mixer_menu;
+#endif
     int info_menu_item_seconds;
     radio_theme *default_theme;
     player *radio_player;
@@ -626,6 +630,8 @@ void menu_action_activate(menu *m, menu_item *item) {
 }
 
 void mixer_turn_action(menu *m_ptr, int direction) {
+    log_config(MAIN_CTX, "menu_turn_action(%d)\n", direction);
+#ifdef ALSA
     if (menu_get_current_item(m_ptr)
         && menu_item_get_object_type(menu_get_current_item(m_ptr)) == OBJ_TYPE_MIXER) {
         log_config(MAIN_CTX, "Mixer menu\n");
@@ -651,6 +657,18 @@ void mixer_turn_action(menu *m_ptr, int direction) {
         menu_item_update_label(app->volume_menu_item, label);
         menu_item_show(app->volume_menu_item);
     }
+#else
+    log_config(MAIN_CTX, "Volume menu item\n");
+    menu_item_show(app->volume_menu_item);
+    int vol = get_volume() + direction * 2;
+    log_config(MAIN_CTX, "Current volume: %d\n", vol);
+    set_volume(vol);
+    log_config(MAIN_CTX, "New volume: %d\n", vol);
+    char label[13];
+    vol_label(label, vol);
+    menu_item_update_label(app->volume_menu_item, label);
+    menu_item_show(app->volume_menu_item);
+#endif
 }
 
 void init_mixer_menu(radio_config config) {
@@ -663,6 +681,7 @@ void init_mixer_menu(radio_config config) {
         menu_set_bg_image(app->volume_menu, config.info_bg_image_path);
     }
 
+#ifdef ALSA
     app->mixer_menu = menu_new_root(app->ctrl, 1, NULL, 0, NULL, 0);
     menu_set_label(app->mixer_menu, "Mixers");
     menu_set_transient(app->mixer_menu, 1);
@@ -683,6 +702,10 @@ void init_mixer_menu(radio_config config) {
     free(alsa_mixers);
 
     const int volume = alsa_get_volume(app->default_mixer);
+#else
+    const int volume = get_volume();
+#endif
+
     char label[13];
     vol_label(label, volume);
 
@@ -700,6 +723,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     case ACTIVATE:
         menu_action_activate(m_ptr, item_ptr);
         break;
+#ifdef ALSA
     case ACTIVATE_1:
         if (m_ptr == app->mixer_menu && item_ptr) {
             menu_open_sub_menu(app->ctrl, item_ptr);
@@ -730,6 +754,14 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
             mixer_turn_action(m_ptr, 1);
         }
         break;
+#else
+    case TURN_LEFT_1:
+        mixer_turn_action(m_ptr, -1);
+        break;
+    case TURN_RIGHT_1:
+        mixer_turn_action(m_ptr, 1);
+        break;
+#endif
     case DISPOSE:
         if (menu_item_get_object(item_ptr) && menu_item_get_menu(item_ptr) != app->radio_menu) {
             const void *obj = menu_item_get_object(item_ptr);
@@ -1006,7 +1038,9 @@ void radio_app_create_menu(radio_config config) {
                               &menu_action_listener,
                               &menu_call_back);
 
+#ifdef ALSA
     app->default_mixer = my_copystr(config.alsa_mixer_name);
+#endif
     app->time_menu_item_format = my_copystr(config.time_menu_item_format);
 
     app->info_menu_item_seconds = config.info_menu_item_seconds;

@@ -94,7 +94,7 @@ void menu_item_warp_to(menu_item *item) {
               item,
               item->menu,
               item->menu->ctrl,
-              item->menu->ctrl->object);
+              item->menu->ctrl->user_data);
     menu *m = (menu *) item->menu;
     menu_ctrl *ctrl = (menu_ctrl *) m->ctrl;
     if (m != ctrl->current) {
@@ -139,7 +139,7 @@ void menu_item_warp_to(menu_item *item) {
 
     ctrl->warping = 0;
 
-    log_debug(MENU_CTX, "menu_item_warp_to: ctrl->object = %p->%p\n", ctrl, ctrl->object);
+    log_debug(MENU_CTX, "menu_item_warp_to: ctrl->object = %p->%p\n", ctrl, ctrl->user_data);
 }
 
 int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Texture *bg_image) {
@@ -386,6 +386,10 @@ void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset) {
         menu_update_cnt_rad(ctrl->root[r],ctrl->center,ctrl->radius_labels, 1);
     }
 
+}
+
+void *menu_ctrl_get_user_data(menu_ctrl *ctrl) {
+    return ctrl->user_data;
 }
 
 menu *menu_ctrl_get_root(menu_ctrl *ctrl) {
@@ -643,7 +647,7 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
     ctrl->root = NULL;
     ctrl->n_roots = 0;
 
-    ctrl->object = NULL;
+    ctrl->user_data = NULL;
 
     ctrl->offset = 1.2;
 
@@ -888,7 +892,7 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
         free_and_set_null((void **) &ctrl->indicator_color_light);
         free_and_set_null((void **) &ctrl->scale_color);
         free_and_set_null((void **) &ctrl->selected_color);
-        free_and_set_null((void **) &ctrl->object);
+        free_and_set_null((void **) &ctrl->user_data);
 
         if (ctrl->font) {
             TTF_CloseFont(ctrl->font);

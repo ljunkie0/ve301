@@ -87,11 +87,20 @@ void *__audio_connect_thread_func(void *p) {
     return 0;
 }
 
+void __response_finish() {
+    if (!mpd_response_finish(mpd_conn)) {
+        log_error(AUDIO_CTX,
+                  "Failed in waiting for response to finish: %s\n",
+                  mpd_connection_get_error_message(mpd_conn));
+    }
+}
+
 int init_audio() {
     log_debug(AUDIO_CTX, "Audio init\n");
 
     if (mpd_conn != NULL) {
         log_config(AUDIO_CTX, "init_mpd: Checking existing connection...");
+        __response_finish();
         if (mpd_connection_get_error(mpd_conn) != MPD_ERROR_SUCCESS) {
             log_warning(AUDIO_CTX, "ERROR\n");
             log_warning(AUDIO_CTX, "Error on server: %s\n",
@@ -120,13 +129,40 @@ int init_audio() {
     return 1;
 }
 
+int get_volume() {
+    if (init_audio()) {
+        int vol = mpd_run_get_volume(mpd_conn);
+        if (vol < 0) {
+            log_error(AUDIO_CTX,
+                      "Failed to get volume from mpd: %s\n",
+                      mpd_connection_get_error_message(mpd_conn));
+            __response_finish();
+            return 0;
+        }
+        return vol;
+    }
+    return 0;
+}
+
+void set_volume(int vol) {
+    if (init_audio()) {
+        if (!mpd_send_set_volume(mpd_conn, (unsigned int) vol)) {
+            log_error(AUDIO_CTX,
+                      "Failed to set volume %d: %s\n",
+                      vol,
+                      mpd_connection_get_error_message(mpd_conn));
+            __response_finish();
+        }
+    }
+}
+
 int add_song(song *s) {
     if (init_audio()) {
         int id = mpd_run_add_id(mpd_conn, s->url);
         if (id < 0) {
             log_error(AUDIO_CTX, "Failed to add path %s to queue: %s\n", s->url,
                       mpd_connection_get_error_message(mpd_conn));
-            mpd_response_finish(mpd_conn);
+            __response_finish();
             return 0;
         }
         s->id = (unsigned int)id;
@@ -137,13 +173,18 @@ int add_song(song *s) {
 }
 
 int play_by_id(song *s) {
-    if (!mpd_run_play_id(mpd_conn, s->id)) {
-        log_error(AUDIO_CTX, "Failed to play title: %s\n",
-                  mpd_connection_get_error_message(mpd_conn));
-        mpd_response_finish(mpd_conn);
+    if (init_audio()) {
+        if (!mpd_run_play_id(mpd_conn, s->id)) {
+            log_error(AUDIO_CTX,
+                      "Failed to play title: %s\n",
+                      mpd_connection_get_error_message(mpd_conn));
+            __response_finish();
+            return 0;
+        }
+        return 1;
+    } else {
         return 0;
     }
-    return 1;
 }
 
 int play_song(song *s) {
@@ -159,12 +200,10 @@ int play_song(song *s) {
         if (!mpd_run_play_id(mpd_conn, s->id)) {
             log_error(AUDIO_CTX, "Failed to play title: %s\n",
                       mpd_connection_get_error_message(mpd_conn));
-            mpd_response_finish(mpd_conn);
+            __response_finish();
             add_song(s);
             return play_by_id(s);
         }
-
-        mpd_response_finish(mpd_conn);
     }
     return 1;
 }

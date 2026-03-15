@@ -3,3 +3,5 @@ src/java
 PC/wifi-scan
 /usr/include/dbus-1.0
 /usr/lib/x86_64-linux-gnu/dbus-1.0/include
+/usr/lib/jvm/java-25-openjdk-amd64/include
+/usr/lib/jvm/java-25-openjdk-amd64/include/linux

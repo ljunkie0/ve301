@@ -51,7 +51,7 @@ typedef struct menu_item {
      * User data
     **/
     int object_type;
-    const void *object;
+    const void *user_data;
 } menu_item;
 
 void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius);

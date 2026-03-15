@@ -18,27 +18,27 @@
  */
 
 #include"menu_jni.h"
+#include "base/log_contexts.h"
+#include "base/logging.h"
 
-static char *menu_event_names[] = {
-    "TURN_LEFT",
-    "TURN_RIGHT",
-    "ACTIVATE",
-    "TURN_LEFT_1",
-    "TURN_RIGHT_1",
-    "ACTIVATE_1",
-    "DISPOSE",
-    "CLOSE"
-};
+static char *menu_event_names[] = {"TURN_LEFT",
+                                   "TURN_RIGHT",
+                                   "ACTIVATE",
+                                   "TURN_LEFT_1",
+                                   "TURN_RIGHT_1",
+                                   "ACTIVATE_1",
+                                   "DISPOSE",
+                                   "CLOSE"};
 
 int jni_menu_item_action(menu_event evt, menu *m, menu_item *item) {
-    const menu_item_jni *item_jni = (const menu_item_jni *) item->object;
+    const menu_item_jni *item_jni = (const menu_item_jni *) menu_item_get_object(item);
     if (item_jni) {
-        menu *menu = item->menu;
+        menu *menu = menu_item_get_menu(item);
         jobject listener = item_jni->item_listener;
         if (menu) {
-            menu_ctrl *ctrl = menu->ctrl;
+            menu_ctrl *ctrl = menu_get_ctrl(menu);
             if (ctrl) {
-                menu_ctrl_jni *ctrl_jni = (menu_ctrl_jni *) ctrl->object;
+                menu_ctrl_jni *ctrl_jni = (menu_ctrl_jni *) menu_ctrl_get_user_data(ctrl);
                 if (ctrl_jni) {
 
                     if (!listener) {
@@ -102,8 +102,8 @@ int jni_menu_ctrl_action(menu_event evt, menu *m, menu_item *item) {
     if (item) {
         return jni_menu_item_action(evt,m,item);
     } else if (m) {
-        menu_ctrl *ctrl = m->ctrl;
-        const menu_ctrl_jni *ctrl_jni = (const menu_ctrl_jni *) ctrl->object;
+        menu_ctrl *ctrl = menu_get_ctrl(m);
+        const menu_ctrl_jni *ctrl_jni = (const menu_ctrl_jni *) menu_ctrl_get_user_data(ctrl);
         if (ctrl_jni->item_listener) {
 
             JNIEnv *env;

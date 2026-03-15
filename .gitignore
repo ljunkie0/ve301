@@ -11,10 +11,16 @@ launch.json
 /PC/*.o
 /PC/**/*.o
 /PC/ve301
+/PC/menu/
+/PC/base/
+/PC/audio/
 /PC/wifi-scan/
 /Raspberry/*.o
 /Raspberry/**/*.o
 /Raspberry/ve301
+/Raspberry/menu/
+/Raspberry/base/
+/Raspberry/audio/
 /Raspberry/wifi-scan/
 ve301_new.cflags
 ve301_new.creator
@@ -29,3 +35,4 @@ ve301_new.includes
 /ve301.project
 /ve301.workspace
 /ve301.config
+/build/

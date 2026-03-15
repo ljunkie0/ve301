@@ -31,6 +31,8 @@ typedef struct directory {
 } directory;
 
 int init_audio(void);
+int get_volume();
+void set_volume(int vol);
 int play_song(song *s);
 int audio_disconnect(void);
 song *get_playing_song(void);

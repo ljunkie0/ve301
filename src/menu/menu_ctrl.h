@@ -106,6 +106,7 @@ void color_temp_to_rgb(double temp, u_int8_t *r, u_int8_t *g, u_int8_t *b, doubl
 int menu_ctrl_get_n_o_items_on_scale(menu_ctrl *ctrl);
 menu *menu_ctrl_get_active(menu_ctrl *ctrl);
 menu *menu_ctrl_get_root(menu_ctrl *ctrl);
+void *menu_ctrl_get_user_data(menu_ctrl *ctrl);
 
 #ifdef __cplusplus
 }

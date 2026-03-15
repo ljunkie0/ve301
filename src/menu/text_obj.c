@@ -119,7 +119,9 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
 
         text_obj *t = malloc(sizeof(text_obj));
         t->n_glyphs = unicode_length;
-        t->glyphs_objs = malloc(unicode_length * sizeof(glyph_obj *));
+        if (unicode_length) {
+            t->glyphs_objs = malloc(unicode_length * sizeof(glyph_obj *));
+        }
         log_debug(MENU_CTX, "Rendering surface for %s\n", unicode_text);
 
         SDL_Surface *text_surface = icon ? IMG_Load(icon) : TTF_RenderUNICODE_Blended(font, unicode_text, fg);

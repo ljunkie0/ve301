@@ -80,7 +80,7 @@ struct menu_ctrl {
     /**
      * User data
     **/
-    void *object;
+    void *user_data;
 };
 
 void menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle);

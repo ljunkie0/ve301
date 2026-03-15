@@ -17,8 +17,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "../base.h"
 #include "../menu/menu_ctrl.h"
+#include "../menu/menu_item.h"
 #include <jni.h>
 
 #ifndef MENU_JNI_H

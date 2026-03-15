@@ -250,7 +250,7 @@ menu *menu_new(
     m->current_id = -1;
     m->sticky = 0;
     m->dirty = 0;
-    m->object = NULL;
+    m->user_data = NULL;
 
     m->radius_labels = ctrl->radius_labels;
     m->radius_scales_start = ctrl->radius_scales_start;
@@ -309,7 +309,7 @@ void menu_free(menu *m) {
         free_and_set_null((void **) &m->default_color);
         free_and_set_null((void **) &m->selected_color);
         free_and_set_null((void **) &m->scale_color);
-        free_and_set_null((void **) &m->object);
+        free_and_set_null((void **) &m->user_data);
 
         if (m->bg_image) {
             SDL_DestroyTexture(m->bg_image);

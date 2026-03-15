@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 18.0.0, 2026-03-13T18:11:39. -->
+<!-- Written by QtCreator 18.0.0, 2026-03-15T11:19:05. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -86,43 +86,46 @@
      <value type="QString">/home/chris/Dokumente/Development/ve301/src/audio</value>
     </valuelist>
     <valuelist type="QVariantList" key="ClangTools.SelectedFiles">
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/theme.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/rotaryencoder.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_ctrl.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/base.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/radio_app.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_item.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/MenuCtrl.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/wifi.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_item.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/weather.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/glyph_obj.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/sdl_util.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/sdl_util.h</value>
      <value type="QString">/home/chris/Dokumente/Development/ve301/src/theme.c</value>
      <value type="QString">/home/chris/Dokumente/Development/ve301/src/main.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/Menu.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_menu.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_ctrl_priv.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_menu_priv.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/base.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/weather.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/input_menu.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/radio_app.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/text_obj.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_menu.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/glyph_obj.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/text_obj.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/rotaryencoder.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/sdl_util.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/sdl_util.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/glyph_obj.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/weather.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/wifi.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_item.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/MenuCtrl.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_item.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/base.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/radio_app.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_ctrl.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/rotaryencoder.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/theme.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_ctrl.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/input_menu.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_item_priv.h</value>
      <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/MenuItem.h</value>
      <value type="QString">/home/chris/Dokumente/Development/ve301/src/wifi.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_item_priv.h</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/input_menu.c</value>
-     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_ctrl.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/text_obj.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/rotaryencoder.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_menu.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/glyph_obj.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/text_obj.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/input_menu.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/radio_app.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/base.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/weather.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_ctrl_priv.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_menu_priv.h</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/menu_menu.c</value>
+     <value type="QString">/home/chris/Dokumente/Development/ve301/src/menu/Menu.h</value>
     </valuelist>
     <valuelist type="QVariantList" key="ClangTools.SuppressedDiagnostics"/>
     <value type="bool" key="ClangTools.UseGlobalSettings">false</value>
+   </valuemap>
+   <valuemap type="QVariantMap" key="CppEditor.QuickFix">
+    <value type="bool" key="UseGlobalSettings">true</value>
    </valuemap>
    <value type="int" key="RcSync">0</value>
   </valuemap>

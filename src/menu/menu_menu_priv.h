@@ -51,7 +51,7 @@ typedef struct menu {
     /**
      * User data
     **/
-    const void *object;
+    const void *user_data;
 } menu;
 
 void menu_set_radius(menu *m, int radius_labels, int radius_scales_start, int radius_scales_end);
