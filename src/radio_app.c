@@ -428,7 +428,7 @@ void update_song_menu(char *album, char *artist) {
     log_config(MAIN_CTX, "Update song menu: album = %s, artist = %s\n", album, artist);
     int id = 0;
     for (id = 0; id <= menu_get_max_id(app->song_menu); id++) {
-        song_free((song *) menu_item_get_object(menu_get_item(app->song_menu, id)));
+        song_free((song *) menu_item_get_user_data(menu_get_item(app->song_menu, id)));
     }
 
     menu_clear(app->song_menu);
@@ -485,17 +485,17 @@ void vol_label(char *buffer, int volume) {
 
 int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) {
     if (evt == DISPOSE) {
-        if (menu_item_get_object(item)) {
-            network_interface *interface = (network_interface *) menu_item_get_object(item);
+        if (menu_item_get_user_data(item)) {
+            network_interface *interface = (network_interface *) menu_item_get_user_data(item);
             free_network_interface(interface);
-            menu_item_set_object(item, NULL);
+            menu_item_set_user_data(item, NULL);
         }
     } else if (menu_item_get_sub_menu(item)) {
         menu *sub_menu = menu_item_get_sub_menu(item);
 
         menu_clear(sub_menu);
 
-        network_interface *interface = (network_interface *) menu_item_get_object(item);
+        network_interface *interface = (network_interface *) menu_item_get_user_data(item);
         char *ip_address_label = my_catstr("IP\n", interface->ipaddress);
         menu_item_new(
             sub_menu, ip_address_label, NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
@@ -540,13 +540,13 @@ int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
         return 0;
     }
 
-    menu_item_free_object(item);
+    menu_item_free_user_data(item);
 
     menu *sub_menu = menu_item_get_sub_menu(item);
     if (sub_menu) {
         int id = menu_get_max_id(sub_menu);
         while (id >= 0) {
-            menu_item_free_object(menu_get_item(sub_menu, id--));
+            menu_item_free_user_data(menu_get_item(sub_menu, id--));
         }
         menu_clear(sub_menu);
     }
@@ -554,7 +554,7 @@ int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
     network_interfaces *interfaces = get_network_interfaces();
 
     if (interfaces) {
-        menu_item_set_object(item, interfaces->interfaces);
+        menu_item_set_user_data(item, interfaces->interfaces);
         for (int i = 0; i < interfaces->n; i++) {
             network_interface *interface = interfaces->interfaces[i];
             interfaces->interfaces[i] = NULL;
@@ -564,7 +564,7 @@ int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
                                                           interface->ifname,
                                                           interface_menu,
                                                           &item_action_update_interface_menu);
-            menu_item_set_object(interface_item, interface);
+            menu_item_set_user_data(interface_item, interface);
         }
 
         free(interfaces->interfaces);
@@ -598,9 +598,10 @@ void menu_action_activate(menu *m, menu_item *item) {
                     update_song_menu(label, NULL);
                 }
             }
-        } else if (menu_item_get_object(item) && menu_item_get_object_type(item) == OBJ_TYPE_SONG) {
+        } else if (menu_item_get_user_data(item)
+                   && menu_item_get_object_type(item) == OBJ_TYPE_SONG) {
             menu_set_active_id(m, menu_item_get_id(item));
-            song *s = (song *) menu_item_get_object(item);
+            song *s = (song *) menu_item_get_user_data(item);
             song *p = get_playing_song();
             if (!p || (p->id != s->id)) {
                 if (!play_song(s)) {
@@ -763,18 +764,18 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
         break;
 #endif
     case DISPOSE:
-        if (menu_item_get_object(item_ptr) && menu_item_get_menu(item_ptr) != app->radio_menu) {
-            const void *obj = menu_item_get_object(item_ptr);
+        if (menu_item_get_user_data(item_ptr) && menu_item_get_menu(item_ptr) != app->radio_menu) {
+            const void *obj = menu_item_get_user_data(item_ptr);
             switch (menu_item_get_object_type(item_ptr)) {
             case OBJ_TYPE_DIRECTORY:
             case OBJ_TYPE_MIXER:
                 log_debug(MAIN_CTX, "free(%p)\n", obj);
                 free((void *) obj);
-                menu_item_set_object(item_ptr, NULL);
+                menu_item_set_user_data(item_ptr, NULL);
                 break;
             case OBJ_TYPE_SONG:
                 song_free((song *) obj);
-                menu_item_set_object(item_ptr, NULL);
+                menu_item_set_user_data(item_ptr, NULL);
                 break;
             case OBJ_TYPE_ALBUM:
             case OBJ_TYPE_ARTIST:

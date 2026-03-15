@@ -122,18 +122,18 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
 
 }
 
-const void *menu_item_get_object(menu_item *item) {
+const void *menu_item_get_user_data(menu_item *item) {
     return item->user_data;
 }
 
-void menu_item_free_object(menu_item *item) {
+void menu_item_free_user_data(menu_item *item) {
     if (item->user_data) {
         free_and_set_null((void **) &item->user_data);
     }
 }
 
-void menu_item_set_object(menu_item *item, void *object) {
-    item->user_data = object;
+void menu_item_set_user_data(menu_item *item, void *user_data) {
+    item->user_data = user_data;
 }
 
 void menu_item_set_visible(menu_item *item, const int visible) {
