@@ -59,7 +59,7 @@ MNL_LIB=/usr/lib/$(ARCH)/libmnl.so
 
 all: ve301
 
-ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o wifi.o wifi_scan.o
+ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o
 	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
 
 strip: ve301
@@ -128,6 +128,9 @@ audio:
 base:
 	mkdir base
 
+tests:
+	mkdir tests
+
 menu/menu.o: ../src/menu/menu.c ../src/menu/menu.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
@@ -155,23 +158,35 @@ audio/bluetooth.o: ../src/audio/bluetooth.c
 audio/bluetooth: audio/bluetooth.o
 	$(CC) -o bluetooth audio/bluetooth.o -ldbus-1
 
+tests/logging_output_test.o: ../src/tests/logging_output_test.c | tests
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+logging_output_test: tests/logging_output_test.o base/logging.o base/log_contexts.o base/util.o
+	$(CC) -o logging_output_test tests/logging_output_test.o base/logging.o base/log_contexts.o base/util.o $(LDFLAGS) -lpthread -lm
+
+tests/logging_output_test_trace.o: ../src/tests/logging_output_test.c | tests
+	$(CC) $(filter-out -DLOG_LEVEL=5,$(CFLAGS)) -DLOG_LEVEL=6 $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+logging_output_test_trace: tests/logging_output_test_trace.o base/logging.o base/log_contexts.o base/util.o
+	$(CC) -o logging_output_test_trace tests/logging_output_test_trace.o base/logging.o base/log_contexts.o base/util.o $(LDFLAGS) -lpthread -lm
+
 test_menu.o: ../src/test_menu.c
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 	
 test_menu: test_menu.o ${MENU_OBJS} base.o sdl_util.o $(ADDITIONAL_OBJS)
 	$(CC) -o test_menu test_menu.o $(MENU_OBJS) base.o sdl_util.o $(LDFLAGS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
 
-menu/Menu.o: ../src/menu/Menu.cpp
+menu/cpp:
+	mkdir -p menu/cpp
+
+menu/cpp/%.o: ../src/menu/cpp/%.cpp | menu/cpp
 	$(CXX) $(CFLAGS) -c -o $@ "$<"
 
-menu/Menu%.o: ../src/menu/Menu%.cpp
-	$(CXX) $(CFLAGS) -c -o $@ "$<"
-
-mainObjective.o: base.o sdl_util.o $(MENU_OBJS) ../src/mainObjective.cpp ../src/menu/MenuCtrl.cpp ../src/menu/Menu.cpp ../src/menu/MenuItem.cpp
+mainObjective.o: base.o sdl_util.o $(MENU_OBJS) ../src/mainObjective.cpp ../src/menu/cpp/MenuCtrl.cpp ../src/menu/cpp/Menu.cpp ../src/menu/cpp/MenuItem.cpp
 	$(CXX) $(CFLAGS) -c ../src/mainObjective.cpp
 
-mainObjective: mainObjective.o menu/menu_menu.o menu/glyph_obj.o menu/text_obj.o menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o
-	$(CXX) -o mainObjective mainObjective.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o $(MENU_OBJS) menu/MenuCtrl.o menu/Menu.o menu/MenuItem.o $(LIBS_SDL)
+mainObjective: mainObjective.o menu/menu_menu.o menu/glyph_obj.o menu/text_obj.o menu/cpp/MenuCtrl.o menu/cpp/Menu.o menu/cpp/MenuItem.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o
+	$(CXX) -o mainObjective mainObjective.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o $(MENU_OBJS) menu/cpp/MenuCtrl.o menu/cpp/Menu.o menu/cpp/MenuItem.o $(LIBS_SDL)
 
 java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 	mkdir -p java
@@ -183,4 +198,5 @@ clean:
 	rm -rf menu
 	rm -rf audio
 	rm -rf base 
+	rm -rf tests
 	+make -C $(WIFI_SCAN_DIRECTORY) clean

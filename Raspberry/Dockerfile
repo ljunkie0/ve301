@@ -4,7 +4,7 @@ ENV INSIDE_DOCKER_CONTAINER=1 \
     DEBIAN_FRONTEND=noninteractive \
     DEBCONF_NOWARNINGS=yes \
     PKG_CONFIG_ALLOW_CROSS=1 \
-    PKG_CONFIG_PATH="/usr/lib/arm-linux-gnueabihf/pkgconfig"
+    PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig"
 
 RUN mkdir /build \
     && dpkg --add-architecture arm64 \

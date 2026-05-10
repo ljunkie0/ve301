@@ -1,0 +1,69 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "desktop",
+      "displayName": "Desktop",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/desktop",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITH_SPOTIFY": "ON",
+        "WITH_BLUETOOTH": "OFF",
+        "FSANITIZE": "OFF"
+      }
+    },
+    {
+      "name": "desktop-asan",
+      "displayName": "Desktop ASan",
+      "inherits": "desktop",
+      "binaryDir": "${sourceDir}/build/desktop-asan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FSANITIZE": "ON"
+      }
+    },
+    {
+      "name": "raspberry",
+      "displayName": "Raspberry Pi",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/raspberry",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/raspberry-aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VE301_RASPBERRY": "ON",
+        "WITH_WIRINGPI": "ON",
+        "WITH_SPOTIFY": "ON",
+        "WITH_BLUETOOTH": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "desktop",
+      "configurePreset": "desktop",
+      "targets": [
+        "ve301"
+      ]
+    },
+    {
+      "name": "desktop-asan",
+      "configurePreset": "desktop-asan",
+      "targets": [
+        "ve301"
+      ]
+    },
+    {
+      "name": "raspberry",
+      "configurePreset": "raspberry",
+      "targets": [
+        "ve301"
+      ]
+    }
+  ]
+}

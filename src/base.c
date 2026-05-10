@@ -221,7 +221,7 @@ void base_init(const char *appname, FILE *dflt_log_file, int log_level) {
     free(lls);
 
     while (i < NUM_CTX) {
-        set_log_level(i++, 1);
+        set_log_level(i++, log_level);
     }
 
     log_info(BASE_CTX, "Log levels:\n");

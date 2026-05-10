@@ -91,13 +91,15 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
                        int light_y,
                        int bump_map) {
     if ((txt && strlen(txt) > 0) || icon) {
-        Uint32 unicode_length = MAX_LABEL_LENGTH;
+        Uint32 n_glyph_objs = MAX_LABEL_LENGTH;
         Uint16 *unicode_text_2nd_line = NULL;
-        Uint32 unicode_length_second_line = MAX_LABEL_LENGTH;
+        Uint32 n_glyph_objs_2nd_line = MAX_LABEL_LENGTH;
         Uint16 *unicode_text = NULL;
         if (txt) {
-            unicode_text = to_unicode(txt, &unicode_length, &unicode_text_2nd_line,
-                                      &unicode_length_second_line);
+            unicode_text = to_unicode(txt,
+                                      &n_glyph_objs,
+                                      &unicode_text_2nd_line,
+                                      &n_glyph_objs_2nd_line);
         }
 
         if (icon) {
@@ -108,21 +110,27 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
             }
             if (unicode_text) {
                 unicode_text_2nd_line = unicode_text;
-                unicode_length_second_line = unicode_length;
+                n_glyph_objs_2nd_line = n_glyph_objs;
                 unicode_text = NULL;
             } else {
                 unicode_text_2nd_line = NULL;
-                unicode_length_second_line = 0;
+                n_glyph_objs_2nd_line = 0;
             }
-            unicode_length = 1;
+            n_glyph_objs = 1;
         }
 
-        text_obj *t = malloc(sizeof(text_obj));
-        t->n_glyphs = unicode_length;
-        if (unicode_length) {
-            t->glyphs_objs = malloc(unicode_length * sizeof(glyph_obj *));
+        text_obj *t = calloc(1, sizeof(text_obj));
+        t->n_glyphs = n_glyph_objs;
+        if (n_glyph_objs) {
+            t->glyphs_objs = calloc(n_glyph_objs, sizeof(glyph_obj *));
         }
-        log_debug(MENU_CTX, "Rendering surface for %s\n", unicode_text);
+        log_config(MENU_CTX,
+                   "Rendering surface for %s in color (%d/%d/%d/%d)\n",
+                   unicode_text,
+                   fg.r,
+                   fg.g,
+                   fg.b,
+                   fg.a);
 
         SDL_Surface *text_surface = icon ? IMG_Load(icon) : TTF_RenderUNICODE_Blended(font, unicode_text, fg);
 
@@ -136,14 +144,14 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
         t->width = text_surface->w;
         t->height = text_surface->h;
 
-        if (unicode_length_second_line > 0 && unicode_text_2nd_line != NULL) {
+        if (n_glyph_objs_2nd_line > 0 && unicode_text_2nd_line != NULL) {
             radius = radius + text_surface->h * 0.3;
         }
 
         radius = radius + 0.8 * text_surface->h * (line + 0.5 * (n_lines - 1));
 
         unsigned int i = 0;
-        for (i = 0; i < unicode_length; i++) {
+        for (i = 0; i < n_glyph_objs; i++) {
             glyph_obj *glyph_o
                 = icon
                       ? glyph_obj_new_surface(renderer,
@@ -170,21 +178,21 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
         }
 
         t->glyphs_objs_2nd_line = NULL;
-        t->n_glyphs_2nd_line = unicode_length_second_line;
-        if (unicode_length_second_line > 0 && unicode_text_2nd_line != NULL) {
-            t->n_glyphs_2nd_line = unicode_length_second_line;
-            t->glyphs_objs_2nd_line =
-                malloc(unicode_length_second_line * sizeof(glyph_obj *));
+        t->n_glyphs_2nd_line = n_glyph_objs_2nd_line;
+        if (n_glyph_objs_2nd_line > 0 && unicode_text_2nd_line != NULL) {
+            t->n_glyphs_2nd_line = n_glyph_objs_2nd_line;
+            t->glyphs_objs_2nd_line = calloc(n_glyph_objs_2nd_line, sizeof(glyph_obj *));
 
             text_surface =
                 TTF_RenderUNICODE_Blended(font_2nd_line, unicode_text_2nd_line, fg);
             if (text_surface == NULL) {
-                log_error(
-                    MENU_CTX,
-                    "Could not create glyph surface for %s (unicode_text_2nd_line = "
-                    "%s, unicode_length_2nd_line = %d): %s\n",
-                    txt, unicode_text_2nd_line, unicode_length_second_line,
-                    TTF_GetError());
+                log_error(MENU_CTX,
+                          "Could not create glyph surface for %s (unicode_text_2nd_line = "
+                          "%s, unicode_length_2nd_line = %d): %s\n",
+                          txt,
+                          unicode_text_2nd_line,
+                          n_glyph_objs_2nd_line,
+                          TTF_GetError());
                 text_obj_free(t);
                 return NULL;
             }
@@ -198,7 +206,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
 
             unsigned int i = 0;
             int radius_new = radius - (0.6) * t->height - 1;
-            for (i = 0; i < unicode_length_second_line; i++) {
+            for (i = 0; i < n_glyph_objs_2nd_line; i++) {
                 t->glyphs_objs_2nd_line[i] = glyph_obj_new(renderer,
                                                            unicode_text_2nd_line[i],
                                                            font_2nd_line,
@@ -219,7 +227,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
         return t;
 
     } else {
-        log_warning(MENU_CTX, "No icon and not label provided\n");
+        log_info(MENU_CTX, "No icon and not label provided\n");
     }
 
     return NULL;

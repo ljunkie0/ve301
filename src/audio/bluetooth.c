@@ -98,7 +98,7 @@ void process_properties_chg_msg(DBusMessage *msg) {
                         dbus_bool_t connected;
                         dbus_message_iter_get_basic(&variantIter, &connected);
                         log_config(BT_CTX, "Connected: %d\n", connected);
-                        player_set_status(__bt_player, connected);
+                        player_set_active(__bt_player, connected);
                     }
                 } else if (!strcmp(track_key, key)) {
                     DBusMessageIter trackDataIter;
@@ -134,7 +134,7 @@ void process_properties_chg_msg(DBusMessage *msg) {
 
 void log_bt_info() {
     if (log_level_enabled(BT_CTX, IR_LOG_LEVEL_CONFIG)) {
-        log_config(BT_CTX, "Connected: %s\n", player_get_status(__bt_player) ? "yes" : "no");
+        log_config(BT_CTX, "Connected: %s\n", player_is_active(__bt_player) ? "yes" : "no");
         log_config(BT_CTX, "Track:\n");
         log_config(BT_CTX, "\tTitle:  %s\n", player_get_title(__bt_player));
         log_config(BT_CTX, "\tArtist: %s\n", player_get_artist(__bt_player));
@@ -161,10 +161,10 @@ int bt_connection_signal() {
             log_config(BT_CTX, "member: %s\n", member);
             if (!strncmp(member, media_control, strlen(media_control))) {
                 process_properties_chg_msg(bt_msg);
-                player_set_status(__bt_player,1);
+                player_set_active(__bt_player,1);
                 result = 1;
             } else if (!strcmp(member, pcm_removed)) {
-                player_set_status(__bt_player,0);
+                player_set_active(__bt_player,0);
                 result = -1;
             } else if (!strcmp(member, prop_changed)) {
                 process_properties_chg_msg(bt_msg);

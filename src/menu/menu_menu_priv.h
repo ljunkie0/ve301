@@ -40,6 +40,7 @@ typedef struct menu {
     menu *parent;
     menu_ctrl *ctrl;
     SDL_Texture *bg_image;
+    char *bg_image_path;
     TTF_Font *font;
     TTF_Font *font2;
     SDL_Color *scale_color; /* The color of the scales */

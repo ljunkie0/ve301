@@ -18,10 +18,11 @@
  */
 #ifndef MENUO_H
 #define MENUO_H
-#include "MenuCtrl.h"
-#include "MenuItem.h"
 
-class MenuCtrl;
+#include "../menu_menu.h"
+#include "MenuCtrl.h"
+
+class MenuItem;
 
 class Menu {
 
@@ -29,24 +30,43 @@ private:
     MenuCtrl *ctrl;
     menu *handle;
     friend class MenuItem;
+    friend class MenuCtrl;
+
 public:
     Menu(MenuCtrl *ctrl,
-	 int lines,
-	 const char *font,
-	 int fontSize,
-	 item_action *action,
-	 char *font2ndLine,
-	 int fontSize2ndLine);
+         int lines,
+         const char *font,
+         int fontSize,
+         item_action *action,
+         char *font2ndLine,
+         int fontSize2ndLine);
     ~Menu();
+    Menu(const Menu &) = delete;
+    Menu &operator=(const Menu &) = delete;
+
     int setBackgroundImage(char *bgImagePath);
     int setColors(SDL_Color *defaultColor, SDL_Color *selectedColor, SDL_Color *scaleColor);
-    //menu_item *menu_new_sub_menu(menu *m, const char*label, item_action *action);
-    //menu_item *menu_add_sub_menu(menu *m, const char*label, menu *sub_menu, item_action *action);
+    menu_item *newSubMenu(const char *label, item_action *action);
+    menu_item *addSubMenu(const char *label, Menu *subMenu, item_action *action);
     int open();
     int clear();
     void turnLeft();
     void turnRight();
-
+    menu_ctrl *getCtrl();
+    menu *getParent();
+    void setActiveId(int id);
+    char *getLabel();
+    int isTransient();
+    void setTransient(int transient);
+    int isSticky();
+    menu_item *getCurrentItem();
+    int getCurrentId();
+    int getMaxId();
+    void setNoItemsOnScale(int n);
+    void setRadiusLabels(int radius);
+    void setSegmentsPerItem(int segments);
+    void setDrawOnlyActive(int drawOnlyActive);
+    void setLabel(const char *label);
 };
 
 #endif // MENUO_H

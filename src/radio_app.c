@@ -82,6 +82,7 @@ struct radio_app {
     time_t callback_t;
     int internet_available;
     time_check_interval *check_internet_interval;
+    radio_theme *current_theme;
 };
 
 typedef struct radio_config {
@@ -107,6 +108,7 @@ typedef struct radio_config {
     int draw_scales;
     int light_x;
     int light_y;
+    int light_z;
     int light_radius;
     int light_alpha;
     char light_img[MAX_CONFIG_LINE_LENGTH];
@@ -155,6 +157,7 @@ void read_radio_config(radio_config *config) {
     config->draw_scales = get_config_value_int("draw_scales", 1);
     config->light_x = get_config_value_int("light_x", (int) config->w / 2);
     config->light_y = get_config_value_int("light_y", 100);
+    config->light_z = get_config_value_int("light_z", 0);
     config->light_radius = get_config_value_int("light_radius", 300);
     config->light_alpha = get_config_value_int("light_alpha", 0);
     config_value_path(config->light_img, "light_image_path", NULL);
@@ -207,6 +210,7 @@ void update_menu_item_icon_or_label(menu_item *item, char *icon, char *label) {
 }
 
 void apply_radio_theme(radio_theme *theme) {
+    app->current_theme = theme;
     menu_ctrl_apply_theme(app->ctrl, theme->menu_theme);
 
     if (theme->info_bg_image_path) {
@@ -290,8 +294,8 @@ int check_player(player *p, radio_theme *player_theme) {
     if (player_do_check(p)) {
         log_config(MAIN_CTX, "Checking %s...\n", player_get_name(p));
         if (player_update(p)) {
-            if (player_get_status(p)) {
-                if (player_status_changed(p)) {
+            if (player_is_active(p)) {
+                if (player_active_changed(p)) {
                     log_info(MAIN_CTX, "%s is connected.\n", player_get_name(p));
                     stop();
                     if (player_theme) {
@@ -310,20 +314,24 @@ int check_player(player *p, radio_theme *player_theme) {
                                               player_get_artist(p),
                                               player_get_icon(p),
                                               player_get_label(p));
+                if (player_get_playback_status(p) == PLAYER_PLAYBACK_PLAYING
+                    && player_get_cover_image_path(p)) {
+                    menu_set_bg_image(app->info_menu, player_get_cover_image_path(p));
+                }
 
-            } else if (player_status_changed(p)) {
+            } else if (player_active_changed(p)) {
                 log_info(MAIN_CTX, "%s disconnected\n", player_get_name(p));
             }
         }
         log_config(MAIN_CTX, "%s checked.\n", player_get_name(p));
     }
-    return player_get_status(p);
+    return player_is_active(p);
 }
 
 int check_radio() {
     if (player_do_check(app->radio_player)) {
-        if (!player_get_status(app->radio_player)) {
-            player_set_status(app->radio_player, 1);
+        if (!player_is_active(app->radio_player)) {
+            player_set_active(app->radio_player, 1);
             apply_radio_theme(app->default_theme);
             update_menu_item_icon_or_label(app->player_item,
                                            player_get_icon(app->radio_player),
@@ -344,7 +352,7 @@ int check_radio() {
             }
         }
     }
-    return player_get_status(app->radio_player);
+    return player_is_active(app->radio_player);
 }
 
 void update_radio_menu() {
@@ -797,6 +805,8 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
 }
 
 int menu_call_back(menu_ctrl *ctrl) {
+    long methodTime_s = current_time_millis();
+
     log_debug(MAIN_CTX, "Start: Callback\n");
 
     if (menu_ctrl_get_active(ctrl) != app->info_menu) {
@@ -814,28 +824,30 @@ int menu_call_back(menu_ctrl *ctrl) {
         }
     }
 
-    int check_state = 0;
+    int player_active = 0;
 #ifdef BLUETOOTH
-    if (!check_state) {
-        check_state = check_player(app->bluetooth_player, app->bluetooth_theme);
+    if (!player_active) {
+        player_active = check_player(app->bluetooth_player, app->bluetooth_theme);
     }
 #endif
 #ifdef SPOTIFY
-    if (!check_state) {
-        check_state = check_player(app->spotify_player, app->spotify_theme);
+    if (!player_active) {
+        player_active = check_player(app->spotify_player, app->spotify_theme);
     }
 #endif
 
-    if (!check_state) {
+    if (!player_active) {
         check_radio();
     } else {
-        player_set_status(app->radio_player, 0);
+        player_set_active(app->radio_player, 0);
     }
 
     time_t timer;
     time(&timer);
 
     if (timer - app->callback_t > CALLBACK_SECONDS) {
+        log_config(MAIN_CTX, "Updating time\n");
+
         app->callback_t = timer;
 
         if (app->weather_item && app->temperature_item) {
@@ -852,6 +864,7 @@ int menu_call_back(menu_ctrl *ctrl) {
     }
 
     if (timer - app->info_menu_t > app->info_menu_item_seconds) {
+        log_config(MAIN_CTX, "Updating info menu\n");
         app->info_menu_t = timer;
         if (!app->current_menu || !menu_is_sticky(app->current_menu)) {
             if (app->internet_available) {
@@ -892,6 +905,12 @@ int menu_call_back(menu_ctrl *ctrl) {
     }
 
     log_debug(MAIN_CTX, "End:  Callback\n");
+
+    long methodTime_e = current_time_millis();
+
+    if (methodTime_e - methodTime_s >= 100) {
+        __log_warning(MAIN_CTX, "Time spend: %d\n", methodTime_e - methodTime_s);
+    }
 
     return 1;
 }

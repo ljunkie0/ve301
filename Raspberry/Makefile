@@ -1,4 +1,4 @@
-WIRINGPI=/home/chris/Dokumente/Development/WiringPi
+#WIRINGPI=/home/chris/Dokumente/Development/WiringPi
 #ARCH=arm-linux-gnueabihf
 ARCH=aarch64-linux-gnu
 ADDITIONAL_OBJS=rotaryencoder.o

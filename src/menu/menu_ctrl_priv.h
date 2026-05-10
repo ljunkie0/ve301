@@ -81,10 +81,11 @@ struct menu_ctrl {
      * User data
     **/
     void *user_data;
+    menu_sdl_event_callback *sdl_event_callback;
 };
 
 void menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle);
-int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Texture *bg_image);
+int menu_ctrl_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Texture *bg_image);
 void menu_ctrl_apply_light(menu_ctrl *ctrl);
 #ifdef __cplusplus
 }

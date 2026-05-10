@@ -68,7 +68,7 @@ void __log_debug(const int log_ctx, const char *__restrict __format, ...);
 #endif
 
 void __log_trace(const int log_ctx, const char *__restrict __format, ...);
-#if LOG_LEVEL >= IR_LOG_LEVEL_DEBUG
+#if LOG_LEVEL >= IR_LOG_LEVEL_TRACE
 #define log_trace(...) __log_trace(__VA_ARGS__)
 #else
 #define log_trace(...)

@@ -44,6 +44,7 @@ typedef struct glyph_obj {
     double current_angle;
     double shadow_dx;
     double shadow_dy;
+    int bump_map;
 } glyph_obj;
 
 glyph_obj *glyph_obj_new(SDL_Renderer *renderer,

@@ -22,5 +22,8 @@ static char *__log_context_names[]
     = {"BASE", "MAIN", "MENU", "MPD", "ENCODER", "SDL", "WHEATHER", "BLUETOOTH", "SPOTIFY"};
 
 char *get_log_context_name(enum log_context context) {
+	if (context < 0 || context >= NUM_CTX) {
+		return "UNKNOWN";
+	}
 	return __log_context_names[context];
 }

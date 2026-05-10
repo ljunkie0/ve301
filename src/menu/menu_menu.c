@@ -119,11 +119,6 @@ int menu_draw_scales(menu *m, double xc, double yc, double angle) {
 
 }
 
-int menu_wipe(menu *m, double angle) {
-    log_debug(MENU_CTX, "START menu_wipe\n");
-    return do_clear(m->ctrl, angle, m->ctrl->background_color, m->bg_image);
-}
-
 int menu_draw(menu *m, int clear, int render) {
 
 
@@ -149,7 +144,7 @@ int menu_draw(menu *m, int clear, int render) {
     log_debug(MENU_CTX,"segment: %f, angle: %f\n", m->segment, angle);
     if (clear) {
         double bg_angle = ctrl->angle_offset + ctrl->bg_segment * 360.0 / (m->n_o_items_on_scale*(2.0*m->segments_per_item+1));
-        menu_wipe(m,bg_angle);
+        menu_ctrl_clear(ctrl, bg_angle, ctrl->background_color, m->bg_image);
     }
 
     if (ctrl->draw_scales) {
@@ -261,6 +256,7 @@ menu *menu_new(
     m->segment = 0;
     m->label = NULL;
     m->bg_image = NULL;
+    m->bg_image_path = NULL;
     m->scale_color = NULL;
     m->default_color = NULL;
     m->selected_color = NULL;
@@ -439,6 +435,7 @@ void menu_rebuild_glyphs(menu *m) {
             menu_item_rebuild_glyphs(m->item[i]);
         }
     }
+    m->dirty = 1;
 }
 
 int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color, SDL_Color *scale_color) {
@@ -472,24 +469,68 @@ int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color
 
 }
 
-int menu_set_bg_image(menu *m, char *bgImagePath) {
+int menu_set_bg_image(menu *m, char *bg_image_path) {
+    if ((!bg_image_path && !m->bg_image_path)
+        || (bg_image_path && m->bg_image_path && !strcmp(bg_image_path, m->bg_image_path))) {
+        return 0;
+    }
 
     if (m->bg_image) {
         SDL_DestroyTexture(m->bg_image);
         m->bg_image = NULL;
     }
 
-    if (bgImagePath) {
-        m->bg_image = IMG_LoadTexture(m->ctrl->renderer,bgImagePath);
+    if (bg_image_path) {
+        m->bg_image_path = my_copystr(bg_image_path);
+        m->bg_image = IMG_LoadTexture(m->ctrl->renderer, bg_image_path);
+
         if (!m->bg_image) {
-            log_error(MENU_CTX, "Could not load background image %s: %s\n", bgImagePath, SDL_GetError());
+            log_error(MENU_CTX,
+                      "Could not load background image %s: %s\n",
+                      bg_image_path,
+                      SDL_GetError());
+            return 0;
         }
+
+        // int w, h;
+        // Uint32 format;
+        // int access;
+        // SDL_QueryTexture(m->bg_image, &format, &access, &w, &h);
+        // int ctrl_h = 2 * m->ctrl->center.y;
+        // int min_wh = m->ctrl->w * m->ctrl->w + ctrl_h * ctrl_h;
+        // if (min_wh > h * h || min_wh > w * w) {
+        //     double min_side = (double) ((h < w) ? h : w);
+        //     double scale = sqrt((double) min_wh) / min_side;
+        //     SDL_Texture *new_bg_image = SDL_CreateTexture(m->ctrl->renderer,
+        //                                                   format,
+        //                                                   SDL_TEXTUREACCESS_TARGET,
+        //                                                   (int) ceil(scale * w),
+        //                                                   (int) ceil(scale * h));
+        //     if (!new_bg_image) {
+        //         log_error(MENU_CTX, "Could not create scaled background texture %s: %s\n",
+        //                   bgImagePath, SDL_GetError());
+        //         return 0;
+        //     }
+
+        //     SDL_Texture *target = SDL_GetRenderTarget(m->ctrl->renderer);
+        //     if (SDL_SetRenderTarget(m->ctrl->renderer, new_bg_image) != 0) {
+        //         log_error(MENU_CTX, "Could not set render target for %s: %s\n",
+        //                   bgImagePath, SDL_GetError());
+        //         SDL_DestroyTexture(new_bg_image);
+        //         return 0;
+        //     }
+        //     SDL_RenderCopy(m->ctrl->renderer, m->bg_image, NULL, NULL);
+        //     SDL_SetRenderTarget(m->ctrl->renderer, target);
+        //     SDL_DestroyTexture(m->bg_image);
+        //     m->bg_image = new_bg_image;
+        // }
+
     } else {
+        free_and_set_null((void *) &(m->bg_image_path));
         m->bg_image = NULL;
     }
 
     return 1;
-
 }
 
 void menu_set_no_items_on_scale(menu *m, int n) {

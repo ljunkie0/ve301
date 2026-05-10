@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "MenuCtrl.h"
+#include "../menu_ctrl_priv.h"
 
 MenuCtrl::MenuCtrl(int w,
           int xOffset,
@@ -51,7 +52,10 @@ MenuCtrl::MenuCtrl(int w,
 }
 
 void MenuCtrl::dispose() {
-    menu_ctrl_dispose(this->ctrl);
+    if (this->ctrl) {
+        menu_ctrl_dispose(this->ctrl);
+        this->ctrl = NULL;
+    }
 }
 
 void MenuCtrl::loop() {
@@ -86,6 +90,42 @@ void MenuCtrl::setLightImage(char *path, int x, int y) {
 	menu_ctrl_set_light_img(this->ctrl,path,x,y);
 }
 
+void MenuCtrl::setOffset(int xOffset, int yOffset) {
+    menu_ctrl_set_offset(this->ctrl, xOffset, yOffset);
+}
+
+void MenuCtrl::setAngleOffset(double a) {
+    menu_ctrl_set_angle_offset(this->ctrl, a);
+}
+
+void MenuCtrl::setWarpSpeed(int warpSpeed) {
+    menu_ctrl_set_warp_speed(this->ctrl, warpSpeed);
+}
+
+void MenuCtrl::setActive(menu *active) {
+    menu_ctrl_set_active(this->ctrl, active);
+}
+
+int MenuCtrl::getNItemsOnScale() {
+    return menu_ctrl_get_n_o_items_on_scale(this->ctrl);
+}
+
+menu *MenuCtrl::getActive() {
+    return menu_ctrl_get_active(this->ctrl);
+}
+
+menu *MenuCtrl::getRoot() {
+    return menu_ctrl_get_root(this->ctrl);
+}
+
+void *MenuCtrl::getUserData() {
+    return menu_ctrl_get_user_data(this->ctrl);
+}
+
+void MenuCtrl::setSdlEventCallback(menu_sdl_event_callback *callback) {
+    menu_ctrl_set_sdl_event_callback(this->ctrl, callback);
+}
+
 void MenuCtrl::enableFontBumpmap() {
     this->ctrl->font_bumpmap = 1;
 }
@@ -95,6 +135,8 @@ void MenuCtrl::disableFontBumpmap() {
 }
 
 MenuCtrl::~MenuCtrl() {
-	menu_ctrl_dispose(this->ctrl);
+    if (this->ctrl) {
+        menu_ctrl_dispose(this->ctrl);
+        this->ctrl = NULL;
+    }
 }
-

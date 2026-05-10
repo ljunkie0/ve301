@@ -316,3 +316,9 @@ unsigned int unicode_len(const unsigned short *txt) {
         len++;
     return len;
 }
+
+long long current_time_millis() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (ts.tv_sec * 1000LL) + (ts.tv_nsec / 1000000);
+}

@@ -41,8 +41,10 @@ struct normal_vector {
 void glyph_obj_free(glyph_obj *obj) {
     log_debug(MENU_CTX, "glyph_obj_free (%p)\n", obj);
     if (obj) {
-        free_and_set_null((void **) &obj->colors);
-        free_and_set_null((void **) &obj->normals);
+        if (obj->bump_map) {
+            free_and_set_null((void **) &obj->colors);
+            free_and_set_null((void **) &obj->normals);
+        }
         free_and_set_null((void **) &obj->rot_center);
         free_and_set_null((void **) &obj->dst_rect);
 
@@ -62,7 +64,7 @@ void glyph_obj_free(glyph_obj *obj) {
             obj->bumpmap_overlay = NULL;
         }
 
-        if (obj->bumpmap_textures) {
+        if (obj->bump_map && obj->bumpmap_textures) {
             for (int a = 0; a < N_ANGLES; a++) {
                 if (obj->bumpmap_textures[a]) {
                     SDL_DestroyTexture(obj->bumpmap_textures[a]);
@@ -115,8 +117,8 @@ void init_bumpmap_data(glyph_obj *glyph_o) {
             double dy = 0.0;
 
             if (color.a) {
-                Uint8 pax = x > 0 ? get_alpha(pixels[p + (x - 1)], glyph_o->surface->format) : 0;
-                Uint8 pay = y > 0 ? get_alpha(pixels[pop + x], glyph_o->surface->format) : 0;
+                Uint8 pax = x <= 0 ? 0 : get_alpha(pixels[p + (x - 1)], glyph_o->surface->format);
+                Uint8 pay = y <= 0 ? 0 : get_alpha(pixels[pop + x], glyph_o->surface->format);
                 Uint8 nax = x < glyph_o->surface->w - 1
                                 ? get_alpha(pixels[p + (x + 1)], glyph_o->surface->format)
                                 : 0;
@@ -182,10 +184,11 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer,
                                  SDL_Point center,
                                  int radius,
                                  int bump_map) {
-    glyph_obj *glyph_o = malloc(sizeof(glyph_obj));
+    glyph_obj *glyph_o = calloc(1, sizeof(glyph_obj));
 
     glyph_o->bumpmap_textures = NULL;
     glyph_o->bumpmap_overlay = NULL;
+    glyph_o->bump_map = bump_map;
 
     glyph_o->surface = surface;
     glyph_o->radius = radius;
@@ -254,6 +257,17 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
     Uint32 *bumpmap_pixels;
     int pitch;
 
+    if (!glyph_o || !glyph_o->surface) {
+        return;
+    }
+
+    if (!glyph_o->colors || !glyph_o->normals) {
+        init_bumpmap_data(glyph_o);
+        if (!glyph_o->colors || !glyph_o->normals) {
+            return;
+        }
+    }
+
     if (!glyph_o->bumpmap_overlay) {
         glyph_o->bumpmap_overlay = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STREAMING,glyph_o->surface->w,glyph_o->surface->h);
         SDL_SetTextureBlendMode(glyph_o->bumpmap_overlay,SDL_BLENDMODE_BLEND);
@@ -302,18 +316,21 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
      * <<
      */
 
+    int bumpmap_pitch_px = pitch / (int)sizeof(Uint32);
+
     for (int y = 0; y < glyph_o->surface->h; y++) {
 
-        int o = pitch * y / 4;
+        int src_o = glyph_o->surface->w * y;
+        int dst_o = bumpmap_pitch_px * y;
 
         for (int x = 0; x < glyph_o->surface->w; x++) {
 
-            SDL_Color color = glyph_o->colors[o+x];
+            SDL_Color color = glyph_o->colors[src_o + x];
 
             if (color.a > 1) {
 
                 Uint8 r = color.r,g = color.g,b = color.b,a = color.a;
-                normal_vector df = glyph_o->normals[o+x];
+                normal_vector df = glyph_o->normals[src_o + x];
 
                 if (df.x || df.y) {
                     // angle to light
@@ -337,10 +354,10 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
                  * Have to switch B and R, i don't know why
                  */
                 Uint32 lght = (b << format->Rshift) | (g << format->Gshift) | (r << format->Bshift) | (a << format->Ashift & format->Amask);
-                bumpmap_pixels[o + x] = lght;
+                bumpmap_pixels[dst_o + x] = lght;
 
             } else {
-                bumpmap_pixels[o + x] = transparent;
+                bumpmap_pixels[dst_o + x] = transparent;
             }
         }
 

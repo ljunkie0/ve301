@@ -11,6 +11,7 @@ PC/wifi-scan/wifi_scan.h
 README.md
 Raspberry/Dockerfile
 Raspberry/Makefile
+playground/test_bump_mapping.c
 sample.config
 src/audio.c
 src/audio.h
@@ -64,6 +65,12 @@ src/menu/MenuCtrl.cpp
 src/menu/MenuCtrl.h
 src/menu/MenuItem.cpp
 src/menu/MenuItem.h
+src/menu/cpp/Menu.cpp
+src/menu/cpp/Menu.h
+src/menu/cpp/MenuCtrl.cpp
+src/menu/cpp/MenuCtrl.h
+src/menu/cpp/MenuItem.cpp
+src/menu/cpp/MenuItem.h
 src/menu/glyph_obj.c
 src/menu/glyph_obj.h
 src/menu/menu.h

@@ -22,6 +22,10 @@
 #include "menu_ctrl.h"
 #include <SDL2/SDL_pixels.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct menu_item menu_item;
 typedef struct menu menu;
 typedef int item_action(menu_event, menu *, menu_item *);
@@ -68,5 +72,9 @@ void menu_set_radius_labels(menu *m, int radius);
 void menu_set_segments_per_item(menu *m, int segments);
 void menu_set_draw_only_active(menu *menu, int draw_only_active);
 void menu_set_label(menu *m, const char *label);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // MENU_H

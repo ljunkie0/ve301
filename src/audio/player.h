@@ -22,17 +22,27 @@
 
 typedef int update_player_func();
 
+typedef enum {
+    PLAYER_PLAYBACK_UNKNOWN = 0,
+    PLAYER_PLAYBACK_PLAYING,
+    PLAYER_PLAYBACK_PAUSED,
+    PLAYER_PLAYBACK_STOPPED
+} player_playback_status;
+
 typedef struct player {
     char *name;
     char *icon;
     char *label;
     time_check_interval *check_interval;
-    int status;
-    int previous_status;
+    int active;
+    int previous_active;
+    player_playback_status playback_status;
     char *title;
     char *artist;
     char *album;
     char *cover_uri;
+    int cover_changed;
+    char *info_bg_image_path;
     update_player_func *update;
 } player;
 
@@ -44,9 +54,9 @@ player *player_new(const char *name,
 char *player_get_name(player *p);
 int player_update(player *p);
 void player_free(player *p);
-int player_get_status(player *p);
-void player_set_status(player *p, int status);
-int player_status_changed(player *p);
+int player_is_active(player *p);
+void player_set_active(player *p, int active);
+int player_active_changed(player *p);
 char *player_get_icon(player *p);
 char *player_get_label(player *p);
 void player_set_label(player *p, char *label);
@@ -56,7 +66,13 @@ void player_set_artist(player *p, char *artist);
 char *player_get_artist(player *p);
 void player_set_title(player *p, char *title);
 char *player_get_title(player *p);
-void player_set_cover_uri(player *p, char *cover_uri);
+int player_set_cover_uri(player *p, char *cover_uri);
 char *player_get_cover_uri(player *p);
+void player_set_cover_image_path(player *p, const char *path);
+char *player_get_cover_image_path(player *p);
+void player_set_playback_status(player *p, player_playback_status status);
+player_playback_status player_get_playback_status(player *p);
+void player_set_info_bg_path(player *p, const char *path);
+char *player_get_info_bg_path(player *p);
 int player_do_check(player *p);
 #endif

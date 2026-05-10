@@ -40,4 +40,6 @@ int is_blank(const char *str);
 void get_sinus_and_cosinus(int angle, double *cos, double *sin);
 void util_cleanup(void);
 
+long long current_time_millis();
+
 #endif // UTIL_H

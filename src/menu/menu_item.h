@@ -21,6 +21,10 @@
 
 #include "menu_menu.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum { ACTIVE, SELECTED, DEFAULT } menu_item_state;
 
 typedef struct menu_item menu_item;
@@ -61,5 +65,9 @@ void menu_item_free_user_data(menu_item *item);
 void menu_item_set_user_data(menu_item *item, void *user_data);
 int menu_item_get_id(menu_item *item);
 menu *menu_item_get_menu(menu_item *item);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // MENU_ITEM_H

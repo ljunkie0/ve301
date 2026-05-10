@@ -28,8 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define SPOTIFY_MAX_CONNECT_TRIES 10
+#include <sys/stat.h>
 
 static struct lws *web_socket = NULL;
 
@@ -37,8 +36,16 @@ static char *__spotify_host = NULL;
 static pthread_t __spotify_thread = 0;
 static int __spotify_thread_run = 0;
 static struct lws_context *context = NULL;
+static int __spotify_close_requested = 0;
 
 player *__spotify_player;
+static char *__spotify_cover_url = NULL;
+static char *__spotify_cover_path = NULL;
+
+static int __spotify_update();
+static int __spotify_download_cover(const char *url);
+static int __spotify_file_exists(const char *path);
+static const char *__spotify_cover_ext_for_type(const char *content_type);
 
 static void __spotify_fill_info(cJSON *metadata) {
     // Extract metadata information
@@ -55,8 +62,14 @@ static void __spotify_fill_info(cJSON *metadata) {
                      album_name ? album_name->valuestring : NULL);
     player_set_artist(__spotify_player,
                       artist_names ? artist_names->valuestring : NULL);
-    player_set_cover_uri(__spotify_player,
-                         album_cover_url ? album_cover_url->valuestring : NULL);
+    if (player_set_cover_uri(__spotify_player,
+                             album_cover_url ? album_cover_url->valuestring : NULL)) {
+        if (album_cover_url && album_cover_url->valuestring) {
+            __spotify_download_cover(album_cover_url->valuestring);
+        } else {
+            player_set_cover_image_path(__spotify_player, NULL);
+        }
+    }
 
     // Print out the track information
     if (uri)
@@ -75,43 +88,156 @@ static void __spotify_fill_info(cJSON *metadata) {
         log_config(SPOTIFY_CTX, "Duration: %d ms\n", duration->valueint);
 }
 
+static int __spotify_file_exists(const char *path) {
+    struct stat st;
+    return path && stat(path, &st) == 0 && st.st_size > 0;
+}
+
+static const char *__spotify_cover_ext_for_type(const char *content_type) {
+    if (!content_type) {
+        return ".jpg";
+    }
+    if (strstr(content_type, "png")) {
+        return ".png";
+    }
+    if (strstr(content_type, "jpeg") || strstr(content_type, "jpg")) {
+        return ".jpg";
+    }
+    return ".jpg";
+}
+
+static int __spotify_download_cover(const char *url) {
+    if (!url || !__spotify_player) {
+        return 0;
+    }
+    if (__spotify_cover_url
+        && strcmp(__spotify_cover_url, url) == 0
+        && __spotify_cover_path
+        && __spotify_file_exists(__spotify_cover_path)) {
+        player_set_cover_image_path(__spotify_player, __spotify_cover_path);
+        return 1;
+    }
+
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        return 0;
+    }
+
+    FILE *fp = fopen("/tmp/ve301_spotify_cover.tmp", "wb");
+    if (!fp) {
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 3L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+
+    CURLcode res = curl_easy_perform(curl);
+    fclose(fp);
+
+    if (res != CURLE_OK) {
+        log_warning(SPOTIFY_CTX, "Failed to download cover: %s\n",
+                    curl_easy_strerror(res));
+        curl_easy_cleanup(curl);
+        remove("/tmp/ve301_spotify_cover.tmp");
+        player_set_cover_image_path(__spotify_player, NULL);
+        return 0;
+    }
+
+    const char *content_type = NULL;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type);
+    const char *ext = __spotify_cover_ext_for_type(content_type);
+
+    char path[256];
+    snprintf(path, sizeof(path), "/tmp/ve301_spotify_cover%s", ext);
+    rename("/tmp/ve301_spotify_cover.tmp", path);
+
+    free_and_set_null((void **) &__spotify_cover_url);
+    __spotify_cover_url = my_copystr(url);
+
+    free_and_set_null((void **) &__spotify_cover_path);
+    __spotify_cover_path = my_copystr(path);
+    player_set_cover_image_path(__spotify_player, __spotify_cover_path);
+
+    curl_easy_cleanup(curl);
+    return 1;
+}
+
 static int __spotify_callback(struct lws *wsi, enum lws_callback_reasons reason,
                               void *user, void *in, size_t len) {
 
     if (reason == LWS_CALLBACK_CLIENT_ESTABLISHED) {
         log_config(SPOTIFY_CTX, "WebSocket connected\n");
     } else if (reason == LWS_CALLBACK_CLIENT_RECEIVE) {
-        char *message = (char *)in;
-        if (message && strlen(message) > 0) {
-            log_config(SPOTIFY_CTX, "Received message: %s\n", message);
-            cJSON *event = cJSON_Parse(message);
-            if (event == NULL) {
-                log_error(SPOTIFY_CTX, "Error parsing JSON\n");
-                return 0;
-            }
-            log_config(SPOTIFY_CTX, "Event: %p\n", event);
-            cJSON *type = cJSON_GetObjectItem(event, "type");
-            log_config(SPOTIFY_CTX, "Type: %s\n", type->valuestring);
-            // Process the events based on their content
-            if (strstr(type->valuestring, "inactive")) {
-                log_config(SPOTIFY_CTX, "Device is now inactive.\n");
-                player_set_status(__spotify_player, 0);
-            } else if (strstr(type->valuestring, "active")) {
+        if (!in || len == 0) {
+            return 0;
+        }
+
+        char *message = malloc(len + 1);
+        if (!message) {
+            log_error(SPOTIFY_CTX, "Out of memory while parsing websocket message\n");
+            return 0;
+        }
+        memcpy(message, in, len);
+        message[len] = '\0';
+
+        log_config(SPOTIFY_CTX, "Received message: %s\n", message);
+        cJSON *event = cJSON_Parse(message);
+        if (event == NULL) {
+            log_error(SPOTIFY_CTX, "Error parsing JSON\n");
+            free(message);
+            return 0;
+        }
+        log_config(SPOTIFY_CTX, "Event: %p\n", event);
+        cJSON *type = cJSON_GetObjectItem(event, "type");
+        if (!cJSON_IsString(type) || !type->valuestring) {
+            log_error(SPOTIFY_CTX, "Event missing type\n");
+            cJSON_Delete(event);
+            free(message);
+            return 0;
+        }
+        log_config(SPOTIFY_CTX, "Type: %s\n", type->valuestring);
+
+        // Process the events based on their content
+        if (strstr(type->valuestring, "inactive")) {
+            log_config(SPOTIFY_CTX, "Device is now inactive.\n");
+            player_set_active(__spotify_player, 0);
+            player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+        } else {
+            // Any other event implies an active device
+            player_set_active(__spotify_player, 1);
+            if (strstr(type->valuestring, "active")) {
                 log_config(SPOTIFY_CTX, "Device is now active.\n");
-                player_set_status(__spotify_player, 1);
+            } else if (strstr(type->valuestring, "playing")
+                       || strstr(type->valuestring, "will_play")) {
+                player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_PLAYING);
+            } else if (strstr(type->valuestring, "paused")) {
+                player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_PAUSED);
+            } else if (strstr(type->valuestring, "stopped")
+                       || strstr(type->valuestring, "not_playing")) {
+                player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
             } else if (strstr(type->valuestring, "metadata")) {
                 log_config(SPOTIFY_CTX, "Metadata changed.\n");
                 cJSON *metadata = cJSON_GetObjectItem(event, "data");
                 if (metadata != NULL) {
                     __spotify_fill_info(metadata);
                 }
-
-                cJSON_Delete(event);
             }
         }
+
+        cJSON_Delete(event);
+        free(message);
     } else if (reason == LWS_CALLBACK_CLIENT_CONNECTION_ERROR) {
         log_error(SPOTIFY_CTX, "Connection error: %s\n", (char *)in);
         web_socket = NULL;
+    } else if (reason == LWS_CALLBACK_CLIENT_WRITEABLE) {
+        if (__spotify_close_requested) {
+            lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, NULL, 0);
+            return -1;
+        }
     } else if (reason == LWS_CALLBACK_CLIENT_CLOSED) {
         log_info(SPOTIFY_CTX, "WebSocket connection closed\n");
         web_socket = NULL;
@@ -150,6 +276,10 @@ void *__spotify_thread_func(void *data) {
     info.timeout_secs = 2;
 
     context = lws_create_context(&info);
+    if (!context) {
+        log_error(SPOTIFY_CTX, "Failed to create LWS context\n");
+        return NULL;
+    }
 
     time_t old = 0;
     time_t old_conn_check = 0;
@@ -215,7 +345,7 @@ static size_t __spotify_write_memory_callback(void *contents, size_t size,
 
     char *ptr = realloc(mem->memory, mem->size + realsize + 1);
     if (ptr == NULL) {
-        printf("Not enough memory to allocate buffer\n");
+        log_error(SPOTIFY_CTX, "Not enough memory to allocate buffer\n");
         return 0;
     }
 
@@ -228,6 +358,7 @@ static size_t __spotify_write_memory_callback(void *contents, size_t size,
 }
 
 void __spotify_get_device_status(const char *host) {
+
     CURL *curl;
     CURLcode res;
     struct __spotify_memory_struct chunk = {NULL, 0};
@@ -242,6 +373,8 @@ void __spotify_get_device_status(const char *host) {
     if (curl) {
         char *url = my_cat3str("http://", host, ":3678/status");
         curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
                          __spotify_write_memory_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
@@ -252,16 +385,61 @@ void __spotify_get_device_status(const char *host) {
         if (res != CURLE_OK) {
             log_error(SPOTIFY_CTX, "curl_easy_perform() failed: %s\n",
                       curl_easy_strerror(res));
-        } else if (chunk.size == 0) {
-            player_set_status(__spotify_player, 0);
-            log_config(SPOTIFY_CTX, "Device is not active.\n");
+            player_set_active(__spotify_player, 0);
+            player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
         } else {
-            player_set_status(__spotify_player, 1);
-            log_config(SPOTIFY_CTX, "Response: %s\n", chunk.memory);
-            cJSON *response = cJSON_Parse(chunk.memory);
-            if (response) {
-                cJSON *track = cJSON_GetObjectItem(response, "track");
-                __spotify_fill_info(track);
+            long response_code = 0;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+            if (response_code >= 200 && response_code < 300) {
+                if (response_code != 200) {
+                    player_set_active(__spotify_player, 0);
+                    player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+                    log_config(SPOTIFY_CTX,
+                               "Device is not active (HTTP %ld).\n",
+                               response_code);
+                } else if (chunk.size == 0) {
+                    player_set_active(__spotify_player, 0);
+                    player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+                    log_config(SPOTIFY_CTX, "Device is not active.\n");
+                } else {
+                    player_set_active(__spotify_player, 1);
+                    log_config(SPOTIFY_CTX, "Response: %s\n", chunk.memory);
+                    cJSON *response = cJSON_Parse(chunk.memory);
+                    if (response) {
+                        int paused = 0;
+                        int stopped = 0;
+                        cJSON *paused_json = cJSON_GetObjectItem(response, "paused");
+                        cJSON *stopped_json = cJSON_GetObjectItem(response, "stopped");
+                        if (paused_json && cJSON_IsBool(paused_json)) {
+                            paused = cJSON_IsTrue(paused_json);
+                        }
+                        if (stopped_json && cJSON_IsBool(stopped_json)) {
+                            stopped = cJSON_IsTrue(stopped_json);
+                        }
+
+                        cJSON *track = cJSON_GetObjectItem(response, "track");
+                        if (track) {
+                            __spotify_fill_info(track);
+                        }
+
+                        if (stopped || !track) {
+                            player_set_playback_status(__spotify_player,
+                                                       PLAYER_PLAYBACK_STOPPED);
+                        } else if (paused) {
+                            player_set_playback_status(__spotify_player,
+                                                       PLAYER_PLAYBACK_PAUSED);
+                        } else {
+                            player_set_playback_status(__spotify_player,
+                                                       PLAYER_PLAYBACK_PLAYING);
+                        }
+                        cJSON_Delete(response);
+                    }
+                }
+            } else {
+                log_warning(SPOTIFY_CTX, "Unexpected status response: %ld\n",
+                            response_code);
+                player_set_active(__spotify_player, 0);
+                player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
             }
         }
 
@@ -273,6 +451,15 @@ void __spotify_get_device_status(const char *host) {
 
     curl_global_cleanup();
     free (chunk.memory);
+
+}
+
+static int __spotify_update() {
+    if (!__spotify_host || !__spotify_player) {
+        return 0;
+    }
+    //__spotify_get_device_status(__spotify_host);
+    return 1;
 }
 
 void __start_spotify_thread(char *spotify_host) {
@@ -295,15 +482,20 @@ void __start_spotify_thread(char *spotify_host) {
 void __stop_spotify_thread() {
     if (__spotify_thread_run) {
         __spotify_thread_run = 0;
+        __spotify_close_requested = 1;
+        if (web_socket) {
+            lws_callback_on_writable(web_socket);
+        }
         lws_cancel_service(context);
         void *res;
         pthread_join(__spotify_thread, &res);
+        __spotify_close_requested = 0;
     }
 }
 
 player *spotify_init(char *spotify_host, char *label, char *icon,
                      int check_seconds) {
-    __spotify_player = player_new("SPOTIFY", icon, label, check_seconds, NULL);
+    __spotify_player = player_new("SPOTIFY", icon, label, check_seconds, __spotify_update);
     __start_spotify_thread(spotify_host);
     return __spotify_player;
 }
@@ -311,6 +503,8 @@ player *spotify_init(char *spotify_host, char *label, char *icon,
 void spotify_close() {
     log_info(SPOTIFY_CTX, "Closing ...\n");
     __stop_spotify_thread();
+    free_and_set_null((void **) &__spotify_cover_url);
+    free_and_set_null((void **) &__spotify_cover_path);
     player_free(__spotify_player);
     log_info(SPOTIFY_CTX, "Closing Done\n");
 }

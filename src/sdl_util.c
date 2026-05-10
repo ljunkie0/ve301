@@ -72,7 +72,11 @@ SDL_Color *html_to_color(char *c) {
 }
 
 void html_print_color(char *name, SDL_Color *c) {
-    log_info(SDL_CTX, "%s: #%02x%02x%02x\n", name, c->r, c->g, c->b);
+    if (c) {
+        log_info(SDL_CTX, "%s: #%02x%02x%02x\n", name, c->r, c->g, c->b);
+    } else {
+        log_info(SDL_CTX, "%s: None\n");
+    }
 }
 
 SDL_Color *rgb_to_color(int r, int g, int b) {
@@ -90,9 +94,21 @@ void color_between_rgb(unsigned char rf, unsigned char gf, unsigned char bf, uns
 }
 
 SDL_Color *color_between(SDL_Color *from, SDL_Color *to, double t) {
-    SDL_Color *color = malloc(sizeof(SDL_Color));
-    color_between_rgb(from->r, from->g, from->b, to->r, to->g, to->b, t, &(color->r), &(color->g), &(color->b));
-    return color;
+    if (from && to) {
+        SDL_Color *color = malloc(sizeof(SDL_Color));
+        color_between_rgb(from->r,
+                          from->g,
+                          from->b,
+                          to->r,
+                          to->g,
+                          to->b,
+                          t,
+                          &(color->r),
+                          &(color->g),
+                          &(color->b));
+        return color;
+    }
+    return NULL;
 }
 
 SDL_Texture *new_light_texture(SDL_Renderer *renderer, int w, int h, int light_x, int light_y, int radius, int alpha) {

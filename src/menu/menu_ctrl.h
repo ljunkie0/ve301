@@ -20,6 +20,7 @@
 #ifndef MENU_CTRL_H_
 #define MENU_CTRL_H_
 
+#include <SDL2/SDL_events.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus
@@ -65,6 +66,7 @@ typedef struct menu_item menu_item;
 typedef struct menu_ctrl menu_ctrl;
 typedef int menu_callback(menu_ctrl *ctrl);
 typedef int item_action(menu_event, menu *, menu_item *);
+typedef int menu_sdl_event_callback(menu_ctrl *ctrl, SDL_Event e);
 
 void menu_ctrl_quit(menu_ctrl *ctrl);
 void menu_ctrl_dispose(menu_ctrl *ctrl);
@@ -107,6 +109,8 @@ int menu_ctrl_get_n_o_items_on_scale(menu_ctrl *ctrl);
 menu *menu_ctrl_get_active(menu_ctrl *ctrl);
 menu *menu_ctrl_get_root(menu_ctrl *ctrl);
 void *menu_ctrl_get_user_data(menu_ctrl *ctrl);
+void menu_ctrl_set_sdl_event_callback(menu_ctrl *ctrl, menu_sdl_event_callback *callback);
+theme *theme_new();
 
 #ifdef __cplusplus
 }

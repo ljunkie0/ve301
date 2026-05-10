@@ -97,7 +97,10 @@ void MenuItem::init(
 }
 
 MenuItem::~MenuItem() {
-    menu_item_free(this->handle);
+    if (this->handle) {
+        menu_item_free(this->handle);
+        this->handle = NULL;
+    }
 }
 
 void MenuItem::activate() {
@@ -125,5 +128,57 @@ void MenuItem::setVisible(const int visible) {
 }
 
 int MenuItem::isVisible() {
-    menu_item_get_visible(this->handle);
+    return menu_item_get_visible(this->handle);
+}
+
+int MenuItem::isSubMenu() {
+    return menu_item_is_sub_menu(this->handle);
+}
+
+char *MenuItem::getLabel() {
+    return menu_item_get_label(this->handle);
+}
+
+char *MenuItem::getIcon() {
+    return menu_item_get_icon(this->handle);
+}
+
+void MenuItem::setObjectType(int objectType) {
+    menu_item_set_object_type(this->handle, objectType);
+}
+
+int MenuItem::getObjectType() {
+    return menu_item_get_object_type(this->handle);
+}
+
+int MenuItem::isObjectType(int objectType) {
+    return menu_item_is_object_type(this->handle, objectType);
+}
+
+void MenuItem::setSubMenu(Menu *subMenu) {
+    menu_item_set_sub_menu(this->handle, subMenu ? subMenu->handle : NULL);
+}
+
+menu *MenuItem::getSubMenu() {
+    return menu_item_get_sub_menu(this->handle);
+}
+
+const void *MenuItem::getUserData() {
+    return menu_item_get_user_data(this->handle);
+}
+
+void MenuItem::freeUserData() {
+    menu_item_free_user_data(this->handle);
+}
+
+void MenuItem::setUserData(void *userData) {
+    menu_item_set_user_data(this->handle, userData);
+}
+
+int MenuItem::getId() {
+    return menu_item_get_id(this->handle);
+}
+
+menu *MenuItem::getMenu() {
+    return menu_item_get_menu(this->handle);
 }

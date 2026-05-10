@@ -142,7 +142,10 @@ void menu_item_warp_to(menu_item *item) {
     log_debug(MENU_CTX, "menu_item_warp_to: ctrl->object = %p->%p\n", ctrl, ctrl->user_data);
 }
 
-int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Texture *bg_image) {
+int menu_ctrl_clear(menu_ctrl *ctrl,
+                    double angle,
+                    SDL_Color *background_color,
+                    SDL_Texture *bg_image) {
     if (background_color) {
         SDL_SetRenderDrawColor(ctrl->renderer,background_color->r,
                 background_color->g,
@@ -159,15 +162,27 @@ int do_clear(menu_ctrl *ctrl, double angle, SDL_Color *background_color, SDL_Tex
 
     if (bg_image) {
         int w, h;
-        SDL_QueryTexture(bg_image,NULL,NULL,&w,&h);
-        double xo = ctrl->center.x - 0.5 * w;
-        double yo = ctrl->center.y - 0.5 * h;
-        const SDL_FRect dst_rect = {xo, yo, w, h};
+        SDL_QueryTexture(bg_image, NULL, NULL, &w, &h);
+        double ctrl_h = 2.0 * (double) ctrl->center.y;
+        double target_size = ceil(sqrt((double) ctrl->w * (double) ctrl->w + ctrl_h * ctrl_h));
+        double scale_x = target_size / (double) w;
+        double scale_y = target_size / (double) h;
+        double scale = scale_x > scale_y ? scale_x : scale_y;
+        if (scale < 1.0) {
+            scale = 1.0;
+        }
+
+        double scaled_w = w * scale;
+        double scaled_h = h * scale;
+        double xo = ctrl->center.x - 0.5 * scaled_w;
+        double yo = ctrl->center.y - 0.5 * scaled_h;
+        const SDL_FRect dst_rect = {xo, yo, scaled_w, scaled_h};
         double xc = 0.5 * dst_rect.w;
         double yc = 0.5 * dst_rect.h;
         const SDL_FPoint center = {xc,yc};
 
-        if (SDL_RenderCopyExF(ctrl->renderer, bg_image, NULL, &dst_rect, angle, &center, SDL_FLIP_NONE) == -1) {
+        if (SDL_RenderCopyExF(ctrl->renderer, bg_image, NULL, &dst_rect, angle, &center, SDL_FLIP_NONE)
+            == -1) {
             log_error(MENU_CTX, "Failed to render background: %s\n", SDL_GetError());
             return 0;
         }
@@ -490,6 +505,58 @@ void menu_ctrl_set_radii(menu_ctrl *ctrl, int radius_labels, int radius_scales_s
 
 }
 
+static int menu_ctrl_set_color_component(SDL_Color **target,
+                                         Uint8 r,
+                                         Uint8 g,
+                                         Uint8 b,
+                                         menu_ctrl *ctrl) {
+    if (!ctrl || !target) {
+        return 0;
+    }
+
+    SDL_Color color = {r, g, b, 255};
+
+    if (*target) {
+        free(*target);
+        *target = NULL;
+    }
+
+    *target = clone_color(&color);
+    if (!*target) {
+        return 0;
+    }
+
+    for (int root = 0; root < ctrl->n_roots; root++) {
+        menu_rebuild_glyphs(ctrl->root[root]);
+    }
+
+    return menu_ctrl_draw(ctrl);
+}
+
+int menu_ctrl_set_bg_color_rgb(menu_ctrl *ctrl, u_int8_t r, u_int8_t g, u_int8_t b) {
+    return ctrl ? menu_ctrl_set_color_component(&ctrl->background_color, r, g, b, ctrl) : 0;
+}
+
+int menu_ctrl_set_default_color_rgb(menu_ctrl *ctrl, u_int8_t r, u_int8_t g, u_int8_t b) {
+    return ctrl ? menu_ctrl_set_color_component(&ctrl->default_color, r, g, b, ctrl) : 0;
+}
+
+int menu_ctrl_set_active_color_rgb(menu_ctrl *ctrl, u_int8_t r, u_int8_t g, u_int8_t b) {
+    return ctrl ? menu_ctrl_set_color_component(&ctrl->activated_color, r, g, b, ctrl) : 0;
+}
+
+int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, u_int8_t r, u_int8_t g, u_int8_t b) {
+    return ctrl ? menu_ctrl_set_color_component(&ctrl->selected_color, r, g, b, ctrl) : 0;
+}
+
+void menu_ctrl_set_angle_offset(menu_ctrl *ctrl, double a) {
+    if (!ctrl) {
+        return;
+    }
+    ctrl->angle_offset = a;
+    menu_ctrl_draw(ctrl);
+}
+
 int menu_ctrl_get_n_o_items_on_scale(menu_ctrl *ctrl) {
     return ctrl->n_o_items_on_scale;
 }
@@ -583,22 +650,47 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
 
 }
 
+theme *theme_new() {
+    theme *t = malloc(sizeof(theme));
+    t->background_color = NULL;
+    t->scale_color = NULL;
+    t->indicator_color = NULL;
+    t->default_color = NULL;
+    t->selected_color = NULL;
+    t->activated_color = NULL;
+    t->bg_image_path = NULL;
+    t->bg_color_palette = NULL;
+    t->bg_cp_colors = -1;
+    t->fg_color_palette = NULL;
+    t->fg_cp_colors = -1;
+    t->font_bumpmap = 0;
+    t->shadow_offset = 0;
+    t->shadow_alpha = 0;
+
+    return t;
+}
+
 int menu_ctrl_apply_theme(menu_ctrl *ctrl, theme *theme) {
     return menu_ctrl_set_style(ctrl, theme->background_color, theme->scale_color,
             theme->indicator_color, theme->default_color, theme->selected_color,
             theme->activated_color, theme->bg_image_path, 1, theme->font_bumpmap, theme->shadow_offset, theme->shadow_alpha, theme->bg_color_palette, theme->bg_cp_colors, theme->fg_color_palette, theme->fg_cp_colors);
 }
 
-void menu_ctrl_set_light(menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha) {
+void menu_ctrl_set_light(
+    menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha) {
     if (ctrl->light_texture) {
         SDL_DestroyTexture(ctrl->light_texture);
-        free (ctrl->light_texture);
     }
     ctrl->light_x = light_x;
     ctrl->light_y = light_y;
 
     ctrl->light_texture = new_light_texture(ctrl->renderer, ctrl->w, ctrl->h, light_x, light_y, radius, alpha);
 
+    for (int r = 0; r < ctrl->n_roots; r++) {
+        menu_rebuild_glyphs(ctrl->root[r]);
+    }
+
+    menu_ctrl_draw(ctrl);
 }
 
 void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path, int x, int y) {
@@ -621,6 +713,10 @@ void menu_ctrl_set_warp_speed(menu_ctrl *ctrl, const int warp_speed) {
     if (ctrl->warp_speed > 10) {
         ctrl->warp_speed = 10;
     }
+}
+
+void menu_ctrl_set_sdl_event_callback(menu_ctrl *ctrl, menu_sdl_event_callback *callback) {
+    ctrl->sdl_event_callback = callback;
 }
 
 menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_labels, int draw_scales, int radius_scales_start, int radius_scales_end, double angle_offset, const char *font, int font_size, int font_size2,
@@ -670,6 +766,7 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
     ctrl->call_back = call_back;
     ctrl->action = action;
     ctrl->bg_image = NULL;
+    ctrl->sdl_event_callback = NULL;
 
     if (!init_SDL()) {
         log_error(MENU_CTX, "Failed to initialize SDL\n");
@@ -853,6 +950,8 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
                         return -1;
                     }
                 }
+            } else if (ctrl->sdl_event_callback) {
+                ctrl->sdl_event_callback(ctrl, e);
             }
         }
 

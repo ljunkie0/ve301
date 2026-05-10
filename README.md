@@ -39,6 +39,57 @@ To clean
     sudo make armhf-docker-clean
     
 First run will take some time as it create the apropriate docker image.
+
+CMake:
+Desktop builds can also be done with CMake:
+
+    cmake --preset desktop
+    cmake --build --preset desktop
+
+For a Raspberry cross-build with CMake on Ubuntu, install the host build tools first:
+
+    sudo apt install cmake ninja-build pkg-config wget git build-essential
+
+Then enable ARM64 packages and install the same cross-build toolchain and target
+libraries that the Docker image uses:
+
+    sudo dpkg --add-architecture arm64
+    sudo apt update
+    sudo apt install crossbuild-essential-arm64
+    sudo apt install \
+      libdbus-1-dev:arm64 \
+      libsdl2-dev:arm64 \
+      libsdl2-ttf-dev:arm64 \
+      libsdl2-gfx-dev:arm64 \
+      libsdl2-image-dev:arm64 \
+      libmpdclient-dev:arm64 \
+      libcurl4-gnutls-dev:arm64 \
+      libcjson-dev:arm64 \
+      libwebsockets-dev:arm64 \
+      libmnl-dev:arm64
+
+WiringPi is required for Raspberry builds.
+
+If you use the existing Docker-based Raspberry build, nothing extra is needed for
+WiringPi. [Raspberry/Dockerfile](/home/chris/Dokumente/Development/ve301/Raspberry/Dockerfile)
+already installs the ARM64 WiringPi package.
+
+If you build outside Docker, install the same ARM64 WiringPi package manually:
+
+    wget https://github.com/WiringPi/WiringPi/releases/download/3.16/wiringpi_3.16_arm64.deb
+    sudo apt install ./wiringpi_3.16_arm64.deb
+    sudo ln -sf /usr/lib/libwiringPi.so.3.16 /usr/lib/libwiringPi.so
+    sudo ln -sf /usr/lib/libwiringPiDev.so.3.16 /usr/lib/libwiringPiDev.so
+
+Then export the cross pkg-config environment:
+
+    export PKG_CONFIG_ALLOW_CROSS=1
+    export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+
+Now configure and build:
+
+    cmake --preset raspberry
+    cmake --build --preset raspberry
  
 Usage:
   Create a directory ~/.ve301

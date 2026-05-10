@@ -18,8 +18,8 @@
  */
 #ifndef MENUCTRL_H
 #define MENUCTRL_H
-#include "Menu.h"
-#include "menu_ctrl_priv.h"
+
+#include "../menu_ctrl.h"
 #include <stdint.h>
 
 class MenuCtrl {
@@ -27,21 +27,25 @@ class MenuCtrl {
 private:
     menu_ctrl *ctrl;
     friend class Menu;
+
 public:
     MenuCtrl(int w,
-          int xOffset,
-	  int yOffset,
-	  int radiusLabels,
-	  int drawScales,
-	  int radiusScalesStart,
-	  int radiusScalesEnd,
-	  double angleOffset,
-	  const char *font,
-	  int fontSize,
-	  int fontSize2,
-          item_action *action,
-	  menu_callback *callBack);
+             int xOffset,
+             int yOffset,
+             int radiusLabels,
+             int drawScales,
+             int radiusScalesStart,
+             int radiusScalesEnd,
+             double angleOffset,
+             const char *font,
+             int fontSize,
+             int fontSize2,
+             item_action *action,
+             menu_callback *callBack);
     ~MenuCtrl();
+    MenuCtrl(const MenuCtrl &) = delete;
+    MenuCtrl &operator=(const MenuCtrl &) = delete;
+
     void dispose();
     void loop();
     void setRadii(int radiusLabels, int radiusScalesStart, int radiusScalesEnd);
@@ -52,6 +56,15 @@ public:
     int setSelectedColor(u_int8_t r, u_int8_t g, u_int8_t b);
     void setLight(double x, double y, double radius, double alpha);
     void setLightImage(char *path, int x, int y);
+    void setOffset(int xOffset, int yOffset);
+    void setAngleOffset(double a);
+    void setWarpSpeed(int warpSpeed);
+    void setActive(menu *active);
+    int getNItemsOnScale();
+    menu *getActive();
+    menu *getRoot();
+    void *getUserData();
+    void setSdlEventCallback(menu_sdl_event_callback *callback);
     void enableFontBumpmap();
     void disableFontBumpmap();
 };

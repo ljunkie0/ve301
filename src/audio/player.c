@@ -19,6 +19,9 @@
 #include "player.h"
 #include "../base/util.h"
 #include <stdlib.h>
+#include <string.h>
+
+#define MAX_COVER_URL_LENGTH 512
 
 player *player_new(const char *name,
                    const char *icon,
@@ -27,16 +30,19 @@ player *player_new(const char *name,
                    update_player_func *update) {
     player *p = malloc(sizeof(player));
     p->name = my_copystr(name);
-    p->status = 0;
-    p->previous_status = 0;
+    p->active = 0;
+    p->previous_active = 0;
+    p->playback_status = PLAYER_PLAYBACK_UNKNOWN;
     p->icon = my_copystr(icon);
     p->label = my_copystr(label);
     p->album = NULL;
     p->artist = NULL;
     p->title = NULL;
     p->cover_uri = NULL;
+    p->info_bg_image_path = NULL;
     p->check_interval = time_check_interval_new(seconds_to_check);
     p->update = update;
+    p->cover_changed = 0;
     return p;
 }
 
@@ -44,40 +50,28 @@ void player_free(player *p) {
     if (!p) {
         return;
     }
-    if (p->name) {
-        free(p->name);
-    }
-    if (p->label) {
-        free(p->label);
-    }
-    if (p->icon) {
-        free(p->icon);
-    }
+    free_and_set_null((void **) &p->album);
+    free_and_set_null((void **) &p->artist);
+    free_and_set_null((void **) &p->title);
+    free_and_set_null((void **) &p->cover_uri);
+    free_and_set_null((void **) &p->name);
+    free_and_set_null((void **) &p->label);
+    free_and_set_null((void **) &p->icon);
+    free_and_set_null((void **) &p->info_bg_image_path);
     if (p->check_interval) {
         time_check_interval_free(p->check_interval);
     }
     free (p);
 }
 
-void player_set_status(player *p, int status) {
-    p->status = status;
-    if (!status) {
-        if (p->album) {
-            free (p->album);
-            p->album = NULL;
-        }
-        if (p->artist) {
-            free (p->artist);
-            p->artist = NULL;
-        }
-        if (p->title) {
-            free (p->title);
-            p->title = NULL;
-        }
-        if (p->cover_uri) {
-            free (p->cover_uri);
-            p->cover_uri = NULL;
-        }
+void player_set_active(player *p, int active) {
+    p->active = active;
+    if (!active) {
+        p->playback_status = PLAYER_PLAYBACK_STOPPED;
+        free_and_set_null((void **) &p->album);
+        free_and_set_null((void **) &p->artist);
+        free_and_set_null((void **) &p->title);
+        free_and_set_null((void **) &p->cover_uri);
     }
 }
 
@@ -89,17 +83,16 @@ int player_update(player *p) {
     if (p->update) {
         return p->update();
     }
-    return 1
-        ;
+    return 1;
 }
 
-int player_get_status(player *p) {
-    return p->status;
+int player_is_active(player *p) {
+    return p->active;
 }
 
-int player_status_changed(player *p) {
-    if (p->status != p->previous_status) {
-        p->previous_status = p->status;
+int player_active_changed(player *p) {
+    if (p->active != p->previous_active) {
+        p->previous_active = p->active;
         return 1;
     }
     return 0;
@@ -114,9 +107,7 @@ char *player_get_label(player *p) {
 }
 
 void player_set_label(player *p, char *label) {
-    if (p->label) {
-        free(p->label);
-    }
+    free_and_set_null((void **) &p->label);
     p->label = label;
 }
 int player_do_check(player *p) {
@@ -124,9 +115,7 @@ int player_do_check(player *p) {
 }
 
 void player_set_album(player *p, char *album) {
-    if (p->album) {
-        free (p->album);
-    }
+    free_and_set_null((void **) &p->album);
     p->album = my_strdup(album);
 }
 
@@ -135,9 +124,7 @@ char *player_get_album(player *p) {
 }
 
 void player_set_artist(player *p, char *artist) {
-    if (p->artist) {
-        free (p->artist);
-    }
+    free_and_set_null((void **) &p->artist);
     p->artist = my_strdup(artist);
 }
 
@@ -146,9 +133,7 @@ char *player_get_artist(player *p) {
 }
 
 void player_set_title(player *p, char *title) {
-    if (p->title) {
-        free (p->title);
-    }
+    free_and_set_null((void **) &p->title);
     p->title = my_strdup(title);
 }
 
@@ -156,13 +141,43 @@ char *player_get_title(player *p) {
     return p->title;
 }
 
-void player_set_cover_uri(player *p, char *cover_uri) {
-    if (p->cover_uri) {
-        free (p->cover_uri);
+int player_set_cover_uri(player *p, char *cover_uri) {
+    if ((!p->cover_uri && cover_uri) || (p->cover_uri && !cover_uri)
+        || strncmp(cover_uri, p->cover_uri, MAX_COVER_URL_LENGTH)) {
+        free_and_set_null((void **) &p->cover_uri);
+        p->cover_uri = my_strdup(cover_uri);
+        p->cover_changed = 1;
     }
-    p->cover_uri = my_strdup(cover_uri);
+    return p->cover_changed;
 }
 
 char *player_get_cover_uri(player *p) {
     return p->cover_uri;
+}
+
+void player_set_cover_image_path(player *p, const char *path) {
+    free_and_set_null((void **) &p->info_bg_image_path);
+    if (path) {
+        p->info_bg_image_path = my_copystr(path);
+    }
+}
+
+char *player_get_cover_image_path(player *p) {
+    return p->info_bg_image_path;
+}
+
+void player_set_playback_status(player *p, player_playback_status status) {
+    p->playback_status = status;
+}
+
+player_playback_status player_get_playback_status(player *p) {
+    return p->playback_status;
+}
+
+void player_set_info_bg_path(player *p, const char *path) {
+    player_set_cover_image_path(p, path);
+}
+
+char *player_get_info_bg_path(player *p) {
+    return player_get_cover_image_path(p);
 }

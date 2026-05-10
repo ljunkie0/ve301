@@ -18,6 +18,9 @@
  */
 #define _GNU_SOURCE
 
+#include <time.h>
+
+#include <pthread.h>
 #include "logging.h"
 #include "log_contexts.h"
 #include "util.h"
@@ -27,57 +30,97 @@
 #include <string.h>
 
 FILE *log_file;
+static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static const char *LOG_TIME_FMT = "%Y-%m-%d %H:%M:%S";
+static const int LOG_CONTEXT_WIDTH = 9;
+static const int LOG_LEVEL_WIDTH = 7;
 
 static int _log_levels[NUM_CTX];
 
 static char *__log_level_colors[] = {
     "\x1b[0m",  // NO LEVEL
-    "\x1b[31m", // ERROR
+    "\x1b[1;31m", // ERROR
     "\x1b[33m", // WARNING
-    "\x1b[35m", // INFO
-    "\x1b[0m",  // CONFIG
-    "\x1b[0m",  // DEBUG
+    "\x1b[32m", // INFO
+    "\x1b[36m", // CONFIG
+    "\x1b[34m", // DEBUG
     "\x1b[0m"   // TRACE
 };
 
+static const char *__log_level_names[] = {
+    "OFF",
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "CONFIG",
+    "DEBUG",
+    "TRACE"
+};
+
 void init_log_file(const char *appname, FILE *dflt_log_file) {
-    if (!dflt_log_file) {
+    if (dflt_log_file) {
+        pthread_mutex_lock(&log_mutex);
+        log_file = dflt_log_file;
+        pthread_mutex_unlock(&log_mutex);
+    } else {
         char *logfile_path = my_catstr("/tmp/", my_catstr(appname, ".log"));
         fprintf(stderr, "Logfile: %s\n", logfile_path);
-        log_file = fopen(logfile_path, "w");
-
-        log_error(BASE_CTX, "log file created\n");
-        if (!log_file) {
+        FILE *new_log_file = fopen(logfile_path, "w");
+        if (!new_log_file) {
             fprintf(stderr, "Could not create file %s\n", logfile_path);
         } else {
-            setlinebuf(log_file);
+            setlinebuf(new_log_file);
+            pthread_mutex_lock(&log_mutex);
+            log_file = new_log_file;
+            pthread_mutex_unlock(&log_mutex);
+            log_info(BASE_CTX, "log file created\n");
         }
         free(logfile_path);
     }
 }
 
 void close_log_file() {
+    pthread_mutex_lock(&log_mutex);
     if (log_file && (log_file != stderr) && (log_file != stdout)) {
         fclose(log_file);
     }
+    log_file = NULL;
+    pthread_mutex_unlock(&log_mutex);
 }
 
 int log_level_enabled(const int log_ctx, const int lvl) {
-    return log_file && (_log_levels[log_ctx] >= lvl);
+    int enabled;
+
+    pthread_mutex_lock(&log_mutex);
+    enabled = log_file && (_log_levels[log_ctx] >= lvl);
+    pthread_mutex_unlock(&log_mutex);
+
+    return enabled;
 }
 
 void set_log_level(const int log_ctx, const int lvl) {
+    pthread_mutex_lock(&log_mutex);
     _log_levels[log_ctx] = lvl;
+    pthread_mutex_unlock(&log_mutex);
 }
 
 int get_log_level(const int log_ctx) {
-    return _log_levels[log_ctx];
+    int lvl;
+
+    pthread_mutex_lock(&log_mutex);
+    lvl = _log_levels[log_ctx];
+    pthread_mutex_unlock(&log_mutex);
+
+    return lvl;
 }
 
 void log_variable_args(const int log_ctx,
                        const int lvl,
                        const char *__restrict __format,
                        va_list args) {
+    pthread_mutex_lock(&log_mutex);
+
     if (!log_file) {
         log_file = stderr;
     }
@@ -85,22 +128,35 @@ void log_variable_args(const int log_ctx,
     if (log_file && (_log_levels[log_ctx] >= lvl)) {
         char *log_context_name = get_log_context_name(log_ctx);
         char *log_level_color = __log_level_colors[lvl];
+        const char *log_level_name = __log_level_names[lvl];
 
-        int ll = strlen(log_level_color);
-        int cl = strlen(log_context_name);
-        int rl = strlen(__log_level_colors[0]);
-        int fl = strlen(__format);
-        char ctx_format[ll + cl + 2 + fl + rl + 1];
+        time_t t;
+        struct tm tmp;
+        char timebuf[32];
 
-        memcpy(ctx_format, log_level_color, ll);
-        memcpy(ctx_format + ll, log_context_name, cl);
-        ctx_format[ll + cl] = ':';
-        ctx_format[ll + cl + 1] = ' ';
-        memcpy(ctx_format + ll + cl + 2, __format, fl);
-        memcpy(ctx_format + ll + cl + 2 + fl, __log_level_colors[0], rl);
-        ctx_format[ll + cl + 2 + fl + rl] = 0;
-        vfprintf(log_file, ctx_format, args);
+        t = time(NULL);
+        if (localtime_r(&t, &tmp) && strftime(timebuf, sizeof(timebuf), LOG_TIME_FMT, &tmp)) {
+            fprintf(log_file, "%s[%s] [%-*s] %-*s: ",
+                    log_level_color,
+                    timebuf,
+                    LOG_CONTEXT_WIDTH,
+                    log_context_name,
+                    LOG_LEVEL_WIDTH,
+                    log_level_name);
+        } else {
+            fprintf(log_file, "%s[%-*s] %-*s: ",
+                    log_level_color,
+                    LOG_CONTEXT_WIDTH,
+                    log_context_name,
+                    LOG_LEVEL_WIDTH,
+                    log_level_name);
+        }
+
+        vfprintf(log_file, __format, args);
+        fputs(__log_level_colors[0], log_file);
     }
+
+    pthread_mutex_unlock(&log_mutex);
 }
 
 void __log_error(const int log_ctx, const char *__restrict __format, ...) {
