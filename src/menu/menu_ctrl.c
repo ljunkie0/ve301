@@ -770,7 +770,7 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
 
     if (!init_SDL()) {
         log_error(MENU_CTX, "Failed to initialize SDL\n");
-        menu_ctrl_dispose(ctrl);
+        menu_ctrl_free(ctrl);
         return 0;
     }
 
@@ -831,7 +831,7 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
 
     if (!ctrl->display) {
         log_error(MENU_CTX, "Failed to create window: %s\n", SDL_GetError());
-        menu_ctrl_dispose(ctrl);
+        menu_ctrl_free(ctrl);
         return 0;
     }
 
@@ -1001,20 +1001,19 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
             TTF_CloseFont(ctrl->font2);
         }
 
+        log_info(MENU_CTX, "Closing TTF\n");
+        TTF_Quit();
+        log_info(MENU_CTX, "Closing IMG\n");
+        IMG_Quit();
+        log_info(MENU_CTX, "Closing SDL\n");
+        SDL_Quit();
+
         free (ctrl);
     }
 }
 
-void menu_ctrl_dispose(menu_ctrl *ctrl) {
-    log_info(MENU_CTX, "Dispose\n");
-    log_info(MENU_CTX, "Cleaning up menu ctrl\n");
+void menu_ctrl_quit(menu_ctrl *ctrl) {
     menu_ctrl_free(ctrl);
-    log_info(MENU_CTX, "Closing TTF\n");
-    TTF_Quit();
-    log_info(MENU_CTX, "Closing IMG\n");
-    IMG_Quit();
-    log_info(MENU_CTX, "Closing SDL\n");
-    SDL_Quit();
 }
 
 int menu_ctrl_loop(menu_ctrl *ctrl) {

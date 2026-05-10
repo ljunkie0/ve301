@@ -31,6 +31,6 @@ typedef struct playlist {
 int playlist_add_song(playlist *p, song *s);
 playlist *playlist_new(char *name);
 int playlist_clear(playlist *p);
-int playlist_dispose(playlist *p);
+void playlist_free(playlist *p);
 
 #endif // PLAYLIST_H

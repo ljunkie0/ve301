@@ -387,6 +387,10 @@ void menu_item_free(menu_item *item) {
     if (item) {
         log_config(MENU_CTX, "Freeing menu item %s\n", item->label);
 
+        if (item->menu && item->menu->ctrl) {
+            menu_item_action(DISPOSE, item->menu->ctrl, item);
+        }
+
         free_and_set_null((void **) &item->unicode_label);
         free_and_set_null((void **) &item->unicode_label2);
         free_and_set_null((void **) &item->label);
@@ -411,23 +415,6 @@ void menu_item_free(menu_item *item) {
 
         free(item);
     }
-}
-
-int menu_item_dispose(menu_item *item) {
-    log_debug(MENU_CTX, "Start dispose_menu_item\n");
-
-    menu *m = (menu *) item->menu;
-
-    if (!m) {
-        log_error(MENU_CTX, "Item %s has no menu!\n", item->unicode_label);
-        return 1;
-    }
-
-    menu_item_action(DISPOSE, m->ctrl, item);
-
-    menu_item_free(item);
-
-    return 1;
 }
 
 menu_item *menu_item_update_label(menu_item *item, const char *label) {

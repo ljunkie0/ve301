@@ -51,9 +51,9 @@ MenuCtrl::MenuCtrl(int w,
 
 }
 
-void MenuCtrl::dispose() {
+void MenuCtrl::free() {
     if (this->ctrl) {
-        menu_ctrl_dispose(this->ctrl);
+        menu_ctrl_free(this->ctrl);
         this->ctrl = NULL;
     }
 }
@@ -136,7 +136,7 @@ void MenuCtrl::disableFontBumpmap() {
 
 MenuCtrl::~MenuCtrl() {
     if (this->ctrl) {
-        menu_ctrl_dispose(this->ctrl);
+        menu_ctrl_free(this->ctrl);
         this->ctrl = NULL;
     }
 }

@@ -434,11 +434,6 @@ void update_artist_menu() {
 
 void update_song_menu(char *album, char *artist) {
     log_config(MAIN_CTX, "Update song menu: album = %s, artist = %s\n", album, artist);
-    int id = 0;
-    for (id = 0; id <= menu_get_max_id(app->song_menu); id++) {
-        song_free((song *) menu_item_get_user_data(menu_get_item(app->song_menu, id)));
-    }
-
     menu_clear(app->song_menu);
 
     playlist *album_songs = NULL;
@@ -456,11 +451,12 @@ void update_song_menu(char *album, char *artist) {
         unsigned int r = 0;
         for (r = 0; r < album_songs->n_songs; r++) {
             song *s = album_songs->songs[r];
+            song *menu_song = song_clone(s);
             log_info(MAIN_CTX, "Song: %s\n", s->title);
             menu_item_new((menu *) app->song_menu,
-                          s->title,
+                          menu_song ? menu_song->title : s->title,
                           NULL,
-                          s,
+                          menu_song,
                           OBJ_TYPE_SONG,
                           NULL,
                           -1,
@@ -468,7 +464,7 @@ void update_song_menu(char *album, char *artist) {
                           NULL,
                           -1);
         }
-        playlist_dispose(album_songs);
+        playlist_free(album_songs);
     } else {
         log_error(MAIN_CTX, "update_song_menu: playlist is NULL\n");
         menu_item_new((menu *) app->song_menu,
@@ -787,7 +783,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
                 break;
             case OBJ_TYPE_ALBUM:
             case OBJ_TYPE_ARTIST:
-                menu_dispose(menu_item_get_sub_menu(item_ptr));
+                menu_clear(menu_item_get_sub_menu(item_ptr));
                 break;
             }
         }
@@ -1158,7 +1154,7 @@ void radio_app_close() {
     log_info(MAIN_CTX, "Stopping audio\n");
     audio_disconnect();
     log_info(MAIN_CTX, "Audio stopped\n");
-    menu_ctrl_dispose(app->ctrl);
+    menu_ctrl_free(app->ctrl);
     if (app->radio_player) {
         player_free(app->radio_player);
         app->radio_player = NULL;

@@ -32,6 +32,7 @@ typedef struct song {
 } song;
 
 song *song_new(unsigned int id, const char *url, const char *name, const char *title);
+song *song_clone(song *s);
 void song_free(song *s);
 
 #endif // SONG_H

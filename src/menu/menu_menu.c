@@ -213,7 +213,7 @@ int menu_clear(menu *m) {
     int id = m->max_id;
     while (id >= 0) {
         log_config(MENU_CTX, "%d\n",id);
-        menu_item_dispose(m->item[id]);
+        menu_item_free(m->item[id]);
         m->item[id] = 0;
         id--;
     }
@@ -296,7 +296,7 @@ void menu_free(menu *m) {
             log_config(MENU_CTX, "Freeing menu %p\n", m);
         }
         for (int i = 0; i <= m->max_id; i++) {
-            menu_item_dispose(m->item[i]);
+            menu_item_free(m->item[i]);
             m->item[i] = NULL;
         }
 
@@ -315,14 +315,6 @@ void menu_free(menu *m) {
         }
         if (m->font2) {
             TTF_CloseFont(m->font2);
-        }
-        if (m->selected_color) {
-            free (m->selected_color);
-            m->selected_color = NULL;
-        }
-        if (m->scale_color) {
-            free (m->scale_color);
-            m->scale_color = NULL;
         }
 
         free (m);
@@ -345,15 +337,6 @@ menu *menu_new_root(
         ctrl->current = m;
     }
     return m;
-}
-
-void menu_dispose(menu *menu) {
-    if (!menu) {
-        return;
-    }
-
-    menu_clear(menu);
-
 }
 
 menu *menu_get_parent(menu *menu) {

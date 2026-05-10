@@ -47,6 +47,14 @@ song *song_new(unsigned int id, const char *url, const char *name, const char *t
     return s;
 }
 
+song *song_clone(song *s) {
+    if (!s) {
+        return NULL;
+    }
+
+    return song_new(s->id, s->url, s->name, s->title);
+}
+
 void song_free(song *s) {
     if (s) {
         if (s->name && s->name != unknown_song_name) {

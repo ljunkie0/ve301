@@ -46,7 +46,7 @@ public:
     MenuCtrl(const MenuCtrl &) = delete;
     MenuCtrl &operator=(const MenuCtrl &) = delete;
 
-    void dispose();
+    void free();
     void loop();
     void setRadii(int radiusLabels, int radiusScalesStart, int radiusScalesEnd);
     int applyTheme(theme *theme);

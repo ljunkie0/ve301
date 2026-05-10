@@ -83,10 +83,22 @@ network_interfaces *get_network_interfaces() {
     }
 
     network_interfaces *interfaces = malloc(sizeof(network_interfaces));
+    if (!interfaces) {
+        log_error(BASE_CTX, "Could not allocate network_interfaces\n");
+        freeifaddrs(ptr_ifaddrs);
+        return NULL;
+    }
     interfaces->n = 0;
     interfaces->interfaces = NULL;
 
     for (struct ifaddrs *ptr_entry = ptr_ifaddrs; ptr_entry; ptr_entry = ptr_entry->ifa_next) {
+        if (!ptr_entry->ifa_addr) {
+            log_warning(BASE_CTX,
+                        "Skipping network interface %s without address\n",
+                        ptr_entry->ifa_name ? ptr_entry->ifa_name : "(null)");
+            continue;
+        }
+
         sa_family_t address_family = ptr_entry->ifa_addr->sa_family;
         if (address_family == AF_INET) {
             interfaces->n++;
@@ -125,9 +137,15 @@ void free_network_interface(network_interface *interface) {
 }
 
 void free_network_interfaces(network_interfaces *interfaces) {
+    if (!interfaces) {
+        log_warning(BASE_CTX, "free_network_interfaces called with NULL\n");
+        return;
+    }
+
     for (int n = 0; n < interfaces->n; n++) {
         free_network_interface(interfaces->interfaces[n]);
     }
+    free(interfaces->interfaces);
     free(interfaces);
 }
 
@@ -211,12 +229,13 @@ void base_init(const char *appname, FILE *dflt_log_file, int log_level) {
 
     init_config_file(appname);
     char *lls = get_config_value("log_levels", "11111111");
-    int i = -1;
-    while (lls[++i]) {
+    int i = 0;
+    while (lls && lls[i] && i < NUM_CTX) {
         char c[2];
         c[0] = lls[i];
         c[1] = 0;
         set_log_level(i, atoi(c));
+        i++;
     }
     free(lls);
 

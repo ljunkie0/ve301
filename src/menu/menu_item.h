@@ -43,7 +43,6 @@ menu_item *menu_item_new(menu *m,
                          item_action *action,
                          char *font_2nd_line,
                          int font_size_2nd_line);
-int menu_item_dispose(menu_item *item);
 void menu_item_free(menu_item *item);
 int menu_item_is_sub_menu(menu_item *item);
 void menu_item_activate(menu_item *item);

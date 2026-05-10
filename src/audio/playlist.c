@@ -61,14 +61,14 @@ int playlist_clear(playlist *p) {
     return 0;
 }
 
-int playlist_dispose(playlist *p) {
-    for (unsigned int i = 0; i < p->n_songs; i++) {
-        song *s = p->songs[i];
-        song_free(s);
-        p->songs[i] = NULL;
+void playlist_free(playlist *p) {
+    if (!p) {
+        return;
     }
-    if (p->name)
+
+    playlist_clear(p);
+    if (p->name) {
         free((void *)p->name);
+    }
     free (p);
-    return 0;
 }

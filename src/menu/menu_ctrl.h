@@ -69,7 +69,7 @@ typedef int item_action(menu_event, menu *, menu_item *);
 typedef int menu_sdl_event_callback(menu_ctrl *ctrl, SDL_Event e);
 
 void menu_ctrl_quit(menu_ctrl *ctrl);
-void menu_ctrl_dispose(menu_ctrl *ctrl);
+void menu_ctrl_free(menu_ctrl *ctrl);
 menu_ctrl *menu_ctrl_new(int w,
                          int h,
                          int x_offset,
@@ -101,7 +101,6 @@ void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset);
 void menu_ctrl_set_angle_offset(menu_ctrl *ctrl, double a);
 void menu_ctrl_set_warp_speed(menu_ctrl *ctrl, int warp_speed);
 void menu_ctrl_set_active(menu_ctrl *ctrl, menu *active);
-void menu_dispose(menu *menu);
 int menu_ctrl_draw(menu_ctrl *ctrl);
 void hsv_to_rgb(double h, double s, double v, u_int8_t *r, u_int8_t *g, u_int8_t *b);
 void color_temp_to_rgb(double temp, u_int8_t *r, u_int8_t *g, u_int8_t *b, double value);
