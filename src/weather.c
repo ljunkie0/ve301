@@ -550,11 +550,11 @@ weather *get_weather() {
 
 }
 
-void *on_weather_thread_start(void *__weather_listener) {
+void *on_weather_thread_start(void *listener) {
     log_info(WEATHER_CTX, "Weather thread successfully started\n");
     pthread_setname_np(pthread_self(), "Weather Thread");
 
-    weather_listener *listener = (weather_listener *) __weather_listener;
+    __weather_listener *lsnr = (__weather_listener *) listener;
 
     const struct timespec duration = {
         1,
@@ -576,7 +576,7 @@ void *on_weather_thread_start(void *__weather_listener) {
         if (diff > 5) {
             timer = timer2;
             weather *weather = get_weather();
-            listener(weather);
+            lsnr(weather);
         }
 
     }
@@ -585,7 +585,7 @@ void *on_weather_thread_start(void *__weather_listener) {
     return NULL;
 }
 
-void start_weather_thread(weather_listener *listener) {
+void start_weather_thread(__weather_listener *listener) {
     if (__weather_thread_started) {
         return;
     }

@@ -186,7 +186,7 @@ void update_time_item(time_t timer) {
     log_debug(MAIN_CTX, "buffer = %p\n", buffer);
 }
 
-int weather_lstnr(weather *weather) {
+int weather_listener(weather *weather) {
     if (weather) {
         app->wthr.temp = weather->temp;
         if (app->wthr.weather_icon) {
@@ -983,7 +983,7 @@ void init_info_menu(radio_config config) {
                                               NULL,
                                               config.font,
                                               config.font_size);
-        start_weather_thread(&weather_lstnr);
+        start_weather_thread(&weather_listener);
 
     } else {
         app->weather_item = NULL;
