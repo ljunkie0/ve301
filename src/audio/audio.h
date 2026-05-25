@@ -45,6 +45,7 @@ playlist *get_artist_album_songs(char *artist, char *album);
 char **get_albums(unsigned int *length);
 char **get_artists(unsigned int *length);
 char **get_artist_albums(char *artist, unsigned int *length);
-int stop(void);
+int stop();
+int play();
 
 #endif /* AUDIO_H_ */

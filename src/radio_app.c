@@ -145,7 +145,7 @@ static void radio_app_touch_activity(void) {
     time_t timer;
     time(&timer);
     app->info_menu_t = timer;
-    log_config(MAIN_CTX, "radio_app_touch_activity: app->info_menu_t = %d\n", app->info_menu_t);
+    log_debug(MAIN_CTX, "radio_app_touch_activity: app->info_menu_t = %d\n", app->info_menu_t);
 }
 
 void read_radio_config(radio_config *config) {
@@ -1014,9 +1014,39 @@ int menu_call_back(menu_ctrl *ctrl) {
     return 1;
 }
 
+static int stop_song_action(menu_event evt, menu *m, menu_item *item) {
+    stop();
+    return 1;
+}
+
+static int play_song_action(menu_event evt, menu *m, menu_item *item) {
+    play();
+    return 1;
+}
+
 void init_options_menu() {
     app->options_menu = menu_new(app->ctrl, 1, NULL, -1, NULL, NULL, -1);
     menu_set_transient(app->options_menu, 1);
+    menu_item_new(app->options_menu,
+                  "Stop",
+                  NULL,
+                  NULL,
+                  UNKNOWN_OBJECT_TYPE,
+                  NULL,
+                  -1,
+                  &stop_song_action,
+                  NULL,
+                  -1);
+    menu_item_new(app->options_menu,
+                  "Play",
+                  NULL,
+                  NULL,
+                  UNKNOWN_OBJECT_TYPE,
+                  NULL,
+                  -1,
+                  &play_song_action,
+                  NULL,
+                  -1);
     menu_item_new(app->options_menu,
                   "Aktuellen Song\nzu Radio hinzufügen",
                   NULL,

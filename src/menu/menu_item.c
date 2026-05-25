@@ -283,10 +283,11 @@ int menu_item_set_label(menu_item *item, const char *label) {
         menu_item_rebuild_glyphs(item);
 
         item->menu->dirty = 1;
+        return 1;
 
     }
 
-    return 1;
+    return 0;
 }
 
 int menu_item_set_icon(menu_item *item, const char *icon) {
@@ -302,10 +303,11 @@ int menu_item_set_icon(menu_item *item, const char *icon) {
         menu_item_rebuild_glyphs(item);
 
         item->menu->dirty = 1;
+        return 1;
 
     }
 
-    return 1;
+    return 0;
 
 }
 
@@ -420,16 +422,18 @@ void menu_item_free(menu_item *item) {
 menu_item *menu_item_update_label(menu_item *item, const char *label) {
     log_debug(MENU_CTX, "menu_item_update_label(item -> %p, label -> %s)\n", item, label);
     menu *m = (menu *) item->menu;
-    menu_item_set_label(item, label);
-    menu_ctrl_draw(m->ctrl);
+    if (menu_item_set_label(item, label)) {
+        menu_ctrl_draw(m->ctrl);
+    }
     return item;
 }
 
 menu_item *menu_item_update_icon(menu_item *item, const char *icon) {
     log_debug(MENU_CTX, "menu_item_update_icon(item -> %p, icon -> %s)\n", item, icon);
     menu *m = (menu *) item->menu;
-    menu_item_set_icon(item, icon);
-    menu_ctrl_draw(m->ctrl);
+    if (menu_item_set_icon(item, icon)) {
+        menu_ctrl_draw(m->ctrl);
+    }
     return item;
 }
 

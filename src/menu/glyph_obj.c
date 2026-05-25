@@ -99,8 +99,6 @@ void init_bumpmap_data(glyph_obj *glyph_o) {
     for (int y = 0; y < glyph_o->surface->h; y++) {
         int o = glyph_o->surface->w * y;
         int p = pitch * y;
-        int pop = pitch * (y - 1);
-        int pon = pitch * (y + 1);
 
         for (int x = 0; x < glyph_o->surface->w; x++) {
             SDL_Color color;
@@ -112,18 +110,28 @@ void init_bumpmap_data(glyph_obj *glyph_o) {
                         &(color.a));
 
             glyph_o->colors[o + x] = color;
+        }
+    }
+
+    for (int y = 0; y < glyph_o->surface->h; y++) {
+        int o = glyph_o->surface->w * y;
+        int pop = glyph_o->surface->w * (y - 1);
+        int pon = glyph_o->surface->w * (y + 1);
+
+        for (int x = 0; x < glyph_o->surface->w; x++) {
+            SDL_Color color = glyph_o->colors[o + x];
 
             double dx = 0.0;
             double dy = 0.0;
 
             if (color.a) {
-                Uint8 pax = x <= 0 ? 0 : get_alpha(pixels[p + (x - 1)], glyph_o->surface->format);
-                Uint8 pay = y <= 0 ? 0 : get_alpha(pixels[pop + x], glyph_o->surface->format);
+                Uint8 pax = x <= 0 ? 0 : glyph_o->colors[o + (x - 1)].a;
+                Uint8 pay = y <= 0 ? 0 : glyph_o->colors[pop + x].a;
                 Uint8 nax = x < glyph_o->surface->w - 1
-                                ? get_alpha(pixels[p + (x + 1)], glyph_o->surface->format)
+                                ? glyph_o->colors[o + (x + 1)].a
                                 : 0;
                 Uint8 nay = y < glyph_o->surface->h - 1
-                                ? get_alpha(pixels[pon + x], glyph_o->surface->format)
+                                ? glyph_o->colors[pon + x].a
                                 : 0;
 
                 dx = (nax - pax);

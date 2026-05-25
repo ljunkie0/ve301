@@ -261,6 +261,15 @@ int stop() {
     return 1;
 }
 
+int play() {
+    if (init_audio()) {
+        if (!mpd_run_play(mpd_conn)) {
+            log_error(AUDIO_CTX, "Failed to play: %s\n", mpd_connection_get_error_message(mpd_conn));
+        }
+    }
+    return 1;
+}
+
 song *get_playing_song() {
     if (init_audio()) {
         struct mpd_song *current_mpd_song;
