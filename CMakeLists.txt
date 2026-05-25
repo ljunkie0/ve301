@@ -139,6 +139,7 @@ set(VE301_SOURCES
     src/audio/player.c
     src/audio/playlist.c
     src/audio/song.c
+    src/audio/radio_browser.c
 )
 
 if(WITH_SPOTIFY)
@@ -167,7 +168,6 @@ target_compile_options(ve301
 
 target_compile_definitions(ve301
     PRIVATE
-        MPD_DEBUG
         LOG_LEVEL=${LOG_LEVEL}
 )
 

@@ -20,6 +20,7 @@
 #include "../base/config.h"
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
+#include "../base/util.h"
 #include <mpd/client.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -41,6 +42,8 @@ static song *current_song;
 
 static pthread_t __audio_thread = 0;
 int __audio_thread_running = 0;
+
+bool playlist_exists(const char *name);
 
 void *__audio_connect_thread_func(void *p) {
     __audio_thread_running = 1;
@@ -177,6 +180,41 @@ int add_song(song *s) {
     }
 }
 
+int add_radio_playlist_url(const char *url, const char *name) {
+    if (!url || !url[0]) {
+        return 0;
+    }
+
+    if (init_audio()) {
+        if (!playlist_exists(RADIO_PLAYLIST)) {
+            log_info(AUDIO_CTX, "Playlist %s does not yet exist. Creating it\n", RADIO_PLAYLIST);
+            if (!mpd_run_save(mpd_conn, RADIO_PLAYLIST)) {
+                log_error(AUDIO_CTX,
+                          "Failed to create playlist %s: %s\n",
+                          RADIO_PLAYLIST,
+                          mpd_connection_get_error_message(mpd_conn));
+                __response_finish();
+                return 0;
+            }
+        }
+
+        if (!mpd_run_playlist_add(mpd_conn, RADIO_PLAYLIST, url)) {
+            log_error(AUDIO_CTX,
+                      "Failed to add %s to playlist %s: %s\n",
+                      name ? name : url,
+                      RADIO_PLAYLIST,
+                      mpd_connection_get_error_message(mpd_conn));
+            __response_finish();
+            return 0;
+        }
+
+        log_info(AUDIO_CTX, "Added %s to playlist %s\n", name ? name : url, RADIO_PLAYLIST);
+        return 1;
+    }
+
+    return 0;
+}
+
 int play_by_id(song *s) {
     if (init_audio()) {
         if (!mpd_run_play_id(mpd_conn, s->id)) {
@@ -231,7 +269,14 @@ song *get_playing_song() {
             int playing = (mpd_status_get_state(mpd_stat) == MPD_STATE_PLAY);
             mpd_status_free(mpd_stat);
             if (playing) {
+                long methodTime_s = current_time_millis();
                 current_mpd_song = mpd_run_current_song(mpd_conn);
+                long methodTime_e = current_time_millis();
+                if (methodTime_e - methodTime_s >= 100) {
+                    __log_warning(AUDIO_CTX,
+                                  "mpd_run_current_song(): Time spend: %d\n",
+                                  methodTime_e - methodTime_s);
+                }
                 if (current_mpd_song) {
                     if (current_song) {
                         song_free(current_song);

@@ -7,8 +7,8 @@ STRIP=$(ARCH)-strip
 
 BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
-AUDIO_OBJS=audio/player.o audio/audio.o audio/song.o audio/playlist.o
-OBJS=radio_app.o theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) input_menu.o weather.o 
+AUDIO_OBJS=audio/player.o audio/audio.o audio/song.o audio/playlist.o audio/radio_browser.o
+OBJS=radio_app.o theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser_menu.o input_menu.o weather.o 
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
@@ -47,7 +47,7 @@ IR_LOG_LEVEL_TRACE=5
 
 LOG_LEVEL=${IR_LOG_LEVEL_TRACE}
 
-CFLAGS = -I$(WIFI_SCAN_DIRECTORY) -Wall -O3 $(DEBUG) -DMPD_DEBUG -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
+CFLAGS = -I$(WIFI_SCAN_DIRECTORY) -Wall -O3 $(DEBUG) -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
 
 CURL_LIB=/usr/lib/$(ARCH)/libcurl.so
 MPD_LIB=/usr/lib/$(ARCH)/libmpdclient.so

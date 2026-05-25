@@ -243,13 +243,18 @@ void base_init(const char *appname, FILE *dflt_log_file, int log_level) {
         set_log_level(i++, log_level);
     }
 
-    log_info(BASE_CTX, "Log levels:\n");
-    log_info(BASE_CTX, "\t%d", get_log_level(0));
+    char levels[512];
+    size_t offset = 0;
 
-    for (i = 1; i < NUM_CTX; i++) {
-        log_info(BASE_CTX, " %d", get_log_level(i));
+    offset += snprintf(levels + offset, sizeof(levels) - offset, "Log levels:\n");
+    for (i = 0; i < NUM_CTX && offset < sizeof(levels); i++) {
+        offset += snprintf(levels + offset,
+                           sizeof(levels) - offset,
+                           "  %-9s = %s\n",
+                           get_log_context_name(i),
+                           get_log_level_name(get_log_level(i)));
     }
-    log_info(BASE_CTX, "\n");
+    log_info(BASE_CTX, "%s", levels);
     log_info(BASE_CTX, "Base init done\n");
 }
 

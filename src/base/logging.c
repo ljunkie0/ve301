@@ -19,6 +19,7 @@
 #define _GNU_SOURCE
 
 #include <time.h>
+#include <sys/time.h>
 
 #include <pthread.h>
 #include "logging.h"
@@ -115,6 +116,14 @@ int get_log_level(const int log_ctx) {
     return lvl;
 }
 
+const char *get_log_level_name(int level) {
+    if (level < 0 || level >= (int) (sizeof(__log_level_names) / sizeof(__log_level_names[0]))) {
+        return "UNKNOWN";
+    }
+
+    return __log_level_names[level];
+}
+
 void log_variable_args(const int log_ctx,
                        const int lvl,
                        const char *__restrict __format,
@@ -128,14 +137,17 @@ void log_variable_args(const int log_ctx,
     if (log_file && (_log_levels[log_ctx] >= lvl)) {
         char *log_context_name = get_log_context_name(log_ctx);
         char *log_level_color = __log_level_colors[lvl];
-        const char *log_level_name = __log_level_names[lvl];
+        const char *log_level_name = get_log_level_name(lvl);
 
         time_t t;
         struct tm tmp;
-        char timebuf[32];
+        struct timeval tv;
+        char timebuf[40];
 
-        t = time(NULL);
+        gettimeofday(&tv, NULL);
+        t = tv.tv_sec;
         if (localtime_r(&t, &tmp) && strftime(timebuf, sizeof(timebuf), LOG_TIME_FMT, &tmp)) {
+            snprintf(timebuf + strlen(timebuf), sizeof(timebuf) - strlen(timebuf), ".%03ld", tv.tv_usec / 1000);
             fprintf(log_file, "%s[%s] [%-*s] %-*s: ",
                     log_level_color,
                     timebuf,

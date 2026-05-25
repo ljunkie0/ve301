@@ -79,5 +79,6 @@ void close_log_file();
 int log_level_enabled(const int log_ctx, const int lvl);
 void set_log_level(const int log_ctx, int lvl);
 int get_log_level(const int log_ctx);
+const char *get_log_level_name(int level);
 
 #endif // LOGGING_H

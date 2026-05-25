@@ -32,6 +32,7 @@
 #include "base/logging.h"
 #include "base/util.h"
 #include "menu/menu_item.h"
+#include "radio_browser_menu.h"
 #include "sdl_util.h"
 #include "theme.h"
 #include "weather.h"
@@ -44,6 +45,10 @@ struct radio_app {
     menu *info_menu;
     menu *nav_menu;
     menu *lib_menu;
+    menu *radio_browser_menu;
+    menu *radio_browser_local_menu;
+    menu *radio_browser_tag_menu;
+    menu *radio_browser_language_menu;
     menu *album_menu;
     menu *artist_menu;
     menu *song_menu;
@@ -51,7 +56,9 @@ struct radio_app {
     menu *current_menu;
     menu *volume_menu;
     menu *message_menu;
+    menu *options_menu;
     menu_item *message_menu_item;
+    menu_item *radio_browser_menu_item;
     menu_item *player_item;
     menu_item *title_item;
     menu_item *artist_item;
@@ -121,19 +128,25 @@ typedef struct radio_config {
     char weather_api_key[MAX_CONFIG_LINE_LENGTH];
     char weather_location[MAX_CONFIG_LINE_LENGTH];
     char weather_units[MAX_CONFIG_LINE_LENGTH];
+    int radio_browser_enabled;
+    char radio_browser_countrycode[MAX_CONFIG_LINE_LENGTH];
+    char radio_browser_server[MAX_CONFIG_LINE_LENGTH];
+    char radio_browser_user_agent[MAX_CONFIG_LINE_LENGTH];
+    int radio_browser_station_limit;
+    int radio_browser_category_limit;
+    int radio_browser_language_limit;
 } radio_config;
 
-typedef enum {
-    OBJ_TYPE_SONG,
-    OBJ_TYPE_PLAYLIST,
-    OBJ_TYPE_ALBUM,
-    OBJ_TYPE_ARTIST,
-    OBJ_TYPE_DIRECTORY,
-    OBJ_TYPE_TIME,
-    OBJ_TYPE_MIXER
-} object_type;
-
 static struct radio_app *app;
+
+static int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr);
+
+static void radio_app_touch_activity(void) {
+    time_t timer;
+    time(&timer);
+    app->info_menu_t = timer;
+    log_config(MAIN_CTX, "radio_app_touch_activity: app->info_menu_t = %d\n", app->info_menu_t);
+}
 
 void read_radio_config(radio_config *config) {
     config_value_path(config->font, "font", DEFAULT_FONT);
@@ -173,6 +186,15 @@ void read_radio_config(radio_config *config) {
     config_value(config->weather_location, "weather_location", "");
     config_value(config->weather_units, "weather_units", "metric");
     config_value(config->time_menu_item_format, "time_menu_item_format", "%H:%M\n%d. %B");
+    config->radio_browser_enabled = get_config_value_int("radio_browser_enabled", 1);
+    config_value(config->radio_browser_countrycode, "radio_browser_countrycode", "DE");
+    config_value(config->radio_browser_server,
+                 "radio_browser_server",
+                 "https://de1.api.radio-browser.info");
+    config_value(config->radio_browser_user_agent, "radio_browser_user_agent", "VE301");
+    config->radio_browser_station_limit = get_config_value_int("radio_browser_station_limit", 50);
+    config->radio_browser_category_limit = get_config_value_int("radio_browser_category_limit", 50);
+    config->radio_browser_language_limit = get_config_value_int("radio_browser_language_limit", 50);
 }
 
 void update_time_item(time_t timer) {
@@ -210,6 +232,10 @@ void update_menu_item_icon_or_label(menu_item *item, char *icon, char *label) {
 }
 
 void apply_radio_theme(radio_theme *theme) {
+    if (app->current_theme == theme) {
+        return;
+    }
+
     app->current_theme = theme;
     menu_ctrl_apply_theme(app->ctrl, theme->menu_theme);
 
@@ -235,6 +261,7 @@ void apply_radio_theme(radio_theme *theme) {
     menu_set_colors(app->info_menu, info_default_clr, info_selected_clr, info_scale_clr);
     menu_set_colors(app->volume_menu, info_default_clr, info_selected_clr, info_scale_clr);
     menu_set_colors(app->message_menu, info_default_clr, info_selected_clr, info_scale_clr);
+    menu_set_colors(app->options_menu, info_default_clr, info_selected_clr, info_scale_clr);
 
     free(info_default_clr);
     free(info_selected_clr);
@@ -291,6 +318,7 @@ void init_players(const char *radio_player_name, const char *radio_player_label)
 }
 
 int check_player(player *p, radio_theme *player_theme) {
+    long methodTime_s = current_time_millis();
     if (player_do_check(p)) {
         log_config(MAIN_CTX, "Checking %s...\n", player_get_name(p));
         if (player_update(p)) {
@@ -325,10 +353,20 @@ int check_player(player *p, radio_theme *player_theme) {
         }
         log_config(MAIN_CTX, "%s checked.\n", player_get_name(p));
     }
-    return player_is_active(p);
+    int player_active = player_is_active(p);
+
+    long methodTime_e = current_time_millis();
+    if (methodTime_e - methodTime_s >= 100) {
+        __log_warning(MAIN_CTX,
+                      "check_player(%s): Time spend: %d\n",
+                      p->name,
+                      methodTime_e - methodTime_s);
+    }
+    return player_active;
 }
 
 int check_radio() {
+    long methodTime_s = current_time_millis();
     if (player_do_check(app->radio_player)) {
         if (!player_is_active(app->radio_player)) {
             player_set_active(app->radio_player, 1);
@@ -339,6 +377,7 @@ int check_radio() {
             update_menu_item_icon_or_label(app->title_item, NULL, "VE 301");
             update_menu_item_icon_or_label(app->artist_item, NULL, "VE 301");
         }
+
         song *current_song = get_playing_song();
         if (current_song) {
             log_debug(MAIN_CTX, "Current song: %s\n", current_song->title);
@@ -352,7 +391,14 @@ int check_radio() {
             }
         }
     }
-    return player_is_active(app->radio_player);
+
+    int player_active = player_is_active(app->radio_player);
+
+    long methodTime_e = current_time_millis();
+    if (methodTime_e - methodTime_s >= 100) {
+        __log_warning(MAIN_CTX, "check_radio(): Time spend: %d\n", methodTime_e - methodTime_s);
+    }
+    return player_active;
 }
 
 void update_radio_menu() {
@@ -476,8 +522,57 @@ void update_song_menu(char *album, char *artist) {
                       -1,
                       NULL,
                       NULL,
-                      -1);
+        -1);
     }
+}
+static int add_to_playlist_action(menu_event evt, menu *m, menu_item *item);
+
+static void radio_app_open_info_menu(void) {
+    if (app && app->info_menu) {
+        menu_open(app->info_menu);
+    }
+}
+
+static const char *radio_app_current_song_label(const song *current) {
+    if (!current) {
+        return NULL;
+    }
+
+    if (current->title && current->title[0] && strcmp(current->title, "Unknown")) {
+        return current->title;
+    }
+
+    if (current->name && current->name[0] && strcmp(current->name, "Unknown")) {
+        return current->name;
+    }
+
+    return current->url;
+}
+
+static int add_to_playlist_action(menu_event evt, menu *m, menu_item *item) {
+    (void) m;
+    (void) item;
+
+    radio_app_touch_activity();
+
+    if (evt != ACTIVATE && evt != ACTIVATE_1) {
+        return 0;
+    }
+
+    song *current = get_playing_song();
+    if (!current || !current->url || !current->url[0]) {
+        log_warning(MAIN_CTX, "No current song to add to Radio playlist\n");
+        return 0;
+    }
+
+    const char *label = radio_app_current_song_label(current);
+    if (!label) {
+        label = current->url;
+    }
+
+    add_radio_playlist_url(current->url, label);
+
+    return 0;
 }
 
 void vol_label(char *buffer, int volume) {
@@ -728,6 +823,17 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     case ACTIVATE:
         menu_action_activate(m_ptr, item_ptr);
         break;
+    case HOLD:
+        if (m_ptr == app->nav_menu || m_ptr == app->volume_menu) {
+            radio_app_open_info_menu();
+        } else if (m_ptr == app->info_menu) {
+            menu_open(app->options_menu);
+        } else if (m_ptr == app->options_menu) {
+            menu_open(app->info_menu);
+        } else if (m_ptr && menu_get_parent(m_ptr) && menu_get_parent(m_ptr) != m_ptr) {
+            menu_open(menu_get_parent(m_ptr));
+        }
+        break;
 #ifdef ALSA
     case ACTIVATE_1:
         if (m_ptr == app->mixer_menu && item_ptr) {
@@ -792,10 +898,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
         break;
     }
 
-    time_t timer;
-    time(&timer);
-    app->info_menu_t = timer;
-    app->callback_t = timer;
+    radio_app_touch_activity();
 
     return 0;
 }
@@ -911,10 +1014,26 @@ int menu_call_back(menu_ctrl *ctrl) {
     return 1;
 }
 
+void init_options_menu() {
+    app->options_menu = menu_new(app->ctrl, 1, NULL, -1, NULL, NULL, -1);
+    menu_set_transient(app->options_menu, 1);
+    menu_item_new(app->options_menu,
+                  "Aktuellen Song\nzu Radio hinzufügen",
+                  NULL,
+                  NULL,
+                  UNKNOWN_OBJECT_TYPE,
+                  NULL,
+                  -1,
+                  &add_to_playlist_action,
+                  NULL,
+                  -1);
+}
+
 void init_info_menu(radio_config config) {
     app->info_menu = menu_new_root(app->ctrl, 1, config.info_font, config.info_font_size, NULL, 0);
     menu_set_label(app->info_menu, "Infos");
     menu_set_transient(app->info_menu, 1);
+
 
     app->player_item = menu_item_new(app->info_menu,
                                      "VE 301",
@@ -988,9 +1107,11 @@ void init_info_menu(radio_config config) {
     } else {
         app->weather_item = NULL;
     }
+
+    init_options_menu();
 }
 
-void init_navigation_menu() {
+void init_navigation_menu(radio_config config) {
     app->nav_menu = menu_new_root(app->ctrl, 1, NULL, 0, NULL, 0);
     menu_set_label(app->nav_menu, "Navigation");
     menu_ctrl_set_active(app->ctrl, app->nav_menu);
@@ -1006,6 +1127,21 @@ void init_navigation_menu() {
                                get_config_value_int("radio_menu_segments_per_item",
                                                     RADIO_MENU_SEGMENTS_PER_ITEM));
     app->radio_menu_item = menu_add_sub_menu(app->nav_menu, "Radio", app->radio_menu, NULL);
+
+    if (config.radio_browser_enabled) {
+        app->radio_browser_menu = radio_browser_menu_init(app->ctrl,
+                                                          &radio_app_touch_activity,
+                                                          config.radio_browser_server,
+                                                          config.radio_browser_user_agent,
+                                                          config.radio_browser_countrycode,
+                                                          config.radio_browser_station_limit,
+                                                          config.radio_browser_category_limit,
+                                                          config.radio_browser_language_limit);
+        app->radio_browser_menu_item = menu_add_sub_menu(app->nav_menu,
+                                                         "Radio Browser",
+                                                         app->radio_browser_menu,
+                                                         NULL);
+    }
 
     app->lib_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
     menu_set_label(app->lib_menu, "Bibliothek");
@@ -1086,7 +1222,7 @@ void radio_app_create_menu(radio_config config) {
         app->message_menu, "", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);
 
     /* Navigation Menu */
-    init_navigation_menu();
+    init_navigation_menu(config);
 
     /* Mixer Menu */
     init_mixer_menu(config);
@@ -1109,6 +1245,7 @@ void radio_app_init(const char *name,
     read_radio_config(&config);
     app = radio_app_new();
     app->check_internet_interval = time_check_interval_new(CHECK_INTERNET_SECONDS);
+    check_internet();
     radio_app_create_menu(config);
     init_players(radio_player_name, radio_player_label);
 }
@@ -1154,6 +1291,7 @@ void radio_app_close() {
     log_info(MAIN_CTX, "Stopping audio\n");
     audio_disconnect();
     log_info(MAIN_CTX, "Audio stopped\n");
+    radio_browser_cleanup();
     menu_ctrl_free(app->ctrl);
     if (app->radio_player) {
         player_free(app->radio_player);

@@ -102,6 +102,7 @@ void menu_ctrl_set_angle_offset(menu_ctrl *ctrl, double a);
 void menu_ctrl_set_warp_speed(menu_ctrl *ctrl, int warp_speed);
 void menu_ctrl_set_active(menu_ctrl *ctrl, menu *active);
 int menu_ctrl_draw(menu_ctrl *ctrl);
+item_action *menu_ctrl_get_item_action(menu_ctrl *ctrl);
 void hsv_to_rgb(double h, double s, double v, u_int8_t *r, u_int8_t *g, u_int8_t *b);
 void color_temp_to_rgb(double temp, u_int8_t *r, u_int8_t *g, u_int8_t *b, double value);
 int menu_ctrl_get_n_o_items_on_scale(menu_ctrl *ctrl);

@@ -719,6 +719,10 @@ void menu_ctrl_set_sdl_event_callback(menu_ctrl *ctrl, menu_sdl_event_callback *
     ctrl->sdl_event_callback = callback;
 }
 
+item_action *menu_ctrl_get_item_action(menu_ctrl *ctrl) {
+    return ctrl->action;
+}
+
 menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_labels, int draw_scales, int radius_scales_start, int radius_scales_end, double angle_offset, const char *font, int font_size, int font_size2,
         item_action *action, menu_callback *call_back) {
 
@@ -874,7 +878,8 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
                 redraw = 1;
             }
         } else if (he == BUTTON_A_HOLD) {
-            open_parent_menu (ctrl);
+            menu_action(HOLD, ctrl, ctrl->current);
+            redraw = 1;
         } else if (he == BUTTON_B_TURNED_LEFT) {
             menu_action(TURN_LEFT_1, ctrl, ctrl->current);
         } else if (he == BUTTON_B_TURNED_RIGHT) {
@@ -914,10 +919,8 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
                             log_trace(MENU_CTX, "No action.\n");
                         }
                     } else if (b->button == 3) {
-                        if (ctrl->current->parent) {
-                            open_parent_menu(ctrl);
-                            redraw = 1;
-                        }
+                        menu_action(HOLD, ctrl, ctrl->current);
+                        redraw = 1;
                     } else if (b->button == 4) {
                         __menu_turn_left(ctrl->current,0);
                         menu_action(TURN_LEFT, ctrl, ctrl->current);
@@ -949,10 +952,10 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
                     } else if (k->keysym.sym == SDLK_q) {
                         return -1;
                     }
-                }
-            } else if (ctrl->sdl_event_callback) {
-                ctrl->sdl_event_callback(ctrl, e);
             }
+        } else if (ctrl->sdl_event_callback) {
+            ctrl->sdl_event_callback(ctrl, e);
+        }
         }
 
         return redraw;

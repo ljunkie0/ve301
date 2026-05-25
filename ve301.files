@@ -25,6 +25,8 @@ src/audio/player.c
 src/audio/player.h
 src/audio/playlist.c
 src/audio/playlist.h
+src/audio/radio_browser.c
+src/audio/radio_browser.h
 src/audio/song.c
 src/audio/song.h
 src/audio/spotify.c
@@ -93,6 +95,8 @@ src/mpris_audio.c
 src/player.h
 src/radio_app.c
 src/radio_app.h
+src/radio_browser_menu.c
+src/radio_browser_menu.h
 src/rotaryencoder.c
 src/rotaryencoder.h
 src/sdl_util.c
