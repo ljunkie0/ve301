@@ -152,23 +152,34 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
 
         unsigned int i = 0;
         for (i = 0; i < n_glyph_objs; i++) {
-            glyph_obj *glyph_o
-                = icon
-                      ? glyph_obj_new_surface(renderer,
-                                              text_surface,
-                                              font,
-                                              fg,
-                                              center,
-                                              radius,
-                                              bump_map)
-                      : glyph_obj_new(renderer, unicode_text[i], font, fg, center, radius, bump_map);
-            if (!glyph_o) {
-                log_error(MENU_CTX, "Could not create glyph object for %c\n",
-                          unicode_text[i]);
-                text_obj_free(t);
-                return NULL;
+            if (icon) {
+                IMG_Animation *animation = IMG_LoadAnimation(icon);
+                if (animation && animation->count > 1) {
+                    t->glyphs_objs[i] = glyph_obj_new_animated(renderer,
+                                                               animation->frames,
+                                                               animation->count,
+                                                               center,
+                                                               radius,
+                                                               bump_map);
+                    free(animation->frames);
+                    free(animation->delays);
+                    free(animation);
+                } else {
+                    t->glyphs_objs[i] = glyph_obj_new_surface(renderer,
+                                                              text_surface,
+                                                              center,
+                                                              radius,
+                                                              bump_map);
+                }
+            } else {
+                t->glyphs_objs[i]
+                    = glyph_obj_new(renderer, unicode_text[i], font, fg, center, radius, bump_map);
+                if (!t->glyphs_objs[i]) {
+                    log_error(MENU_CTX, "Could not create glyph object for %c\n", unicode_text[i]);
+                    text_obj_free(t);
+                    return NULL;
+                }
             }
-            t->glyphs_objs[i] = glyph_o;
         }
 
         if (!icon) {
@@ -260,6 +271,8 @@ void text_obj_draw(SDL_Renderer *renderer, SDL_Texture *target, text_obj *label,
         for (int c = 0; c < label->n_glyphs; c++) {
 
             glyph_obj *glyph_obj = label->glyphs_objs[c];
+
+            glyph_obj_animation_update(glyph_obj);
 
             double crc = M_2_X_PI * glyph_obj->radius;
             double a = angle + 360.0 * (advance + 0.5 * glyph_obj->dst_rect->w) / crc;

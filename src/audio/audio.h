@@ -36,6 +36,7 @@ void set_volume(int vol);
 int play_song(song *s);
 int add_radio_playlist_url(const char *url, const char *name);
 int audio_disconnect(void);
+/* Returns an owned snapshot of the current song; caller must free it. */
 song *get_playing_song(void);
 playlist *get_internet_radios(void);
 playlist *get_album_songs(char *album);

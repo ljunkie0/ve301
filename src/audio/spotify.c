@@ -37,6 +37,7 @@ static pthread_t __spotify_thread = 0;
 static int __spotify_thread_run = 0;
 static struct lws_context *context = NULL;
 static int __spotify_close_requested = 0;
+static int __spotify_show_cover;
 
 player *__spotify_player;
 static char *__spotify_cover_url = NULL;
@@ -62,13 +63,16 @@ static void __spotify_fill_info(cJSON *metadata) {
                      album_name ? album_name->valuestring : NULL);
     player_set_artist(__spotify_player,
                       artist_names ? artist_names->valuestring : NULL);
-    if (player_set_cover_uri(__spotify_player,
-                             album_cover_url ? album_cover_url->valuestring : NULL)) {
+    if (__spotify_show_cover
+        && player_set_cover_uri(__spotify_player,
+                                album_cover_url ? album_cover_url->valuestring : NULL)) {
         if (album_cover_url && album_cover_url->valuestring) {
             __spotify_download_cover(album_cover_url->valuestring);
         } else {
             player_set_cover_image_path(__spotify_player, NULL);
         }
+    } else {
+        player_set_cover_image_path(__spotify_player, NULL);
     }
 
     // Print out the track information
@@ -493,8 +497,7 @@ void __stop_spotify_thread() {
     }
 }
 
-player *spotify_init(char *spotify_host, char *label, char *icon,
-                     int check_seconds) {
+player *spotify_init(char *spotify_host, char *label, char *icon, int check_seconds, int show_cover) {
     __spotify_player = player_new("SPOTIFY", icon, label, check_seconds, __spotify_update);
     __start_spotify_thread(spotify_host);
     return __spotify_player;

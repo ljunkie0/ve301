@@ -293,11 +293,13 @@ void init_players(const char *radio_player_name, const char *radio_player_label)
     config_value(spotify_host, "spotify_host", "localhost");
     char spotify_icon[MAX_CONFIG_LINE_LENGTH];
     config_value_path(spotify_icon, "spotify_icon", NULL);
+    int spotify_show_cover = get_config_value_int("spotify_show_cover", 0);
     app->spotify_player = spotify_init(spotify_host,
                                        "Spotify",
                                        spotify_icon,
                                        get_config_value_int("check_spotify_seconds",
-                                                            CHECK_SPOTIFY_SECONDS));
+                                                            CHECK_SPOTIFY_SECONDS),
+                                       spotify_show_cover);
     if (player_get_icon(app->spotify_player)) {
         player_set_label(app->spotify_player, NULL);
     }
@@ -389,6 +391,7 @@ int check_radio() {
                 && strncmp(current_song->name, "N/A", 3)) {
                 menu_item_update_label(app->artist_item, current_song->name);
             }
+            song_free(current_song);
         }
     }
 
@@ -562,6 +565,7 @@ static int add_to_playlist_action(menu_event evt, menu *m, menu_item *item) {
     song *current = get_playing_song();
     if (!current || !current->url || !current->url[0]) {
         log_warning(MAIN_CTX, "No current song to add to Radio playlist\n");
+        song_free(current);
         return 0;
     }
 
@@ -571,6 +575,7 @@ static int add_to_playlist_action(menu_event evt, menu *m, menu_item *item) {
     }
 
     add_radio_playlist_url(current->url, label);
+    song_free(current);
 
     return 0;
 }
@@ -709,10 +714,12 @@ void menu_action_activate(menu *m, menu_item *item) {
                 song *current_song = get_playing_song();
                 if (current_song) {
                     menu_item_update_label(app->artist_item, current_song->name);
+                    song_free(current_song);
                 }
             } else if (p) {
                 stop();
             }
+            song_free(p);
         } else if (menu_is_transient(menu_item_get_menu(item))) {
             if (menu_ctrl_get_active(app->ctrl)) {
                 menu_open(menu_ctrl_get_active(app->ctrl));
@@ -1321,7 +1328,7 @@ void radio_app_close() {
     log_info(MAIN_CTX, "Stopping audio\n");
     audio_disconnect();
     log_info(MAIN_CTX, "Audio stopped\n");
-    radio_browser_cleanup();
+    radio_browser_menu_close();
     menu_ctrl_free(app->ctrl);
     if (app->radio_player) {
         player_free(app->radio_player);

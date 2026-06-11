@@ -11,4 +11,7 @@ menu *radio_browser_menu_init(menu_ctrl *ctrl,
                               int station_limit,
                               int category_limit,
                               int language_limit);
+
+void radio_browser_menu_close();
+
 #endif // RADIO_BROWSER_MENU_H

@@ -332,3 +332,7 @@ menu *radio_browser_menu_init(menu_ctrl *ctrl,
 
     return radio_browser_menu;
 }
+
+void radio_browser_menu_close() {
+    radio_browser_cleanup();
+}

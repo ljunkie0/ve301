@@ -185,15 +185,12 @@ void init_bumpmap_data(glyph_obj *glyph_o) {
     }
 }
 
-glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer,
-                                 SDL_Surface *surface,
-                                 TTF_Font *font,
-                                 SDL_Color fg,
-                                 SDL_Point center,
-                                 int radius,
-                                 int bump_map) {
-    glyph_obj *glyph_o = calloc(1, sizeof(glyph_obj));
-
+void glyph_obj_init_surface(glyph_obj *glyph_o,
+                            SDL_Renderer *renderer,
+                            SDL_Surface *surface,
+                            SDL_Point center,
+                            int radius,
+                            int bump_map) {
     glyph_o->bumpmap_textures = NULL;
     glyph_o->bumpmap_overlay = NULL;
     glyph_o->bump_map = bump_map;
@@ -210,28 +207,68 @@ glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer,
         init_bumpmap_data(glyph_o);
     }
 
-    glyph_o->texture = SDL_CreateTextureFromSurface(renderer,glyph_o->surface);
+    glyph_o->texture = SDL_CreateTextureFromSurface(renderer, glyph_o->surface);
     if (!glyph_o->texture) {
         log_error(MENU_CTX, "Could not generate texture from surface: %s\n", SDL_GetError());
     }
-    SDL_SetTextureBlendMode(glyph_o->texture,SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(glyph_o->texture, SDL_BLENDMODE_BLEND);
 
     Uint32 format;
     int access;
     SDL_Rect *dst = malloc(sizeof(SDL_Rect));
-    SDL_QueryTexture(glyph_o->texture,&format,&access,&(dst->w),&(dst->h));
+    SDL_QueryTexture(glyph_o->texture, &format, &access, &(dst->w), &(dst->h));
     glyph_o->dst_rect = dst;
 
     glyph_o->rot_center = malloc(sizeof(SDL_Point));
-    glyph_obj_update_cnt_rad(glyph_o,center,radius);
+    glyph_obj_update_cnt_rad(glyph_o, center, radius);
 
     glyph_o->minx = 0;
     glyph_o->maxx = surface->w;
     glyph_o->miny = 0;
     glyph_o->maxy = surface->h;
     glyph_o->advance = 0;
+}
+
+glyph_obj *glyph_obj_new_surface(
+    SDL_Renderer *renderer, SDL_Surface *surface, SDL_Point center, int radius, int bump_map) {
+    glyph_obj *glyph_o = calloc(1, sizeof(glyph_obj));
+    glyph_o->animated = 0;
+
+    glyph_obj_init_surface(glyph_o, renderer, surface, center, radius, bump_map);
 
     return glyph_o;
+}
+
+glyph_obj *glyph_obj_new_animated(SDL_Renderer *renderer,
+                                  SDL_Surface **surfaces,
+                                  int n_surfaces,
+                                  SDL_Point center,
+                                  int radius,
+                                  int bump_map) {
+    glyph_obj_animated *glyph_o = calloc(1, sizeof(glyph_obj_animated));
+    glyph_o->glyph_obj.animated = 1;
+    glyph_o->n_animations = n_surfaces;
+    glyph_o->next_animation = 0;
+    glyph_o->surfaces = calloc(n_surfaces, sizeof(SDL_Surface *));
+    glyph_o->textures = calloc(n_surfaces, sizeof(SDL_Texture *));
+    glyph_o->normalss = calloc(n_surfaces, sizeof(normal_vector *));
+    glyph_o->colorss = calloc(n_surfaces, sizeof(SDL_Color *));
+    glyph_o->bumpmap_overlays = calloc(n_surfaces, sizeof(SDL_Texture *));
+
+    for (int i = 0; i < n_surfaces; i++) {
+        glyph_obj_init_surface((glyph_obj *) glyph_o,
+                               renderer,
+                               surfaces[i],
+                               center,
+                               radius,
+                               bump_map);
+        glyph_o->surfaces[i] = glyph_o->glyph_obj.surface;
+        glyph_o->textures[i] = glyph_o->glyph_obj.texture;
+        glyph_o->normalss[i] = glyph_o->glyph_obj.normals;
+        glyph_o->colorss[i] = glyph_o->glyph_obj.colors;
+    }
+
+    return (glyph_obj *) glyph_o;
 }
 
 glyph_obj *glyph_obj_new(SDL_Renderer *renderer,
@@ -247,7 +284,7 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer,
         return NULL;
     }
 
-    glyph_obj *glyph_o = glyph_obj_new_surface(renderer, surface, font, fg, center, radius, bump_map);
+    glyph_obj *glyph_o = glyph_obj_new_surface(renderer, surface, center, radius, bump_map);
 
     int minx = 0,maxx = 0,miny = 0,maxy = 0,advance = 0;
     TTF_GlyphMetrics(font,c,&minx,&maxx,&miny,&maxy,&advance);
@@ -373,4 +410,29 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
 
     SDL_UnlockTexture(glyph_o->bumpmap_overlay);
 
+}
+
+void glyph_obj_animation_update(glyph_obj *glyph_o) {
+    if (!glyph_o->animated) {
+        return;
+    }
+
+    glyph_obj_animated *glyph_o_a = (glyph_obj_animated *) glyph_o;
+    int next_animation = glyph_o_a->next_animation;
+    glyph_o_a->glyph_obj.colors = glyph_o_a->colorss[next_animation];
+    glyph_o_a->glyph_obj.normals = glyph_o_a->normalss[next_animation];
+    glyph_o_a->glyph_obj.surface = glyph_o_a->surfaces[next_animation];
+    glyph_o_a->glyph_obj.texture = glyph_o_a->textures[next_animation];
+
+    if (glyph_o_a->glyph_obj.bumpmap_overlay && next_animation > 0) {
+        glyph_o_a->bumpmap_overlays[next_animation - 1] = glyph_o_a->glyph_obj.bumpmap_overlay;
+    }
+
+    glyph_o_a->glyph_obj.bumpmap_overlay = glyph_o_a->bumpmap_overlays[next_animation];
+
+    if (++next_animation >= glyph_o_a->n_animations) {
+        next_animation = 0;
+    }
+
+    glyph_o_a->next_animation = next_animation;
 }

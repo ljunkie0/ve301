@@ -30,9 +30,9 @@ typedef struct glyph_obj {
     SDL_Texture *bumpmap_overlay;
     SDL_Texture **bumpmap_textures;
     Uint32 *light_pixels;
-    int pitch;
     SDL_Color *colors;
     normal_vector *normals;
+    int pitch;
     int advance;
     int minx;
     int maxx;
@@ -45,7 +45,21 @@ typedef struct glyph_obj {
     double shadow_dx;
     double shadow_dy;
     int bump_map;
+    int animated;
 } glyph_obj;
+
+typedef struct glyph_obj_animated {
+    glyph_obj glyph_obj;
+    int n_animations;
+    int next_animation;
+    SDL_Texture **textures;
+    SDL_Surface **surfaces;
+    SDL_Texture **bumpmap_overlays;
+    SDL_Texture ***bumpmap_texturess;
+    Uint32 **light_pixelss;
+    SDL_Color **colorss;
+    normal_vector **normalss;
+} glyph_obj_animated;
 
 glyph_obj *glyph_obj_new(SDL_Renderer *renderer,
                          uint16_t c,
@@ -56,13 +70,22 @@ glyph_obj *glyph_obj_new(SDL_Renderer *renderer,
                          int bump_map);
 glyph_obj *glyph_obj_new_surface(SDL_Renderer *renderer,
                                  SDL_Surface *surface,
-                                 TTF_Font *font,
-                                 SDL_Color fg,
                                  SDL_Point center,
                                  int radius,
                                  int bump_map);
+
+glyph_obj *glyph_obj_new_animated(SDL_Renderer *renderer,
+                                  SDL_Surface **surfaces,
+                                  int n_surfaces,
+                                  SDL_Point center,
+                                  int radius,
+                                  int bump_map);
+
+void glyph_obj_animation_update(glyph_obj *glyph_obj);
+
 void glyph_obj_free(glyph_obj *obj);
 void glyph_obj_update_cnt_rad(glyph_obj *glyph_o, SDL_Point center, int radius);
 void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o, double center_x, double center_y, int angle, double l_x, double l_y);
+void glyph_obj_animation_update(glyph_obj *glyph_o);
 
 #endif // GLYPH_OBJ_H

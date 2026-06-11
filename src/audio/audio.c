@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define MAX_TITLE_LENGTH 20
 #define MAX_URL_LENGTH 2000
@@ -43,17 +44,26 @@ static song *current_song;
 static pthread_t __audio_thread = 0;
 int __audio_thread_running = 0;
 
-bool playlist_exists(const char *name);
+static pthread_t __now_playing_thread = 0;
+static int __now_playing_thread_running = 0;
+static int __now_playing_thread_stop = 0;
+static pthread_mutex_t __now_playing_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void *__audio_connect_thread_func(void *p) {
-    __audio_thread_running = 1;
+bool playlist_exists(const char *name);
+typedef void connect_function_callback();
+connect_function_callback __get_internet_radios;
+
+static struct mpd_connection *connect_mpd(const char *context, int timeout_ms) {
     char mpd_host[MAX_CONFIG_LINE_LENGTH];
 
     config_value(mpd_host, "mpd_host", MPD_HOST);
     unsigned int mpd_port = (unsigned int) get_config_value_int("mpd_port", MPD_PORT);
 
-    log_info(AUDIO_CTX, "init_mpd: No connection. Recreating one with time out 3sec.\n");
-    struct mpd_connection *conn = mpd_connection_new(mpd_host, mpd_port, 3000);
+    log_info(AUDIO_CTX,
+             "%s: No connection. Recreating one with time out %dsec.\n",
+             context,
+             timeout_ms / 1000);
+    struct mpd_connection *conn = mpd_connection_new(mpd_host, mpd_port, timeout_ms);
 
     if (!conn) {
         log_error(AUDIO_CTX,
@@ -69,9 +79,128 @@ void *__audio_connect_thread_func(void *p) {
             mpd_connection_free(conn);
             conn = NULL;
         } else {
-            log_info(AUDIO_CTX, "Successfully connected to mpd.\n");
+            log_info(AUDIO_CTX, "Successfully connected to mpd for \"%s\"\n", context);
         }
     }
+
+    return conn;
+}
+
+static void now_playing_cache_set(song *next_song) {
+    pthread_mutex_lock(&__now_playing_mutex);
+    if (current_song) {
+        song_free(current_song);
+    }
+    current_song = next_song;
+    pthread_mutex_unlock(&__now_playing_mutex);
+}
+
+static song *now_playing_cache_copy(void) {
+    song *copy = NULL;
+    pthread_mutex_lock(&__now_playing_mutex);
+    copy = song_clone(current_song);
+    pthread_mutex_unlock(&__now_playing_mutex);
+    return copy;
+}
+
+static void now_playing_cache_clear(void) {
+    now_playing_cache_set(NULL);
+}
+
+static void *now_playing_thread_func(void *p) {
+    (void) p;
+    __now_playing_thread_running = 1;
+
+    struct mpd_connection *conn = NULL;
+    int check_seconds = get_config_value_int("check_radio_seconds", 1);
+    if (check_seconds < 1) {
+        check_seconds = 1;
+    }
+
+    while (!__now_playing_thread_stop) {
+        if (!conn) {
+            conn = connect_mpd("now_playing", 3000);
+            if (!conn) {
+                if (__now_playing_thread_stop) {
+                    break;
+                }
+                continue;
+            }
+        }
+
+        struct mpd_status *mpd_stat = mpd_run_status(conn);
+        if (!mpd_stat) {
+            log_error(AUDIO_CTX,
+                      "now_playing: Failed to get status: %s\n",
+                      mpd_connection_get_error_message(conn));
+            mpd_connection_clear_error(conn);
+            mpd_connection_free(conn);
+            conn = NULL;
+            now_playing_cache_clear();
+            if (__now_playing_thread_stop) {
+                break;
+            }
+            sleep(1);
+            continue;
+        }
+
+        int playing = (mpd_status_get_state(mpd_stat) == MPD_STATE_PLAY);
+        mpd_status_free(mpd_stat);
+
+        if (playing) {
+            long methodTime_s = current_time_millis();
+            struct mpd_song *current_mpd_song = mpd_run_current_song(conn);
+            long methodTime_e = current_time_millis();
+            if (methodTime_e - methodTime_s >= 100) {
+                __log_warning(AUDIO_CTX,
+                              "mpd_run_current_song(): Time spend: %d\n",
+                              methodTime_e - methodTime_s);
+            }
+
+            if (current_mpd_song) {
+                unsigned int id = mpd_song_get_id(current_mpd_song);
+                const char *nm = mpd_song_get_tag(current_mpd_song, MPD_TAG_TITLE, 0);
+                if (!nm) {
+                    nm = mpd_song_get_tag(current_mpd_song, MPD_TAG_NAME, 0);
+                }
+
+                const char *url = mpd_song_get_uri(current_mpd_song);
+                now_playing_cache_set(song_new(id, url, nm, NULL));
+                mpd_song_free(current_mpd_song);
+            }
+        } else {
+            now_playing_cache_clear();
+        }
+
+        for (int i = 0; i < check_seconds * 10 && !__now_playing_thread_stop; i++) {
+            sleep(1);
+        }
+    }
+
+    if (conn) {
+        mpd_connection_free(conn);
+    }
+
+    __now_playing_thread_running = 0;
+    return 0;
+}
+
+static void start_now_playing_thread(void) {
+    if (!__now_playing_thread_running) {
+        __now_playing_thread_stop = 0;
+        __now_playing_thread_running = 1;
+        int r = pthread_create(&__now_playing_thread, NULL, now_playing_thread_func, NULL);
+        if (r) {
+            __now_playing_thread_running = 0;
+            log_error(AUDIO_CTX, "Could not start now playing thread: %d\n", r);
+        }
+    }
+}
+
+void *__audio_connect_thread_func(void *p) {
+    __audio_thread_running = 1;
+
+    struct mpd_connection *conn = connect_mpd("init_mpd", 3000);
 
     if (conn) {
         log_info(AUDIO_CTX, "Running update\n");
@@ -87,7 +216,10 @@ void *__audio_connect_thread_func(void *p) {
         }
 
         mpd_conn = conn;
-        current_song = song_new(0, NULL, NULL, NULL);
+
+        if (p) {
+            ((connect_function_callback *) p)();
+        }
     }
 
     __audio_thread_running = 0;
@@ -105,6 +237,8 @@ void __response_finish() {
 
 int init_audio() {
     log_debug(AUDIO_CTX, "Audio init\n");
+
+    start_now_playing_thread();
 
     if (mpd_conn != NULL) {
         log_config(AUDIO_CTX, "init_mpd: Checking existing connection...");
@@ -124,7 +258,11 @@ int init_audio() {
 
     if (mpd_conn == NULL) {
         if (!__audio_thread_running) {
-            int r = pthread_create(&__audio_thread, NULL, __audio_connect_thread_func, NULL);
+            __audio_thread_running = 1;
+            int r = pthread_create(&__audio_thread,
+                                   NULL,
+                                   __audio_connect_thread_func,
+                                   &__get_internet_radios);
             if (r) {
                 __audio_thread_running = 0;
                 log_error(AUDIO_CTX, "Could not start audio thread: %d\n", r);
@@ -256,6 +394,11 @@ int stop() {
         if (!mpd_run_stop(mpd_conn)) {
             log_error(AUDIO_CTX, "Failed to stop playing: %s\n",
                       mpd_connection_get_error_message(mpd_conn));
+            if (mpd_connection_get_error(mpd_conn) != MPD_ERROR_SUCCESS) {
+                mpd_connection_clear_error(mpd_conn);
+                mpd_connection_free(mpd_conn);
+                mpd_conn = NULL;
+            }
         }
     }
     return 1;
@@ -264,74 +407,37 @@ int stop() {
 int play() {
     if (init_audio()) {
         if (!mpd_run_play(mpd_conn)) {
-            log_error(AUDIO_CTX, "Failed to play: %s\n", mpd_connection_get_error_message(mpd_conn));
+            log_error(AUDIO_CTX, "Failed to play: %s\n",
+                      mpd_connection_get_error_message(mpd_conn));
+            if (mpd_connection_get_error(mpd_conn) != MPD_ERROR_SUCCESS) {
+                mpd_connection_clear_error(mpd_conn);
+                mpd_connection_free(mpd_conn);
+                mpd_conn = NULL;
+            }
         }
     }
     return 1;
 }
 
 song *get_playing_song() {
-    if (init_audio()) {
-        struct mpd_song *current_mpd_song;
-        struct mpd_status *mpd_stat = mpd_run_status(mpd_conn);
-        if (mpd_stat) {
-            int playing = (mpd_status_get_state(mpd_stat) == MPD_STATE_PLAY);
-            mpd_status_free(mpd_stat);
-            if (playing) {
-                long methodTime_s = current_time_millis();
-                current_mpd_song = mpd_run_current_song(mpd_conn);
-                long methodTime_e = current_time_millis();
-                if (methodTime_e - methodTime_s >= 100) {
-                    __log_warning(AUDIO_CTX,
-                                  "mpd_run_current_song(): Time spend: %d\n",
-                                  methodTime_e - methodTime_s);
-                }
-                if (current_mpd_song) {
-                    if (current_song) {
-                        song_free(current_song);
-                    }
-
-                    unsigned int id = mpd_song_get_id(current_mpd_song);
-                    const char *nm = mpd_song_get_tag(current_mpd_song, MPD_TAG_TITLE, 0);
-                    if (!nm) {
-                        nm = mpd_song_get_tag(current_mpd_song, MPD_TAG_NAME, 0);
-                    }
-
-                    const char *url = mpd_song_get_uri(current_mpd_song);
-                    const char *tl = NULL;
-
-                    if (id < unknown_song_id) {
-                        unsigned int n;
-                        if (!internet_radios) {
-                            get_internet_radios();
-                        }
-                        for (n = 0; n < internet_radios->n_songs; n++) {
-                            if (strncmp(internet_radios->songs[n]->url, url, strlen(url)) == 0) {
-                                tl = internet_radios->songs[n]->title;
-                            }
-                        }
-                    }
-
-                    current_song = song_new(id, url, nm, tl);
-
-                    mpd_song_free(current_mpd_song);
-                    log_debug(AUDIO_CTX, "Current song: %s - %s\n", current_song->name,
-                              current_song->title);
-                }
-                //			}
-                return current_song;
-            }
-        }
-        return 0;
-    }
-    return 0;
+    start_now_playing_thread();
+    return now_playing_cache_copy();
 }
 
 int audio_disconnect() {
+    __now_playing_thread_stop = 1;
+    if (__now_playing_thread_running) {
+        pthread_join(__now_playing_thread, NULL);
+        __now_playing_thread_running = 0;
+    }
+
     if (mpd_conn) {
         mpd_connection_free(mpd_conn);
     }
+    pthread_mutex_lock(&__now_playing_mutex);
     song_free(current_song);
+    current_song = NULL;
+    pthread_mutex_unlock(&__now_playing_mutex);
     return 0;
 }
 
@@ -449,42 +555,44 @@ bool playlist_exists(const char *name) {
     return playlist_exists;
 }
 
+void __get_internet_radios() {
+    log_config(AUDIO_CTX, "get_internet_radios: (Re-)creating playlists for internet radios\n");
+    if (!internet_radios) {
+        internet_radios = playlist_new("Internet Radio");
+    } else {
+        playlist_clear(internet_radios);
+    }
+
+    if (!playlist_exists(RADIO_PLAYLIST)) {
+        log_info(AUDIO_CTX, "Playlist does not yet exist. Creating it\n");
+        mpd_send_save(mpd_conn, RADIO_PLAYLIST);
+    }
+
+    if (!mpd_send_list_playlist_meta(mpd_conn, RADIO_PLAYLIST)) {
+        log_error(AUDIO_CTX,
+                  "Could not list internet-radio playlists: %s\n",
+                  mpd_connection_get_error_message(mpd_conn));
+        return;
+    }
+
+    struct mpd_song *__mpd_song = mpd_recv_song(mpd_conn);
+    while (__mpd_song) {
+        song *s = add_internet_radio(__mpd_song);
+        if (s) {
+            log_info(AUDIO_CTX, "\tSong: %s (%s)\n", s->title, s->url);
+        }
+
+        mpd_song_free(__mpd_song);
+        __mpd_song = mpd_recv_song(mpd_conn);
+    }
+}
+
 playlist *get_internet_radios() {
 
     if (init_audio()) {
-
-        log_config(
-            AUDIO_CTX,
-            "get_internet_radios: (Re-)creating playlists for internet radios\n");
-        if (!internet_radios) {
-            internet_radios = playlist_new("Internet Radio");
-        } else {
-            playlist_clear(internet_radios);
-        }
-
-        if (!playlist_exists(RADIO_PLAYLIST)) {
-            log_info(AUDIO_CTX, "Playlist does not yet exist. Creating it\n");
-            mpd_send_save(mpd_conn, RADIO_PLAYLIST);
-        }
-
-        if (!mpd_send_list_playlist_meta(mpd_conn, RADIO_PLAYLIST)) {
-            log_error(AUDIO_CTX, "Could not list internet-radio playlists: %s\n",
-                      mpd_connection_get_error_message(mpd_conn));
-            return internet_radios;
-        }
-
-        struct mpd_song *__mpd_song = mpd_recv_song(mpd_conn);
-        while (__mpd_song) {
-
-            song *s = add_internet_radio(__mpd_song);
-            if (s) {
-                log_info(AUDIO_CTX, "\tSong: %s (%s)\n", s->title, s->url);
-            }
-
-            mpd_song_free(__mpd_song);
-            __mpd_song = mpd_recv_song(mpd_conn);
-        }
+        __get_internet_radios();
     }
+
     return internet_radios;
 }
 
