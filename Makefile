@@ -7,7 +7,7 @@ STRIP=$(ARCH)-strip
 
 BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
-AUDIO_OBJS=audio/player.o audio/audio.o audio/song.o audio/playlist.o audio/radio_browser.o
+AUDIO_OBJS=audio/player.o audio/mpd_player.o audio/song.o audio/playlist.o audio/radio_browser.o
 OBJS=radio_app.o theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser_menu.o input_menu.o weather.o 
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
@@ -35,6 +35,12 @@ ifeq ($(WITH_BLUETOOTH),1)
 	AUDIO_OBJS += audio/bluetooth.o
 endif
 
+ifeq ($(DEBUG),1)
+	CFLAGS_O=-g
+else
+	CFLAGS_O=-O3
+endif
+
 WIFI_SCAN_DIRECTORY=$(CURDIR)/wifi-scan
 
 IR_LOG_LEVEL_OFF=-1
@@ -47,7 +53,7 @@ IR_LOG_LEVEL_TRACE=5
 
 LOG_LEVEL=${IR_LOG_LEVEL_TRACE}
 
-CFLAGS = -I$(WIFI_SCAN_DIRECTORY) -Wall -O3 $(DEBUG) -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
+CFLAGS = -I$(WIFI_SCAN_DIRECTORY) -Wall $(CFLAGS_O) -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
 
 CURL_LIB=/usr/lib/$(ARCH)/libcurl.so
 MPD_LIB=/usr/lib/$(ARCH)/libmpdclient.so
@@ -128,8 +134,12 @@ audio:
 base:
 	mkdir base
 
-tests:
-	mkdir tests
+test_dir:
+	mkdir -p tests
+
+.PHONY: tests
+tests: logging_output_test logging_output_test_trace tests/audio/player_test.bin
+	@fail=0; 	for test_cmd in $^; do 		if ./$$test_cmd; then 			printf '%-32s	PASS\n' "$$test_cmd"; 		else 			status=$$?; 			printf '%-32s	FAIL (exit %s)\n' "$$test_cmd" "$$status"; 			fail=1; 		fi; 	done; 	exit $$fail
 
 menu/menu.o: ../src/menu/menu.c ../src/menu/menu.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
@@ -138,6 +148,9 @@ menu/%_obj.o: ../src/menu/%_obj.c ../src/menu/%_obj.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 menu/menu_%.o: ../src/menu/menu_%.c ../src/menu/menu_%.h ../src/menu/menu_%_priv.h | menu
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+audio/mpd_player.o: ../src/audio/mpd_player.c ../src/audio/media_player.h | audio
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 audio/%.o: ../src/audio/%.c ../src/audio/%.h | audio
@@ -158,17 +171,35 @@ audio/bluetooth.o: ../src/audio/bluetooth.c
 audio/bluetooth: audio/bluetooth.o
 	$(CC) -o bluetooth audio/bluetooth.o -ldbus-1
 
-tests/logging_output_test.o: ../src/tests/logging_output_test.c | tests
+tests/test.o: ../src/tests/test.c ../src/tests/test.h | test_dir
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-logging_output_test: tests/logging_output_test.o base/logging.o base/log_contexts.o base/util.o
-	$(CC) -o logging_output_test tests/logging_output_test.o base/logging.o base/log_contexts.o base/util.o $(LDFLAGS) -lpthread -lm
+tests/logging_output_test.o: ../src/tests/logging_output_test.c ../src/tests/test.h | test_dir
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-tests/logging_output_test_trace.o: ../src/tests/logging_output_test.c | tests
+logging_output_test: tests/test.o tests/logging_output_test.o base/logging.o base/log_contexts.o base/util.o
+	$(CC) -o logging_output_test tests/test.o tests/logging_output_test.o base/logging.o base/log_contexts.o base/util.o $(LDFLAGS) -lpthread -lm
+
+tests/logging_output_test_trace.o: ../src/tests/logging_output_test.c ../src/tests/test.h | test_dir
 	$(CC) $(filter-out -DLOG_LEVEL=5,$(CFLAGS)) -DLOG_LEVEL=6 $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-logging_output_test_trace: tests/logging_output_test_trace.o base/logging.o base/log_contexts.o base/util.o
-	$(CC) -o logging_output_test_trace tests/logging_output_test_trace.o base/logging.o base/log_contexts.o base/util.o $(LDFLAGS) -lpthread -lm
+logging_output_test_trace: tests/test.o tests/logging_output_test_trace.o base/logging.o base/log_contexts.o base/util.o
+	$(CC) -o logging_output_test_trace tests/test.o tests/logging_output_test_trace.o base/logging.o base/log_contexts.o base/util.o $(LDFLAGS) -lpthread -lm
+
+tests/audio/player/player_test.o: ../src/tests/audio/player/player_test.c ../src/tests/test.h | tests/audio/player
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+tests/audio:
+	mkdir -p tests/audio
+
+tests/audio/player:
+	mkdir -p tests/audio/player
+
+tests/audio/player_test.bin: tests/test.o tests/audio/player/player_test.o audio/player.o base.o base/config.o base/util.o base/logging.o base/log_contexts.o | tests/audio
+	$(CC) -o tests/audio/player_test.bin tests/test.o tests/audio/player/player_test.o audio/player.o base.o base/config.o base/util.o base/logging.o base/log_contexts.o $(LDFLAGS) -lpthread -lm
+
+tests/audio/player_test: tests/audio/player_test.bin
+	@if ./$<; then 		printf 'PASS %s\n' '$@'; 	else 		status=$$?; 		printf 'FAIL %s (exit %s)\n' '$@' "$$status"; 		exit $$status; 	fi
 
 test_menu.o: ../src/test_menu.c
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"

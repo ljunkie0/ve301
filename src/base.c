@@ -53,21 +53,25 @@ char *my_copystr(const char *str) {
     return NULL;
 }
 
+typedef struct time_check_interval {
+    time_t last_checked;
+    int check_millis;
+} time_check_interval;
+
 void time_check_interval_free(time_check_interval *i) {
     free(i);
 }
 
-time_check_interval *time_check_interval_new(int check_seconds) {
+time_check_interval *time_check_interval_new(int check_millis) {
     time_check_interval *i = malloc(sizeof(time_check_interval));
     i->last_checked = 0;
-    i->check_seconds = check_seconds;
+    i->check_millis = check_millis;
     return i;
 }
 
 int check_time_interval(time_check_interval *i) {
-    time_t timer;
-    time(&timer);
-    if (timer - i->last_checked > i->check_seconds) {
+    long timer = current_time_millis();
+    if (timer - i->last_checked > i->check_millis) {
         i->last_checked = timer;
         return 1;
     }

@@ -1,6 +1,7 @@
 #include "radio_browser_menu.h"
-#include "audio/audio.h"
+#include "audio/player.h"
 #include "audio/radio_browser.h"
+#include "audio/song.h"
 #include "base/config.h"
 #include "base/log_contexts.h"
 #include "base/logging.h"
@@ -19,6 +20,7 @@ struct __radio_browser_config {
     int radio_browser_language_limit;
     __radio_app_touch_activity *radio_app_touch_activity;
     item_action *menu_action_listener;
+    player *radio_player;
 };
 
 struct __radio_browser_config radio_browser_config;
@@ -67,7 +69,7 @@ void radio_browser_play_station(radio_browser_station *station) {
     }
 
     song *s = song_new(unknown_song_id, stream_url, NULL, station_name);
-    if (!play_song(s)) {
+    if (!player_playback_start(radio_browser_config.radio_player, s)) {
         log_error(MAIN_CTX, "Radio Browser: could not play station %s\n", station_name);
     }
     song_free(s);
@@ -275,7 +277,8 @@ menu *radio_browser_menu_init(menu_ctrl *ctrl,
                               char *country_code,
                               int station_limit,
                               int category_limit,
-                              int language_limit) {
+                              int language_limit,
+                              player *radio_player) {
     radio_browser_config.menu_action_listener = menu_ctrl_get_item_action(ctrl);
     radio_browser_config.radio_app_touch_activity = radio_app_touch_activity;
     snprintf(radio_browser_config.radio_browser_countrycode,
@@ -285,6 +288,7 @@ menu *radio_browser_menu_init(menu_ctrl *ctrl,
     radio_browser_config.radio_browser_station_limit = station_limit;
     radio_browser_config.radio_browser_category_limit = category_limit;
     radio_browser_config.radio_browser_language_limit = language_limit;
+    radio_browser_config.radio_player = radio_player;
 
     radio_browser_init(user_agent, server);
 

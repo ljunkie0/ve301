@@ -21,6 +21,7 @@
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
 #include "../base/util.h"
+#include "player_if.h"
 #include <cjson/cJSON.h>
 #include <curl/curl.h>
 #include <libwebsockets.h>
@@ -30,20 +31,19 @@
 #include <string.h>
 #include <sys/stat.h>
 
-static struct lws *web_socket = NULL;
-
-static char *__spotify_host = NULL;
-static pthread_t __spotify_thread = 0;
-static int __spotify_thread_run = 0;
-static struct lws_context *context = NULL;
-static int __spotify_close_requested = 0;
-static int __spotify_show_cover;
+struct struct_spotify_data {
+    char host[256];
+    struct lws_context *context;
+    struct lws *web_socket;
+    int connected;
+    int show_cover;
+} __spotify_data;
 
 player *__spotify_player;
 static char *__spotify_cover_url = NULL;
 static char *__spotify_cover_path = NULL;
 
-static int __spotify_update();
+static int __spotify_connect();
 static int __spotify_download_cover(const char *url);
 static int __spotify_file_exists(const char *path);
 static const char *__spotify_cover_ext_for_type(const char *content_type);
@@ -63,7 +63,7 @@ static void __spotify_fill_info(cJSON *metadata) {
                      album_name ? album_name->valuestring : NULL);
     player_set_artist(__spotify_player,
                       artist_names ? artist_names->valuestring : NULL);
-    if (__spotify_show_cover
+    if (__spotify_data.show_cover
         && player_set_cover_uri(__spotify_player,
                                 album_cover_url ? album_cover_url->valuestring : NULL)) {
         if (album_cover_url && album_cover_url->valuestring) {
@@ -174,7 +174,8 @@ static int __spotify_callback(struct lws *wsi, enum lws_callback_reasons reason,
                               void *user, void *in, size_t len) {
 
     if (reason == LWS_CALLBACK_CLIENT_ESTABLISHED) {
-        log_config(SPOTIFY_CTX, "WebSocket connected\n");
+        __spotify_data.connected = 1;
+        log_info(SPOTIFY_CTX, "WebSocket connected\n");
     } else if (reason == LWS_CALLBACK_CLIENT_RECEIVE) {
         if (!in || len == 0) {
             return 0;
@@ -212,9 +213,9 @@ static int __spotify_callback(struct lws *wsi, enum lws_callback_reasons reason,
             player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
         } else {
             // Any other event implies an active device
-            player_set_active(__spotify_player, 1);
             if (strstr(type->valuestring, "active")) {
                 log_config(SPOTIFY_CTX, "Device is now active.\n");
+                player_set_active(__spotify_player, 1);
             } else if (strstr(type->valuestring, "playing")
                        || strstr(type->valuestring, "will_play")) {
                 player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_PLAYING);
@@ -235,16 +236,20 @@ static int __spotify_callback(struct lws *wsi, enum lws_callback_reasons reason,
         cJSON_Delete(event);
         free(message);
     } else if (reason == LWS_CALLBACK_CLIENT_CONNECTION_ERROR) {
-        log_error(SPOTIFY_CTX, "Connection error: %s\n", (char *)in);
-        web_socket = NULL;
+        log_config(SPOTIFY_CTX, "Connection error: %s\n", (char *) in);
+        __spotify_data.connected = 0;
+        __spotify_data.web_socket = NULL;
+        player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+        player_set_active(__spotify_player, 0);
     } else if (reason == LWS_CALLBACK_CLIENT_WRITEABLE) {
-        if (__spotify_close_requested) {
-            lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, NULL, 0);
-            return -1;
-        }
+        // lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, NULL, 0);
+        // return -1;
     } else if (reason == LWS_CALLBACK_CLIENT_CLOSED) {
         log_info(SPOTIFY_CTX, "WebSocket connection closed\n");
-        web_socket = NULL;
+        __spotify_data.connected = 0;
+        __spotify_data.web_socket = NULL;
+        player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+        player_set_active(__spotify_player, 0);
     }
     return 0;
 }
@@ -254,87 +259,15 @@ enum protocols { PROTOCOL_EXAMPLE = 0, PROTOCOL_COUNT };
 static struct lws_protocols protocols[] = {
     {
         .name = "ws",                   /* Protocol name*/
-                      .callback = __spotify_callback, /* Protocol callback */
+        .callback = __spotify_callback, /* Protocol callback */
         .per_session_data_size = 0,     /* Protocol callback 'userdata' size */
-        .rx_buffer_size = 0, /* Receve buffer size (0 = no restriction) */
-        .id = 0,             /* Protocol Id (version) (optional) */
-        .user = NULL, /* 'User data' ptr, to access in 'protocol callback */
-        .tx_packet_size =
-        0 /* Transmission buffer size restriction (0 = no restriction) */
+        .rx_buffer_size = 0,            /* Receve buffer size (0 = no restriction) */
+        .id = 0,                        /* Protocol Id (version) (optional) */
+        .user = NULL,                   /* 'User data' ptr, to access in 'protocol callback */
+        .tx_packet_size = 0 /* Transmission buffer size restriction (0 = no restriction) */
     },
     {NULL, NULL, 0, 0, 0, NULL, 0} /* terminator */
 };
-
-void *__spotify_thread_func(void *data) {
-    log_config(SPOTIFY_CTX, "Spotify thread starting\n");
-    pthread_setname_np(pthread_self(), "Spotify thead");
-    struct lws_context_creation_info info;
-    memset(&info, 0, sizeof(info));
-
-    lws_set_log_level(/*LLL_NOTICE | LLL_INFO |*/ LLL_ERR | LLL_WARN, NULL);
-
-    info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
-    info.protocols = protocols;
-    info.gid = -1;
-    info.uid = -1;
-    info.timeout_secs = 2;
-
-    context = lws_create_context(&info);
-    if (!context) {
-        log_error(SPOTIFY_CTX, "Failed to create LWS context\n");
-        return NULL;
-    }
-
-    time_t old = 0;
-    time_t old_conn_check = 0;
-    int connection_tries = 0;
-    while (__spotify_thread_run) {
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-
-        if (__spotify_thread_run && tv.tv_sec != old) {
-            /* Connect if we are not connected to the server. */
-            if (__spotify_thread_run && !web_socket && tv.tv_sec - old_conn_check > 5) {
-                connection_tries++;
-                struct lws_client_connect_info ccinfo;
-                memset(&ccinfo, 0, sizeof(ccinfo));
-
-                ccinfo.context = context;
-                ccinfo.address = __spotify_host;
-                ccinfo.port = 3678;
-                ccinfo.path = "/events";
-                ccinfo.host = lws_canonical_hostname(context);
-                ccinfo.origin = ccinfo.host;
-                ccinfo.protocol = protocols[PROTOCOL_EXAMPLE].name;
-
-                log_info(SPOTIFY_CTX, "Trying to connect to %s\n", __spotify_host);
-                web_socket = lws_client_connect_via_info(&ccinfo);
-
-                if (web_socket) {
-                    log_info(SPOTIFY_CTX, "Connection successfull\n");
-                    lws_set_timeout(web_socket, PENDING_TIMEOUT_AWAITING_CONNECT_RESPONSE, 1);
-                } else {
-                    log_info(SPOTIFY_CTX, "Connection failed\n");
-                }
-
-                old_conn_check = tv.tv_sec;
-            }
-        }
-
-        if (__spotify_thread_run && web_socket) {
-            log_config(SPOTIFY_CTX, "Processing websocket activities\n");
-            lws_service(context, /* timeout_ms = */ 1000);
-            log_config(SPOTIFY_CTX, "Done processing websocket activities\n");
-        }
-
-        old = tv.tv_sec;
-    }
-
-    log_info(SPOTIFY_CTX, "Spotify thread finished. Destroying LWS context\n");
-    lws_context_destroy(context);
-
-    return NULL;
-}
 
 struct __spotify_memory_struct {
     char *memory;
@@ -362,7 +295,6 @@ static size_t __spotify_write_memory_callback(void *contents, size_t size,
 }
 
 void __spotify_get_device_status(const char *host) {
-
     CURL *curl;
     CURLcode res;
     struct __spotify_memory_struct chunk = {NULL, 0};
@@ -396,14 +328,14 @@ void __spotify_get_device_status(const char *host) {
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
             if (response_code >= 200 && response_code < 300) {
                 if (response_code != 200) {
-                    player_set_active(__spotify_player, 0);
                     player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+                    player_set_active(__spotify_player, 0);
                     log_config(SPOTIFY_CTX,
                                "Device is not active (HTTP %ld).\n",
                                response_code);
                 } else if (chunk.size == 0) {
-                    player_set_active(__spotify_player, 0);
                     player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+                    player_set_active(__spotify_player, 0);
                     log_config(SPOTIFY_CTX, "Device is not active.\n");
                 } else {
                     player_set_active(__spotify_player, 1);
@@ -442,8 +374,8 @@ void __spotify_get_device_status(const char *host) {
             } else {
                 log_warning(SPOTIFY_CTX, "Unexpected status response: %ld\n",
                             response_code);
-                player_set_active(__spotify_player, 0);
                 player_set_playback_status(__spotify_player, PLAYER_PLAYBACK_STOPPED);
+                player_set_active(__spotify_player, 0);
             }
         }
 
@@ -458,56 +390,128 @@ void __spotify_get_device_status(const char *host) {
 
 }
 
-static int __spotify_update() {
-    if (!__spotify_host || !__spotify_player) {
+int __spotify_connect() {
+    if (!__spotify_data.context) {
+        log_error(SPOTIFY_CTX, "Spotify ws context not initialized\n");
         return 0;
     }
-    //__spotify_get_device_status(__spotify_host);
+
+    while (player_thread_running(__spotify_player) && !__spotify_data.web_socket) {
+        struct lws_client_connect_info ccinfo;
+        memset(&ccinfo, 0, sizeof(ccinfo));
+
+        ccinfo.context = __spotify_data.context;
+        ccinfo.address = __spotify_data.host;
+        ccinfo.port = 3678;
+        ccinfo.path = "/events";
+        ccinfo.host = lws_canonical_hostname(__spotify_data.context);
+        ccinfo.origin = ccinfo.host;
+        ccinfo.protocol = protocols[PROTOCOL_EXAMPLE].name;
+
+        log_info(SPOTIFY_CTX, "Trying to connect to %s\n", __spotify_data.host);
+        __spotify_data.connected = 0;
+        __spotify_data.web_socket = lws_client_connect_via_info(&ccinfo);
+
+        if (__spotify_data.web_socket) {
+            int wait_count = 0;
+            lws_set_timeout(__spotify_data.web_socket, PENDING_TIMEOUT_AWAITING_CONNECT_RESPONSE, 5);
+            while (player_thread_running(__spotify_player) && __spotify_data.web_socket
+                   && !__spotify_data.connected && wait_count < 50) {
+                lws_service(__spotify_data.context, /* timeout_ms = */ 100);
+                wait_count++;
+            }
+
+            if (__spotify_data.connected) {
+                break;
+            }
+
+            log_info(SPOTIFY_CTX, "Connection failed\n");
+        } else {
+            log_info(SPOTIFY_CTX, "Connection failed\n");
+        }
+
+        sleep(1);
+    }
+
+    return __spotify_data.connected;
+}
+
+int __spotify_init() {
+    struct lws_context_creation_info info;
+    memset(&info, 0, sizeof(info));
+
+    lws_set_log_level(/*LLL_NOTICE | LLL_INFO |*/ LLL_ERR | LLL_WARN, NULL);
+
+    info.port = CONTEXT_PORT_NO_LISTEN; /* we do not run any server */
+    info.protocols = protocols;
+    info.gid = -1;
+    info.uid = -1;
+    info.timeout_secs = 2;
+
+    __spotify_data.connected = 0;
+    __spotify_data.web_socket = NULL;
+    __spotify_data.context = lws_create_context(&info);
+    if (!__spotify_data.context) {
+        log_error(SPOTIFY_CTX, "Failed to create LWS context\n");
+        return 0;
+    }
+
+    log_config(SPOTIFY_CTX, "Spotify ws context created.\n");
+
     return 1;
 }
 
-void __start_spotify_thread(char *spotify_host) {
-
-    if (__spotify_thread_run) {
-        log_warning(SPOTIFY_CTX, "Spotify thread already started\n");
-        return;
-    }
-
-    __spotify_host = strdup(spotify_host);
-    __spotify_get_device_status(spotify_host);
-    __spotify_thread_run = 1;
-    int r = pthread_create(&__spotify_thread, NULL, __spotify_thread_func, NULL);
-    if (r) {
-        __spotify_thread_run = 0;
-        log_error(BASE_CTX, "Could not start spotify thread: %d\n", r);
-    }
-}
-
-void __stop_spotify_thread() {
-    if (__spotify_thread_run) {
-        __spotify_thread_run = 0;
-        __spotify_close_requested = 1;
-        if (web_socket) {
-            lws_callback_on_writable(web_socket);
+int __spotify_run() {
+    if (!__spotify_data.connected) {
+        log_config(SPOTIFY_CTX, "Trying to (re-)connect to spotify\n");
+        if (__spotify_connect()) {
+            log_config(SPOTIFY_CTX, "Successfully connected to spotify\n");
+            __spotify_get_device_status(__spotify_data.host);
         }
-        lws_cancel_service(context);
-        void *res;
-        pthread_join(__spotify_thread, &res);
-        __spotify_close_requested = 0;
     }
+
+    if (__spotify_data.connected) {
+        log_config(SPOTIFY_CTX, "Running spotify thread function.\n");
+        if (player_thread_running(__spotify_player) && __spotify_data.web_socket) {
+            log_config(SPOTIFY_CTX, "Processing websocket activities\n");
+            lws_service(__spotify_data.context, /* timeout_ms = */ 1000);
+            log_config(SPOTIFY_CTX, "Done processing websocket activities\n");
+        }
+    }
+
+    return 1;
 }
 
-player *spotify_init(char *spotify_host, char *label, char *icon, int check_seconds, int show_cover) {
-    __spotify_player = player_new("SPOTIFY", icon, label, check_seconds, __spotify_update);
-    __start_spotify_thread(spotify_host);
-    return __spotify_player;
-}
-
-void spotify_close() {
-    log_info(SPOTIFY_CTX, "Closing ...\n");
-    __stop_spotify_thread();
+int __spotify_cleanup() {
     free_and_set_null((void **) &__spotify_cover_url);
     free_and_set_null((void **) &__spotify_cover_path);
-    player_free(__spotify_player);
-    log_info(SPOTIFY_CTX, "Closing Done\n");
+    if (__spotify_data.web_socket) {
+        lws_callback_on_writable(__spotify_data.web_socket);
+    }
+    if (__spotify_data.context) {
+        lws_cancel_service(__spotify_data.context);
+        lws_context_destroy(__spotify_data.context);
+    }
+    __spotify_data.context = NULL;
+    __spotify_data.web_socket = NULL;
+    __spotify_data.connected = 0;
+    return 1;
+}
+
+player *spotify_init(char *spotify_host,
+                     char *label,
+                     char *icon,
+                     int check_millis,
+                     int show_cover) {
+    strncpy(__spotify_data.host, spotify_host, 255);
+    __spotify_player = player_new("SPOTIFY",
+                                  icon,
+                                  label,
+                                  check_millis,
+                                  &__spotify_init,
+                                  &__spotify_run,
+                                  &__spotify_cleanup,
+                                  NULL,
+                                  NULL);
+    return __spotify_player;
 }

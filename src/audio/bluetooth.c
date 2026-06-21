@@ -21,6 +21,7 @@
 #include "bluetooth.h"
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
+#include "player_if.h"
 #include <dbus/dbus.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -44,11 +45,12 @@ const char *title_key = "Title";
 const char *artist_key = "Artist";
 const char *album_key = "Album";
 
-DBusMessage *bt_msg;
-DBusConnection *bt_conn;
-DBusError bt_err;
-
-player *__bt_player;
+struct __bluetooth_data {
+    DBusMessage *message;
+    DBusConnection *connection;
+    DBusError error;
+    player *player;
+} __bluetooth_data;
 
 void process_string_dict_entry(DBusMessageIter parentIter, char **key,
                                char **value) {
@@ -98,7 +100,7 @@ void process_properties_chg_msg(DBusMessage *msg) {
                         dbus_bool_t connected;
                         dbus_message_iter_get_basic(&variantIter, &connected);
                         log_config(BT_CTX, "Connected: %d\n", connected);
-                        player_set_active(__bt_player, connected);
+                        player_set_active(__bluetooth_data.player, connected);
                     }
                 } else if (!strcmp(track_key, key)) {
                     DBusMessageIter trackDataIter;
@@ -112,11 +114,11 @@ void process_properties_chg_msg(DBusMessage *msg) {
                                 value = NULL;
                             }
                             if (!strcmp(key, album_key)) {
-                                player_set_album(__bt_player, value);
+                                player_set_album(__bluetooth_data.player, value);
                             } else if (!strcmp(key, artist_key)) {
-                                player_set_artist(__bt_player, value);
+                                player_set_artist(__bluetooth_data.player, value);
                             } else if (!strcmp(key, title_key)) {
-                                player_set_title(__bt_player, value);
+                                player_set_title(__bluetooth_data.player, value);
                             }
                         }
                         dbus_message_iter_next(&trackDataIter);
@@ -134,101 +136,128 @@ void process_properties_chg_msg(DBusMessage *msg) {
 
 void log_bt_info() {
     if (log_level_enabled(BT_CTX, IR_LOG_LEVEL_CONFIG)) {
-        log_config(BT_CTX, "Connected: %s\n", player_is_active(__bt_player) ? "yes" : "no");
+        log_config(BT_CTX,
+                   "Connected: %s\n",
+                   player_is_active(__bluetooth_data.player) ? "yes" : "no");
         log_config(BT_CTX, "Track:\n");
-        log_config(BT_CTX, "\tTitle:  %s\n", player_get_title(__bt_player));
-        log_config(BT_CTX, "\tArtist: %s\n", player_get_artist(__bt_player));
-        log_config(BT_CTX, "\tAlbum:  %s\n", player_get_album(__bt_player));
+        log_config(BT_CTX, "\tTitle:  %s\n", player_get_title(__bluetooth_data.player));
+        log_config(BT_CTX, "\tArtist: %s\n", player_get_artist(__bluetooth_data.player));
+        log_config(BT_CTX, "\tAlbum:  %s\n", player_get_album(__bluetooth_data.player));
     }
 }
 
-/**
- * 1 bluetooth device connected
- * 0 no change
- * -1 bluetooth device disconnected
- */
-int bt_connection_signal() {
+int __bt_connect() {
+    // initialise the error
+    dbus_error_init(&__bluetooth_data.error);
+
+    // connect to the bus and check for errors
+    __bluetooth_data.connection = dbus_bus_get(DBUS_BUS_SYSTEM, &__bluetooth_data.error);
+    if (dbus_error_is_set(&__bluetooth_data.error)) {
+        log_error(BT_CTX, "Error connecting to system bus: %s\n", __bluetooth_data.error.message);
+        dbus_error_free(&__bluetooth_data.error);
+    }
+
+    if (__bluetooth_data.connection != NULL) {
+        dbus_bus_add_match(__bluetooth_data.connection, MATCHING_RULE, &__bluetooth_data.error);
+        if (dbus_error_is_set(&__bluetooth_data.error)) {
+            log_config(BT_CTX,
+                       "Error adding matching rule %s: %s\n",
+                       MATCHING_RULE,
+                       __bluetooth_data.error.message);
+            dbus_error_free(&__bluetooth_data.error);
+            dbus_connection_unref(__bluetooth_data.connection);
+            __bluetooth_data.connection = NULL;
+        }
+    }
+
+    if (__bluetooth_data.connection != NULL) {
+        dbus_bus_add_match(__bluetooth_data.connection, MATCHING_RULE1, &__bluetooth_data.error);
+        if (dbus_error_is_set(&__bluetooth_data.error)) {
+            log_config(BT_CTX,
+                       "Error adding matching rule %s: %s\n",
+                       MATCHING_RULE1,
+                       __bluetooth_data.error.message);
+            dbus_error_free(&__bluetooth_data.error);
+            dbus_connection_unref(__bluetooth_data.connection);
+            __bluetooth_data.connection = NULL;
+        }
+    }
+    return 1;
+}
+
+int bt_init() {
+    return __bt_connect();
+}
+
+int bt_run() {
+
+    if (__bluetooth_data.connection == NULL) {
+        __bt_connect();
+    }
 
     int process_prop_changes = 1;
-    int result = 0;
+    int result = 1;
 
-    if (bt_conn != NULL) {
-        dbus_connection_read_write(bt_conn, 0);
-        bt_msg = dbus_connection_pop_message(bt_conn);
-        while (bt_msg != NULL) {
-            log_config(BT_CTX, "bt_msg: %s\n", bt_msg);
-            const char *member = dbus_message_get_member(bt_msg);
+    if (__bluetooth_data.connection != NULL) {
+        dbus_connection_read_write(__bluetooth_data.connection, 0);
+        __bluetooth_data.message = dbus_connection_pop_message(__bluetooth_data.connection);
+        while (__bluetooth_data.message != NULL) {
+            log_config(BT_CTX, "__bluetooth_data.message: %s\n", __bluetooth_data.message);
+            const char *member = dbus_message_get_member(__bluetooth_data.message);
             log_config(BT_CTX, "member: %s\n", member);
             if (!strncmp(member, media_control, strlen(media_control))) {
-                process_properties_chg_msg(bt_msg);
-                player_set_active(__bt_player,1);
+                process_properties_chg_msg(__bluetooth_data.message);
+                player_set_active(__bluetooth_data.player, 1);
                 result = 1;
             } else if (!strcmp(member, pcm_removed)) {
-                player_set_active(__bt_player,0);
-                result = -1;
+                player_set_active(__bluetooth_data.player, 0);
+                result = 1;
             } else if (!strcmp(member, prop_changed)) {
-                process_properties_chg_msg(bt_msg);
+                process_properties_chg_msg(__bluetooth_data.message);
                 result = 1;
             }
 
-            dbus_message_unref(bt_msg);
-            bt_msg = dbus_connection_pop_message(bt_conn);
+            dbus_message_unref(__bluetooth_data.message);
+            __bluetooth_data.message = dbus_connection_pop_message(__bluetooth_data.connection);
         }
     } else {
-        log_error(BT_CTX, "bt_connection_signal: no bluetooth connection\n");
+        log_warning(BT_CTX, "No bluetooth connection\n");
+        result = 1;
     }
 
     if (result) {
         log_config(BT_CTX,
-                   "bt_connection_signal(proces_prop_changes => %d) -> %d\n",
-                   process_prop_changes, result);
+                   "bt_run(proces_prop_changes => %d) -> %d\n",
+                   process_prop_changes,
+                   result);
         log_bt_info();
     }
 
     return result;
 }
 
-player *bt_init(char *label, char *icon, int check_seconds) {
-
-    __bt_player = player_new("BLUETOOTH", icon, label, check_seconds, &bt_connection_signal);
-
-    // initialise the error
-    dbus_error_init(&bt_err);
-
-    // connect to the bus and check for errors
-    bt_conn = dbus_bus_get(DBUS_BUS_SYSTEM, &bt_err);
-    if (dbus_error_is_set(&bt_err)) {
-        log_error(BT_CTX, "Error connecting to system bus: %s\n", bt_err.message);
-        dbus_error_free(&bt_err);
-    }
-
-    if (NULL == bt_conn) {
-        log_error(BT_CTX, "No connection available\n");
-    } else {
-        dbus_bus_add_match(bt_conn, MATCHING_RULE, &bt_err);
-        if (dbus_error_is_set(&bt_err)) {
-            log_error(BT_CTX, "Error adding matching rule %s: %s\n", MATCHING_RULE,
-                      bt_err.message);
-            dbus_error_free(&bt_err);
-        }
-        dbus_bus_add_match(bt_conn, MATCHING_RULE1, &bt_err);
-        if (dbus_error_is_set(&bt_err)) {
-            log_error(BT_CTX, "Error adding matching rule %s: %s\n", MATCHING_RULE1,
-                      bt_err.message);
-            dbus_error_free(&bt_err);
-        }
-    }
-
-    return __bt_player;
-}
-
-void bt_close() {
+int bt_cleanup() {
     log_config(BT_CTX, "Closing ...\n");
     // close the connection
-    if (bt_conn != NULL) {
-        dbus_connection_unref(bt_conn);
-        bt_conn = NULL;
+    if (__bluetooth_data.connection != NULL) {
+        dbus_connection_unref(__bluetooth_data.connection);
+        __bluetooth_data.connection = NULL;
     }
-    player_free(__bt_player);
+    player_free(__bluetooth_data.player);
     log_config(BT_CTX, "Closing done\n");
+    return 1;
+}
+
+player *bluetooth_init(char *label, char *icon, int check_millis) {
+    __bluetooth_data.player = player_new("BLUETOOTH",
+                                         icon,
+                                         label,
+                                         check_millis,
+                                         &bt_init,
+                                         &bt_run,
+                                         &bt_cleanup,
+                                         NULL,
+                                         NULL);
+
+    return __bluetooth_data.player;
 }

@@ -21,8 +21,11 @@ src/audio/audio.c
 src/audio/audio.h
 src/audio/bluetooth.c
 src/audio/bluetooth.h
+src/audio/media_player.h
+src/audio/mpd_player.c
 src/audio/player.c
 src/audio/player.h
+src/audio/player_if.h
 src/audio/playlist.c
 src/audio/playlist.h
 src/audio/radio_browser.c
@@ -95,6 +98,7 @@ src/mpris_audio.c
 src/player.h
 src/radio_app.c
 src/radio_app.h
+src/radio_app_snippets.c
 src/radio_browser_menu.c
 src/radio_browser_menu.h
 src/rotaryencoder.c
@@ -104,6 +108,11 @@ src/sdl_util.h
 src/spotify.c
 src/spotify.h
 src/test_sdl_ttf
+src/tests/audio/player/player_test.c
+src/tests/audio/player_test.c
+src/tests/logging_output_test.c
+src/tests/test.h
+src/tests/test_mutex.c
 src/text_obj.c
 src/text_obj.h
 src/theme.c

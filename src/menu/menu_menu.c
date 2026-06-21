@@ -204,8 +204,7 @@ int menu_draw(menu *m, int clear, int render) {
         log_debug(MENU_CTX, "Render FPS: %f\n", 1000.0/(double)render_passed_ticks);
     }
 
-    return 0;
-
+    return 1;
 }
 
 int menu_clear(menu *m) {
@@ -512,6 +511,8 @@ int menu_set_bg_image(menu *m, char *bg_image_path) {
         free_and_set_null((void *) &(m->bg_image_path));
         m->bg_image = NULL;
     }
+
+    m->dirty = 1;
 
     return 1;
 }

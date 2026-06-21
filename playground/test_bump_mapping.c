@@ -49,5 +49,5 @@ int main(int argc, char **argv) {
     while (menu_ctrl_loop(ctrl)) {
     }
 
-    menu_ctrl_dispose(ctrl);
+    //menu_ctrl_dispose(ctrl);
 }

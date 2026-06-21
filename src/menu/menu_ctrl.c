@@ -644,10 +644,14 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
         menu_rebuild_glyphs(ctrl->root[r]);
     }
 
-    int draw_res = menu_ctrl_draw(ctrl);
-    log_config(MENU_CTX, "END: menu_ctrl_set_style\n");
-    return draw_res;
+    //    int draw_res = menu_ctrl_draw(ctrl);
 
+    if (ctrl->current) {
+        ctrl->current->dirty = 1;
+    }
+
+    log_config(MENU_CTX, "END: menu_ctrl_set_style\n");
+    return 1;
 }
 
 theme *theme_new() {
@@ -952,10 +956,10 @@ int menu_ctrl_process_events(menu_ctrl *ctrl) {
                     } else if (k->keysym.sym == SDLK_q) {
                         return -1;
                     }
+                }
+            } else if (ctrl->sdl_event_callback) {
+                ctrl->sdl_event_callback(ctrl, e);
             }
-        } else if (ctrl->sdl_event_callback) {
-            ctrl->sdl_event_callback(ctrl, e);
-        }
         }
 
         return redraw;
@@ -1039,9 +1043,8 @@ int menu_ctrl_loop(menu_ctrl *ctrl) {
                 ctrl->call_back(ctrl);
             }
             SDL_Delay(20);
-        } else {
-            menu_ctrl_draw(ctrl);
         }
+        menu_ctrl_draw(ctrl);
     }
     log_info(MENU_CTX, "END: menu_ctrl_loop\n");
     return 0;

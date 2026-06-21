@@ -12,6 +12,7 @@
 
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
+#include "test.h"
 
 static int validate_timestamp_with_millis(const char *line) {
     const char *ts_start = strstr(line, "m[");
@@ -83,7 +84,6 @@ static int verify_output(FILE *target) {
 
     rewind(target);
     while (fgets(line, sizeof(line), target)) {
-        /* The logger writes a trailing color reset without a newline. */
         if (strcmp(line, "\x1b[0m\n") == 0 || strcmp(line, "\x1b[0m") == 0) {
             continue;
         }
@@ -122,7 +122,7 @@ static int copy_output(FILE *source, const char *path) {
     return 1;
 }
 
-int main(int argc, char **argv) {
+TEST_WITH_ARGS(logging_output_format, "formats log timestamps with millisecond precision") {
     char log_path[] = "/tmp/logging_output_test.XXXXXX";
     int fd;
     FILE *write_target;
@@ -130,17 +130,14 @@ int main(int argc, char **argv) {
     int result;
 
     fd = mkstemp(log_path);
-    if (fd < 0) {
-        perror("mkstemp");
-        return EXIT_FAILURE;
-    }
+    ASSERT_MSG(fd >= 0, "mkstemp failed");
 
     write_target = fdopen(fd, "w");
     if (!write_target) {
         perror("fdopen");
         close(fd);
         unlink(log_path);
-        return EXIT_FAILURE;
+        return 0;
     }
 
     init_log_file("logging_output_test", write_target);
@@ -152,7 +149,7 @@ int main(int argc, char **argv) {
     if (!read_target) {
         perror("fopen");
         unlink(log_path);
-        return EXIT_FAILURE;
+        return 0;
     }
 
     result = verify_output(read_target);
@@ -162,5 +159,8 @@ int main(int argc, char **argv) {
 
     fclose(read_target);
     unlink(log_path);
-    return result ? EXIT_SUCCESS : EXIT_FAILURE;
+    return result;
 }
+
+TEST_MAIN_ARGS(TEST_CASE_WITH_ARGS(logging_output_format,
+                                   "formats log timestamps with millisecond precision"));

@@ -90,7 +90,7 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
                        int light_x,
                        int light_y,
                        int bump_map) {
-    if ((txt && strlen(txt) > 0) || icon) {
+    if ((txt && strlen(txt) > 0) || (icon && strlen(icon) > 0)) {
         Uint32 n_glyph_objs = MAX_LABEL_LENGTH;
         Uint16 *unicode_text_2nd_line = NULL;
         Uint32 n_glyph_objs_2nd_line = MAX_LABEL_LENGTH;
@@ -132,11 +132,19 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
                    fg.b,
                    fg.a);
 
-        SDL_Surface *text_surface = icon ? IMG_Load(icon) : TTF_RenderUNICODE_Blended(font, unicode_text, fg);
+        SDL_Surface *text_surface = (icon && strlen(icon) > 0) ? IMG_Load(icon)
+                                    : (txt && strlen(txt) > 0)
+                                        ? TTF_RenderUNICODE_Blended(font, unicode_text, fg)
+                                        : NULL;
 
         if (text_surface == NULL) {
-            log_error(MENU_CTX, "Could not create glyph surface for \"[%s]\": %s\n",
-                      txt, icon ? IMG_GetError() : TTF_GetError());
+            log_error(MENU_CTX,
+                      "Could not create text surface for \"%s=[%s]\": %s\n",
+                      txt    ? "txt"
+                      : icon ? "icon"
+                             : "n/a",
+                      txt ? txt : icon,
+                      icon ? IMG_GetError() : TTF_GetError());
             text_obj_free(t);
             return NULL;
         }

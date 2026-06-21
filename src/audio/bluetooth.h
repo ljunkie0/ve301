@@ -20,7 +20,6 @@
 #define BLUETOOTH_H
 #include "player.h"
 
-player *bt_init(char *label, char *icon, int check_seconds);
-void bt_close();
+player *bluetooth_init(char *label, char *icon, int check_millis);
 
 #endif

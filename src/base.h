@@ -49,13 +49,10 @@ char *my_copynstr(const char *str, size_t max_length);
 
 unsigned int unicode_len(const unsigned short *txt);
 
-typedef struct time_check_interval {
-    time_t last_checked;
-    int check_seconds;
-} time_check_interval;
+typedef struct time_check_interval time_check_interval;
 
 int check_time_interval(time_check_interval *i);
-time_check_interval *time_check_interval_new(int check_seconds);
+time_check_interval *time_check_interval_new(int check_millis);
 void time_check_interval_free(time_check_interval *i);
 
 typedef struct network_interface {

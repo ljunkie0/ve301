@@ -21,6 +21,9 @@
 
 #include "player.h"
 
-player *spotify_init(char *host, char *label, char *icon, int check_seconds, int show_cover);
-void spotify_close();
+player *spotify_init(char *spotify_host,
+                     char *label,
+                     char *icon,
+                     int check_millis,
+                     int show_cover);
 #endif

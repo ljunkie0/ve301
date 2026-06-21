@@ -64,7 +64,7 @@ int input_menu_item_action(menu_event evt, menu *m, menu_item *item) {
                     if (l == 1) {
                         // if we delete the last character we set input_menu_txt to NULL;
                         input_menu_txt[0] = 0;
-                        menu_item_update_label(item,input_menu_alphabet_items[item->id]);
+                        menu_item_set_label(item, input_menu_alphabet_items[item->id]);
                     } else {
                         char *txt_new = malloc(l*sizeof(char));
                         for (int c = 0; c < l-1; c++) {
@@ -75,7 +75,7 @@ int input_menu_item_action(menu_event evt, menu *m, menu_item *item) {
                         input_menu_txt = txt_new;
                         char *lbl1 = my_catstr(input_menu_txt,"\n");
                         char *lbl2 = my_catstr(lbl1, input_menu_alphabet_items[item->id]);
-                        menu_item_update_label(item,lbl2);
+                        menu_item_set_label(item, lbl2);
                         free (lbl1);
                         free (lbl2);
                     }
@@ -90,7 +90,7 @@ int input_menu_item_action(menu_event evt, menu *m, menu_item *item) {
                 input_menu_txt = txt_new;
                 char *lbl1 = my_catstr(input_menu_txt,"\n");
                 char *lbl2 = my_catstr(lbl1, input_menu_alphabet_items[item->id]);
-                menu_item_update_label(item,lbl2);
+                menu_item_set_label(item, lbl2);
                 free (lbl1);
                 free (lbl2);
             }
@@ -104,7 +104,7 @@ int input_menu_item_action(menu_event evt, menu *m, menu_item *item) {
 
             char *lbl1 = my_catstr(input_menu_txt,"\n");
             char *lbl2 = my_catstr(lbl1, m->item[m->current_id]->label);
-            menu_item_update_label(m->item[m->current_id],lbl2);
+            menu_item_set_label(m->item[m->current_id], lbl2);
             free (lbl1);
             free (lbl2);
         }
@@ -116,11 +116,11 @@ int input_menu_item_action(menu_event evt, menu *m, menu_item *item) {
                 last_id = 0;
             }
             menu_item *last_item = m->item[last_id];
-            menu_item_update_label(last_item, input_menu_alphabet_items[last_id]);
+            menu_item_set_label(last_item, input_menu_alphabet_items[last_id]);
 
             char *lbl1 = my_catstr(input_menu_txt,"\n");
             char *lbl2 = my_catstr(lbl1, m->item[m->current_id]->label);
-            menu_item_update_label(m->item[m->current_id],lbl2);
+            menu_item_set_label(m->item[m->current_id], lbl2);
             free (lbl1);
             free (lbl2);
         }

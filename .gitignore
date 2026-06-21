@@ -36,3 +36,9 @@ ve301_new.includes
 /ve301.workspace
 /ve301.config
 /build/
+/.kateproject
+/ASYNC_UPDATE_LABEL.md
+/MPD_PLAYER_MIGRATION.md
+/RADIO_BROWSER.md
+/skills-lock.json
+/AGENTS.md

@@ -73,10 +73,6 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
         return 0;
     }
 
-    if (!item->label_default) {
-        menu_item_rebuild_glyphs(item);
-    }
-
     log_debug(MENU_CTX,
               "menu_item_draw: label = %s, line = %d, state = %d, angle = %f\n",
               item->label,
@@ -91,7 +87,6 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
 
     int line;
     for (line = 0; line < lines; line++) {
-
         text_obj *label = item->label_default;
         if (st == ACTIVE) {
             label = item->label_active;
@@ -145,7 +140,9 @@ int menu_item_get_visible(menu_item *item) {
 }
 
 char *menu_item_get_label(menu_item *i) {
-    return i->label;
+    char *label = NULL;
+    label = i->label;
+    return label;
 }
 
 char *menu_item_get_icon(menu_item *i) {
@@ -219,56 +216,86 @@ void menu_item_rebuild_glyphs(menu_item *item) {
     if (!font2) {
         font2 = m->ctrl->font2;
     }
+    if (!font2) {
+        font2 = font;
+    }
+
+    if (!font && item->label && item->label[0] != '\0') {
+        log_error(MENU_CTX,
+                  "Skipping glyph rebuild for label [%s]: no font available\n",
+                  item->label);
+        return;
+    }
 
     SDL_Renderer *renderer = m->ctrl->renderer;
 
     if (renderer) {
-        item->label_default = text_obj_new(renderer,
-                                           item->label,
-                                           item->icon,
-                                           font,
-                                           font2,
-                                           m->default_color != NULL ? *m->default_color
-                                                                    : *m->ctrl->default_color,
-                                           m->ctrl->center,
-                                           m->ctrl->radius_labels,
-                                           item->line,
-                                           m->n_o_lines,
-                                           item->menu->ctrl->light_x,
-                                           item->menu->ctrl->light_y,
-                                           item->menu->ctrl->font_bumpmap);
-        item->label_current = text_obj_new(renderer,
-                                           item->label,
-                                           item->icon,
-                                           font,
-                                           font2,
-                                           m->selected_color != NULL ? *m->selected_color
-                                                                     : *m->ctrl->selected_color,
-                                           m->ctrl->center,
-                                           m->ctrl->radius_labels,
-                                           item->line,
-                                           m->n_o_lines,
-                                           item->menu->ctrl->light_x,
-                                           item->menu->ctrl->light_y,
-                                           item->menu->ctrl->font_bumpmap);
-        item->label_active = text_obj_new(renderer,
-                                          item->label,
-                                          item->icon,
-                                          font,
-                                          font2,
-                                          m->default_color != NULL ? *m->default_color
-                                                                   : *m->ctrl->activated_color,
-                                          m->ctrl->center,
-                                          m->ctrl->radius_labels,
-                                          item->line,
-                                          m->n_o_lines,
-                                          item->menu->ctrl->light_x,
-                                          item->menu->ctrl->light_y,
-                                          item->menu->ctrl->font_bumpmap);
+        text_obj *label_default = text_obj_new(renderer,
+                                               item->label,
+                                               item->icon,
+                                               font,
+                                               font2,
+                                               m->default_color != NULL ? *m->default_color
+                                                                        : *m->ctrl->default_color,
+                                               m->ctrl->center,
+                                               m->ctrl->radius_labels,
+                                               item->line,
+                                               m->n_o_lines,
+                                               item->menu->ctrl->light_x,
+                                               item->menu->ctrl->light_y,
+                                               item->menu->ctrl->font_bumpmap);
+        text_obj *label_current = text_obj_new(renderer,
+                                               item->label,
+                                               item->icon,
+                                               font,
+                                               font2,
+                                               m->selected_color != NULL ? *m->selected_color
+                                                                         : *m->ctrl->selected_color,
+                                               m->ctrl->center,
+                                               m->ctrl->radius_labels,
+                                               item->line,
+                                               m->n_o_lines,
+                                               item->menu->ctrl->light_x,
+                                               item->menu->ctrl->light_y,
+                                               item->menu->ctrl->font_bumpmap);
+        text_obj *label_active = text_obj_new(renderer,
+                                              item->label,
+                                              item->icon,
+                                              font,
+                                              font2,
+                                              m->default_color != NULL ? *m->default_color
+                                                                       : *m->ctrl->activated_color,
+                                              m->ctrl->center,
+                                              m->ctrl->radius_labels,
+                                              item->line,
+                                              m->n_o_lines,
+                                              item->menu->ctrl->light_x,
+                                              item->menu->ctrl->light_y,
+                                              item->menu->ctrl->font_bumpmap);
+
+        text_obj *label_default_old = item->label_default;
+        text_obj *label_current_old = item->label_current;
+        text_obj *label_active_old = item->label_active;
+
+        item->label_default = label_default;
+        item->label_current = label_current;
+        item->label_active = label_active;
+
+        if (label_default_old) {
+            text_obj_free(label_default_old);
+        }
+        if (label_current_old) {
+            text_obj_free(label_current_old);
+        }
+        if (label_active_old) {
+            text_obj_free(label_active_old);
+        }
     }
 }
 
 int menu_item_set_label(menu_item *item, const char *label) {
+    int ret_value = 0;
+
 
     const char *llabel = label ? label : "";
 
@@ -283,11 +310,11 @@ int menu_item_set_label(menu_item *item, const char *label) {
         menu_item_rebuild_glyphs(item);
 
         item->menu->dirty = 1;
-        return 1;
-
+        ret_value = 1;
     }
 
-    return 0;
+
+    return ret_value;
 }
 
 int menu_item_set_icon(menu_item *item, const char *icon) {
