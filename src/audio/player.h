@@ -36,6 +36,7 @@ typedef void player_action(void *data);
 typedef int player_init_function();
 typedef int player_run_function();
 typedef int player_cleanup_function();
+typedef int player_abort_function();
 
 typedef struct player {
     char *name;
@@ -66,6 +67,7 @@ player *player_new(const char *name,
                    player_init_function *init_function,
                    player_run_function *run_function,
                    player_cleanup_function *cleanup_function,
+                   player_abort_function *abort_function,
                    player_action *playback_start_function,
                    player_action *playback_stop_function);
 char *player_get_name(player *p);

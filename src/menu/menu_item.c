@@ -182,6 +182,10 @@ int menu_item_get_id(menu_item *item) {
     return item->id;
 }
 
+void *menu_item_get_object(menu_item *item) {
+    return (void *) item->user_data;
+}
+
 void menu_item_rebuild_glyphs(menu_item *item) {
 
     menu *m = item->menu;

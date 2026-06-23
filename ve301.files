@@ -22,7 +22,7 @@ src/audio/audio.h
 src/audio/bluetooth.c
 src/audio/bluetooth.h
 src/audio/media_player.h
-src/audio/mpd_player.c
+src/audio/mpd_media_player.c
 src/audio/player.c
 src/audio/player.h
 src/audio/player_if.h

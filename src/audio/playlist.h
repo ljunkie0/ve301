@@ -29,7 +29,8 @@ typedef struct playlist {
 } playlist;
 
 int playlist_add_song(playlist *p, song *s);
-playlist *playlist_new(char *name);
+playlist *playlist_new(const char *name);
+playlist *playlist_clone(playlist *p);
 int playlist_clear(playlist *p);
 void playlist_free(playlist *p);
 

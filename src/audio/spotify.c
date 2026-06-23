@@ -396,7 +396,7 @@ int __spotify_connect() {
         return 0;
     }
 
-    while (player_thread_running(__spotify_player) && !__spotify_data.web_socket) {
+    while (player_thread_running(__spotify_player) && !__spotify_data.connected) {
         struct lws_client_connect_info ccinfo;
         memset(&ccinfo, 0, sizeof(ccinfo));
 
@@ -482,19 +482,30 @@ int __spotify_run() {
     return 1;
 }
 
+int __spotify_abort() {
+    __spotify_data.connected = 0;
+    if (__spotify_data.context) {
+        log_config(SPOTIFY_CTX, "Canceling websocket listening\n");
+        lws_cancel_service(__spotify_data.context);
+        log_config(SPOTIFY_CTX, "Done\n");
+    }
+    return 1;
+}
+
 int __spotify_cleanup() {
+    log_config(SPOTIFY_CTX, "Spotify cleanup\n");
     free_and_set_null((void **) &__spotify_cover_url);
     free_and_set_null((void **) &__spotify_cover_path);
     if (__spotify_data.web_socket) {
         lws_callback_on_writable(__spotify_data.web_socket);
     }
     if (__spotify_data.context) {
-        lws_cancel_service(__spotify_data.context);
         lws_context_destroy(__spotify_data.context);
     }
     __spotify_data.context = NULL;
     __spotify_data.web_socket = NULL;
     __spotify_data.connected = 0;
+    log_config(SPOTIFY_CTX, "Spotify cleanup done\n");
     return 1;
 }
 
@@ -511,6 +522,7 @@ player *spotify_init(char *spotify_host,
                                   &__spotify_init,
                                   &__spotify_run,
                                   &__spotify_cleanup,
+                                  &__spotify_abort,
                                   NULL,
                                   NULL);
     return __spotify_player;

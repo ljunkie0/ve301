@@ -41,10 +41,48 @@ struct normal_vector {
 void glyph_obj_free(glyph_obj *obj) {
     log_debug(MENU_CTX, "glyph_obj_free (%p)\n", obj);
     if (obj) {
-        if (obj->bump_map) {
-            free_and_set_null((void **) &obj->colors);
-            free_and_set_null((void **) &obj->normals);
+        if (obj->animated) {
+            glyph_obj_animated *animated = (glyph_obj_animated *) obj;
+            SDL_Texture *current_overlay = obj->bumpmap_overlay;
+
+            for (int i = 0; i < animated->n_animations; i++) {
+                if (animated->textures && animated->textures[i]) {
+                    SDL_DestroyTexture(animated->textures[i]);
+                }
+                if (animated->surfaces && animated->surfaces[i]) {
+                    SDL_FreeSurface(animated->surfaces[i]);
+                }
+                if (animated->colorss) {
+                    free(animated->colorss[i]);
+                }
+                if (animated->normalss) {
+                    free(animated->normalss[i]);
+                }
+                if (animated->bumpmap_overlays && animated->bumpmap_overlays[i]
+                    && animated->bumpmap_overlays[i] != current_overlay) {
+                    SDL_DestroyTexture(animated->bumpmap_overlays[i]);
+                }
+            }
+
+            if (current_overlay) {
+                SDL_DestroyTexture(current_overlay);
+            }
+
+            free_and_set_null((void **) &animated->textures);
+            free_and_set_null((void **) &animated->surfaces);
+            free_and_set_null((void **) &animated->colorss);
+            free_and_set_null((void **) &animated->normalss);
+            free_and_set_null((void **) &animated->bumpmap_overlays);
+            free_and_set_null((void **) &animated->bumpmap_texturess);
+            free_and_set_null((void **) &animated->light_pixelss);
+            free_and_set_null((void **) &obj->rot_center);
+            free_and_set_null((void **) &obj->dst_rect);
+            free(obj);
+            return;
         }
+
+        free_and_set_null((void **) &obj->colors);
+        free_and_set_null((void **) &obj->normals);
         free_and_set_null((void **) &obj->rot_center);
         free_and_set_null((void **) &obj->dst_rect);
 
@@ -215,11 +253,18 @@ void glyph_obj_init_surface(glyph_obj *glyph_o,
 
     Uint32 format;
     int access;
-    SDL_Rect *dst = malloc(sizeof(SDL_Rect));
-    SDL_QueryTexture(glyph_o->texture, &format, &access, &(dst->w), &(dst->h));
-    glyph_o->dst_rect = dst;
+    if (!glyph_o->dst_rect) {
+        glyph_o->dst_rect = malloc(sizeof(SDL_Rect));
+    }
+    SDL_QueryTexture(glyph_o->texture,
+                     &format,
+                     &access,
+                     &(glyph_o->dst_rect->w),
+                     &(glyph_o->dst_rect->h));
 
-    glyph_o->rot_center = malloc(sizeof(SDL_Point));
+    if (!glyph_o->rot_center) {
+        glyph_o->rot_center = malloc(sizeof(SDL_Point));
+    }
     glyph_obj_update_cnt_rad(glyph_o, center, radius);
 
     glyph_o->minx = 0;

@@ -57,6 +57,7 @@ int menu_item_get_visible(menu_item *item);
 void menu_item_set_object_type(menu_item *item, int object_type);
 int menu_item_get_object_type(menu_item *item);
 int menu_item_is_object_type(menu_item *item, int object_type);
+void *menu_item_get_object(menu_item *item);
 void menu_item_set_sub_menu(menu_item *item, menu *sub_menu);
 menu *menu_item_get_sub_menu(menu_item *item);
 const void *menu_item_get_user_data(menu_item *item);

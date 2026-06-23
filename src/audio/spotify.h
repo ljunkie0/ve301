@@ -26,4 +26,5 @@ player *spotify_init(char *spotify_host,
                      char *icon,
                      int check_millis,
                      int show_cover);
+void spotify_request_stop(void);
 #endif

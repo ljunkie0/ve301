@@ -29,6 +29,7 @@ static char *unknown_song_url = "Unknown";
 song *song_new(unsigned int id, const char *url, const char *name, const char *title) {
     song *s = malloc(sizeof(song));
     s->id = id;
+    s->artist = NULL;
     if (url) {
         s->url = my_copynstr(url, __SONG_MAX_URL_LENGTH);
     } else {
@@ -52,11 +53,18 @@ song *song_clone(song *s) {
         return NULL;
     }
 
-    return song_new(s->id, s->url, s->name, s->title);
+    song *copy = song_new(s->id, s->url, s->name, s->title);
+    if (s->artist) {
+        copy->artist = my_copynstr(s->artist, __SONG_MAX_TITLE_LENGTH);
+    }
+    return copy;
 }
 
 void song_free(song *s) {
     if (s) {
+        if (s->artist) {
+            free(s->artist);
+        }
         if (s->name && s->name != unknown_song_name) {
             free (s->name);
         }

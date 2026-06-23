@@ -52,8 +52,7 @@ struct __bluetooth_data {
     player *player;
 } __bluetooth_data;
 
-void process_string_dict_entry(DBusMessageIter parentIter, char **key,
-                               char **value) {
+void __bt_process_string_dict_entry(DBusMessageIter parentIter, char **key, char **value) {
     DBusMessageIter dictEntryIter;
     dbus_message_iter_recurse(&parentIter, &dictEntryIter);
     dbus_message_iter_get_basic(&dictEntryIter, key);
@@ -69,7 +68,7 @@ void process_string_dict_entry(DBusMessageIter parentIter, char **key,
     *value = NULL;
 }
 
-void process_properties_chg_msg(DBusMessage *msg) {
+void __bt_process_properties_chg_msg(DBusMessage *msg) {
     DBusMessageIter iter;
     dbus_message_iter_init(msg, &iter);
     char *str;
@@ -108,7 +107,7 @@ void process_properties_chg_msg(DBusMessage *msg) {
                     char current_type = dbus_message_iter_get_arg_type(&trackDataIter);
                     while (current_type == DBUS_TYPE_DICT_ENTRY) {
                         char *key, *value;
-                        process_string_dict_entry(trackDataIter, &key, &value);
+                        __bt_process_string_dict_entry(trackDataIter, &key, &value);
                         if (key) {
                             if (value && strlen(value) == 0) {
                                 value = NULL;
@@ -134,7 +133,7 @@ void process_properties_chg_msg(DBusMessage *msg) {
     }
 }
 
-void log_bt_info() {
+void __bt_log_info() {
     if (log_level_enabled(BT_CTX, IR_LOG_LEVEL_CONFIG)) {
         log_config(BT_CTX,
                    "Connected: %s\n",
@@ -185,12 +184,11 @@ int __bt_connect() {
     return 1;
 }
 
-int bt_init() {
+int __bt_init() {
     return __bt_connect();
 }
 
-int bt_run() {
-
+int __bt_run() {
     if (__bluetooth_data.connection == NULL) {
         __bt_connect();
     }
@@ -206,14 +204,14 @@ int bt_run() {
             const char *member = dbus_message_get_member(__bluetooth_data.message);
             log_config(BT_CTX, "member: %s\n", member);
             if (!strncmp(member, media_control, strlen(media_control))) {
-                process_properties_chg_msg(__bluetooth_data.message);
+                __bt_process_properties_chg_msg(__bluetooth_data.message);
                 player_set_active(__bluetooth_data.player, 1);
                 result = 1;
             } else if (!strcmp(member, pcm_removed)) {
                 player_set_active(__bluetooth_data.player, 0);
                 result = 1;
             } else if (!strcmp(member, prop_changed)) {
-                process_properties_chg_msg(__bluetooth_data.message);
+                __bt_process_properties_chg_msg(__bluetooth_data.message);
                 result = 1;
             }
 
@@ -230,13 +228,13 @@ int bt_run() {
                    "bt_run(proces_prop_changes => %d) -> %d\n",
                    process_prop_changes,
                    result);
-        log_bt_info();
+        __bt_log_info();
     }
 
     return result;
 }
 
-int bt_cleanup() {
+int __bt_cleanup() {
     log_config(BT_CTX, "Closing ...\n");
     // close the connection
     if (__bluetooth_data.connection != NULL) {
@@ -253,9 +251,10 @@ player *bluetooth_init(char *label, char *icon, int check_millis) {
                                          icon,
                                          label,
                                          check_millis,
-                                         &bt_init,
-                                         &bt_run,
-                                         &bt_cleanup,
+                                         &__bt_init,
+                                         &__bt_run,
+                                         &__bt_cleanup,
+                                         NULL,
                                          NULL,
                                          NULL);
 

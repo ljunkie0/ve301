@@ -145,6 +145,12 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
                              : "n/a",
                       txt ? txt : icon,
                       icon ? IMG_GetError() : TTF_GetError());
+            if (unicode_text) {
+                free(unicode_text);
+            }
+            if (unicode_text_2nd_line) {
+                free(unicode_text_2nd_line);
+            }
             text_obj_free(t);
             return NULL;
         }
@@ -172,7 +178,11 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
                     free(animation->frames);
                     free(animation->delays);
                     free(animation);
+                    SDL_FreeSurface(text_surface);
                 } else {
+                    if (animation) {
+                        IMG_FreeAnimation(animation);
+                    }
                     t->glyphs_objs[i] = glyph_obj_new_surface(renderer,
                                                               text_surface,
                                                               center,
@@ -184,6 +194,12 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
                     = glyph_obj_new(renderer, unicode_text[i], font, fg, center, radius, bump_map);
                 if (!t->glyphs_objs[i]) {
                     log_error(MENU_CTX, "Could not create glyph object for %c\n", unicode_text[i]);
+                    if (unicode_text) {
+                        free(unicode_text);
+                    }
+                    if (unicode_text_2nd_line) {
+                        free(unicode_text_2nd_line);
+                    }
                     text_obj_free(t);
                     return NULL;
                 }
@@ -212,6 +228,12 @@ text_obj *text_obj_new(SDL_Renderer *renderer,
                           unicode_text_2nd_line,
                           n_glyph_objs_2nd_line,
                           TTF_GetError());
+                if (unicode_text) {
+                    free(unicode_text);
+                }
+                if (unicode_text_2nd_line) {
+                    free(unicode_text_2nd_line);
+                }
                 text_obj_free(t);
                 return NULL;
             }

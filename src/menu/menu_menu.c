@@ -305,6 +305,7 @@ void menu_free(menu *m) {
         free_and_set_null((void **) &m->selected_color);
         free_and_set_null((void **) &m->scale_color);
         free_and_set_null((void **) &m->user_data);
+        free_and_set_null((void **) &m->bg_image_path);
 
         if (m->bg_image) {
             SDL_DestroyTexture(m->bg_image);
@@ -461,6 +462,8 @@ int menu_set_bg_image(menu *m, char *bg_image_path) {
         SDL_DestroyTexture(m->bg_image);
         m->bg_image = NULL;
     }
+
+    free_and_set_null((void **) &m->bg_image_path);
 
     if (bg_image_path) {
         m->bg_image_path = my_copystr(bg_image_path);

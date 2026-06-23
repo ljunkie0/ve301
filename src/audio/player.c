@@ -22,7 +22,6 @@
 #include "../base/util.h"
 #include <pthread.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -34,6 +33,7 @@ typedef struct __player_event_node {
 } __player_event_node;
 
 typedef struct __player_action {
+    player *owner;
     player_action *action;
     void *data;
 } __player_action;
@@ -43,8 +43,9 @@ typedef struct __player_action_node {
     struct __player_action_node *next;
 } __player_action_node;
 
-void __player_enqueue_action(player_action *action_func, void *data);
-__player_action *player_next_action(void);
+void __player_enqueue_action(player *owner, player_action *action_func, void *data);
+__player_action *player_next_action(player *owner);
+void player_action_free(__player_action *action);
 
 typedef struct __player_internal {
     player player;
@@ -55,6 +56,7 @@ typedef struct __player_internal {
     player_init_function *init_function;
     player_run_function *run_function;
     player_cleanup_function *cleanup_function;
+    player_abort_function *abort_function;
 } __player_internal;
 
 static pthread_mutex_t __player_event_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -71,6 +73,7 @@ player *player_new(const char *name,
                    player_init_function *init_function,
                    player_run_function *run_function,
                    player_cleanup_function *cleanup_function,
+                   player_abort_function *abort_function,
                    player_action *playback_start_function,
                    player_action *playback_stop_function) {
     __player_internal *p_internal = malloc(sizeof(__player_internal));
@@ -93,6 +96,7 @@ player *player_new(const char *name,
     p_internal->init_function = init_function;
     p_internal->run_function = run_function;
     p_internal->cleanup_function = cleanup_function;
+    p_internal->abort_function = abort_function;
     p_internal->player_thread = 0;
     p_internal->thread_running = 0;
 
@@ -329,10 +333,14 @@ void *__player_thread_function(void *data) {
     struct timespec sleep_ns = {0, 20 * 1000000};
 
     while (p_internal->thread_running) {
-        __player_action *next_action = player_next_action();
+        __player_action *next_action = player_next_action(&p_internal->player);
         while (next_action != NULL && p_internal->thread_running) {
             next_action->action(next_action->data);
-            next_action = player_next_action();
+            player_action_free(next_action);
+            next_action = player_next_action(&p_internal->player);
+        }
+        if (next_action) {
+            player_action_free(next_action);
         }
         if (!result) {
             break;
@@ -377,7 +385,7 @@ int player_start(player *p) {
 int player_playback_stop(player *p) {
     __player_internal *p_internal = (__player_internal *) p;
     if (p_internal->playback_stop_function) {
-        __player_enqueue_action(p_internal->playback_stop_function, NULL);
+        __player_enqueue_action(p, p_internal->playback_stop_function, NULL);
     }
     return 1;
 }
@@ -385,7 +393,7 @@ int player_playback_stop(player *p) {
 int player_playback_start(player *p, void *song) {
     __player_internal *p_internal = (__player_internal *) p;
     if (p_internal->playback_start_function) {
-        __player_enqueue_action(p_internal->playback_start_function, song);
+        __player_enqueue_action(p, p_internal->playback_start_function, song);
     }
     return 1;
 }
@@ -393,6 +401,9 @@ int player_playback_start(player *p, void *song) {
 int player_stop(player *p) {
     __player_internal *p_internal = (__player_internal *) p;
     p_internal->thread_running = 0;
+    if (p_internal->abort_function) {
+        p_internal->abort_function();
+    }
     pthread_join(p_internal->player_thread, NULL);
     return 1;
 }
@@ -424,7 +435,7 @@ void player_event_free(player_event *event) {
     free(event);
 }
 
-void __player_enqueue_action(player_action *action_func, void *data) {
+void __player_enqueue_action(player *owner, player_action *action_func, void *data) {
     __player_action_node *node = malloc(sizeof(__player_action_node));
 
     if (!node) {
@@ -432,14 +443,14 @@ void __player_enqueue_action(player_action *action_func, void *data) {
         return;
     }
 
-    node->action = malloc(sizeof(player_action));
+    node->action = malloc(sizeof(__player_action));
     if (!node->action) {
         log_error(AUDIO_CTX, "Could not allocate player action\n");
         free(node);
         return;
     }
 
-    node->action = malloc(sizeof(__player_action));
+    node->action->owner = owner;
     node->action->action = action_func;
     node->action->data = data;
     node->next = NULL;
@@ -454,16 +465,26 @@ void __player_enqueue_action(player_action *action_func, void *data) {
     pthread_mutex_unlock(&__player_action_mutex);
 }
 
-__player_action *player_next_action(void) {
+__player_action *player_next_action(player *owner) {
+    __player_action_node *prev = NULL;
     __player_action_node *node = NULL;
     __player_action *action = NULL;
 
     pthread_mutex_lock(&__player_action_mutex);
-    if (__player_action_head) {
-        node = __player_action_head;
-        __player_action_head = node->next;
-        if (!__player_action_head) {
-            __player_action_tail = NULL;
+    node = __player_action_head;
+    while (node && node->action->owner != owner) {
+        prev = node;
+        node = node->next;
+    }
+
+    if (node) {
+        if (prev) {
+            prev->next = node->next;
+        } else {
+            __player_action_head = node->next;
+        }
+        if (__player_action_tail == node) {
+            __player_action_tail = prev;
         }
     }
     pthread_mutex_unlock(&__player_action_mutex);

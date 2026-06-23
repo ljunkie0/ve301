@@ -21,6 +21,9 @@
 #include <stdlib.h>
 
 int playlist_add_song(playlist *p, song *s) {
+    if (!p) {
+        return 0;
+    }
     p->n_songs++;
     song **new_songs = realloc(p->songs, (p->n_songs * sizeof(song *)));
     if (!new_songs) {
@@ -32,7 +35,7 @@ int playlist_add_song(playlist *p, song *s) {
     return 1;
 }
 
-playlist *playlist_new(char *name) {
+playlist *playlist_new(const char *name) {
     playlist *p = malloc(sizeof(playlist));
 
     p->n_songs = 0;
@@ -46,7 +49,21 @@ playlist *playlist_new(char *name) {
     return p;
 }
 
+playlist *playlist_clone(playlist *p) {
+    if (!p) {
+        return NULL;
+    }
+    playlist *clone = playlist_new(p->name);
+    for (int s = 0; s < p->n_songs; s++) {
+        playlist_add_song(clone, song_clone(p->songs[s]));
+    }
+    return clone;
+}
+
 int playlist_clear(playlist *p) {
+    if (!p) {
+        return 0;
+    }
     if (p->songs) {
         for (unsigned int i = 0; i < p->n_songs; i++) {
             song *s = p->songs[i];
@@ -58,7 +75,7 @@ int playlist_clear(playlist *p) {
         p->n_songs = 0;
     }
 
-    return 0;
+    return 1;
 }
 
 void playlist_free(playlist *p) {

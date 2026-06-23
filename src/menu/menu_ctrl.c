@@ -971,15 +971,15 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
 
         ctrl->current = NULL;
 
-        if (ctrl->display) {
-            SDL_DestroyWindow(ctrl->display);
-            ctrl->display = NULL;
-        }
-
-        if (ctrl->renderer) {
-            SDL_DestroyRenderer(ctrl->renderer);
-            ctrl->renderer = NULL;
-        }
+        free_and_set_null((void **) &ctrl->activated_color);
+        free_and_set_null((void **) &ctrl->background_color);
+        free_and_set_null((void **) &ctrl->default_color);
+        free_and_set_null((void **) &ctrl->indicator_color);
+        free_and_set_null((void **) &ctrl->indicator_color_dark);
+        free_and_set_null((void **) &ctrl->indicator_color_light);
+        free_and_set_null((void **) &ctrl->scale_color);
+        free_and_set_null((void **) &ctrl->selected_color);
+        free_and_set_null((void **) &ctrl->user_data);
 
         if (ctrl->root) {
             for (int r = 0; r < ctrl->n_roots; r++) {
@@ -990,15 +990,15 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
             ctrl->root = NULL;
         }
 
-        free_and_set_null((void **) &ctrl->activated_color);
-        free_and_set_null((void **) &ctrl->background_color);
-        free_and_set_null((void **) &ctrl->default_color);
-        free_and_set_null((void **) &ctrl->indicator_color);
-        free_and_set_null((void **) &ctrl->indicator_color_dark);
-        free_and_set_null((void **) &ctrl->indicator_color_light);
-        free_and_set_null((void **) &ctrl->scale_color);
-        free_and_set_null((void **) &ctrl->selected_color);
-        free_and_set_null((void **) &ctrl->user_data);
+        if (ctrl->renderer) {
+            SDL_DestroyRenderer(ctrl->renderer);
+            ctrl->renderer = NULL;
+        }
+
+        if (ctrl->display) {
+            SDL_DestroyWindow(ctrl->display);
+            ctrl->display = NULL;
+        }
 
         if (ctrl->font) {
             TTF_CloseFont(ctrl->font);

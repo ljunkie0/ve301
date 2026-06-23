@@ -37,6 +37,7 @@
 #include "theme.h"
 #include "weather.h"
 #include "wifi.h"
+#include <unistd.h>
 
 #define PLAYER_EVENT_STATE 1
 #define PLAYER_EVENT_METADATA 2
@@ -62,6 +63,7 @@ struct radio_app {
     menu *options_menu;
     menu_item *message_menu_item;
     menu_item *radio_browser_menu_item;
+    menu_item *player_icon_item;
     menu_item *player_item;
     menu_item *title_item;
     menu_item *artist_item;
@@ -73,7 +75,6 @@ struct radio_app {
     char *time_menu_item_format;
 #ifdef ALSA
     char *default_mixer;
-    menu *mixer_menu;
 #endif
     int info_menu_item_seconds;
     radio_theme *default_theme;
@@ -264,7 +265,7 @@ void apply_radio_theme(radio_theme *theme) {
     menu_set_colors(app->info_menu, info_default_clr, info_selected_clr, info_scale_clr);
     menu_set_colors(app->volume_menu, info_default_clr, info_selected_clr, info_scale_clr);
     menu_set_colors(app->message_menu, info_default_clr, info_selected_clr, info_scale_clr);
-    menu_set_colors(app->options_menu, info_default_clr, info_selected_clr, info_scale_clr);
+    /* Options menu disabled for now. */
 
     free(info_default_clr);
     free(info_selected_clr);
@@ -309,11 +310,33 @@ static radio_theme *get_player_theme(player *p) {
     return NULL;
 }
 
+static void update_player_menu_item(player *p) {
+    const char *label = player_get_label(p);
+    const char *icon = player_get_icon(p);
+
+    if (!label || is_blank((char *) label)) {
+        label = player_get_name(p);
+    }
+
+    menu_item_set_label(app->player_item, label);
+    menu_item_set_icon(app->player_item, NULL);
+
+    menu_item_set_label(app->player_icon_item, NULL);
+    if (icon && !is_blank((char *) icon)) {
+        if (!access(icon, R_OK)) {
+            menu_item_set_icon(app->player_icon_item, icon);
+        } else {
+            log_warning(MAIN_CTX, "Player icon not readable: %s\n", icon);
+            menu_item_set_icon(app->player_icon_item, NULL);
+        }
+    } else {
+        menu_item_set_icon(app->player_icon_item, NULL);
+    }
+}
+
 static void radio_app_restore_radio_defaults(void) {
     apply_radio_theme(app->default_theme);
-    update_menu_item_icon_or_label(app->player_item,
-                                   player_get_icon(app->radio_player),
-                                   player_get_label(app->radio_player));
+    update_player_menu_item(app->radio_player);
     update_menu_item_icon_or_label(app->title_item, NULL, "VE 301");
     update_menu_item_icon_or_label(app->artist_item, NULL, "VE 301");
 }
@@ -333,9 +356,7 @@ static int process_player_event(player *p, radio_theme *player_theme, int events
             if (player_theme) {
                 apply_radio_theme(player_theme);
             }
-            update_menu_item_icon_or_label(app->player_item,
-                                           player_get_icon(p),
-                                           player_get_label(p));
+            update_player_menu_item(p);
         }
 
         if (events & (PLAYER_EVENT_STATE | PLAYER_EVENT_METADATA)) {
@@ -393,6 +414,20 @@ void radio_playback_stop(void *data) {
     log_info(MAIN_CTX, "Radio playback start\n");
 }
 
+void start_players() {
+    player_start(app->radio_player);
+#ifdef SPOTIFY
+    if (app->spotify_player) {
+        player_start(app->spotify_player);
+    }
+#endif
+#ifdef BLUETOOTH
+    if (app->bluetooth_player) {
+        player_start(app->bluetooth_player);
+    }
+#endif
+}
+
 void init_players(const char *radio_player_name, const char *radio_player_label) {
     char radio_icon[MAX_CONFIG_LINE_LENGTH];
     config_value_path(radio_icon, "radio_icon", NULL);
@@ -405,39 +440,36 @@ void init_players(const char *radio_player_name, const char *radio_player_label)
         player_set_label(app->radio_player, NULL);
     }
 
-    player_start(app->radio_player);
 
 #ifdef SPOTIFY
-    char spotify_host[MAX_CONFIG_LINE_LENGTH];
-    config_value(spotify_host, "spotify_host", "localhost");
-    char spotify_icon[MAX_CONFIG_LINE_LENGTH];
-    config_value_path(spotify_icon, "spotify_icon", NULL);
-    int spotify_show_cover = get_config_value_int("spotify_show_cover", 0);
-    app->spotify_player = spotify_init(spotify_host,
-                                       "Spotify",
-                                       spotify_icon,
-                                       get_config_value_int("check_spotify_seconds",
-                                                            CHECK_SPOTIFY_SECONDS),
-                                       spotify_show_cover);
-    if (player_get_icon(app->spotify_player)) {
-        player_set_label(app->spotify_player, NULL);
-    }
+	if (get_config_value_int("spotify_enabled", 0)) {
+		char spotify_host[MAX_CONFIG_LINE_LENGTH];
+		config_value(spotify_host, "spotify_host", "localhost");
+		char spotify_icon[MAX_CONFIG_LINE_LENGTH];
+		config_value_path(spotify_icon, "spotify_icon", NULL);
+		int spotify_show_cover = get_config_value_int("spotify_show_cover", 0);
+		app->spotify_player = spotify_init(spotify_host, "Spotify",
+				spotify_icon, get_config_value_int("check_spotify_seconds",
+				CHECK_SPOTIFY_SECONDS), spotify_show_cover);
+		if (player_get_icon(app->spotify_player)) {
+			player_set_label(app->spotify_player, NULL);
+		}
 
-    player_start(app->spotify_player);
+	}
 
 #endif
 #ifdef BLUETOOTH
-    char bluetooth_icon[MAX_CONFIG_LINE_LENGTH];
-    config_value_path(bluetooth_icon, "bluetooth_icon", NULL);
-    app->bluetooth_player = bluetooth_init("Bluetooth",
-                                           bluetooth_icon,
-                                           get_config_value_int("check_bluetooth_seconds",
-                                                                CHECK_BLUETOOTH_SECONDS));
-    if (player_get_icon(app->bluetooth_player)) {
-        player_set_label(app->bluetooth_player, NULL);
+    if (get_config_value_int("bluetooth_enabled", 0)) {
+        char bluetooth_icon[MAX_CONFIG_LINE_LENGTH];
+        config_value_path(bluetooth_icon, "bluetooth_icon", NULL);
+        app->bluetooth_player = bluetooth_init("Bluetooth",
+                                               bluetooth_icon,
+                                               get_config_value_int("check_bluetooth_seconds",
+                                                                    CHECK_BLUETOOTH_SECONDS));
+        if (player_get_icon(app->bluetooth_player)) {
+            player_set_label(app->bluetooth_player, NULL);
+        }
     }
-
-    player_start(app->bluetooth_player);
 
 #endif
 }
@@ -457,6 +489,10 @@ void update_radio_menu() {
         }
 
         menu_item_set_sub_menu(app->radio_menu_item, app->radio_menu);
+
+        free_and_set_null((void **) &internet_radios->name);
+        free_and_set_null((void **) &internet_radios->songs);
+        free(internet_radios);
 
     } else {
         menu_item_new(app->radio_menu, "No radio", NULL, NULL, 0, NULL, -1, NULL, NULL, -1);
@@ -595,14 +631,15 @@ void menu_action_activate(menu *m, menu_item *item) {
             long song_id = player_get_song_id(app->radio_player);
             if (!song_id || (song_id != s->id)) {
                 log_info(MAIN_CTX, "Starting radio playback\n");
-                player_playback_start(app->radio_player, s);
-                if (!player_playback_start(app->radio_player, s)) {
+                if (!player_playback_start(app->radio_player, song_clone(s))) {
                     log_error(MAIN_CTX, "Could not play song %s", s->title);
                 }
-                char *name = player_get_name(app->radio_player);
-                if (name) {
-                    menu_item_set_label(app->artist_item, name);
-                    free(name);
+                const char *station = s->title ? s->title : s->name;
+                if (!station) {
+                    station = s->artist;
+                }
+                if (station) {
+                    menu_item_set_label(app->artist_item, station);
                 }
             } else if (song_id) {
                 player_playback_stop(app->radio_player);
@@ -618,31 +655,17 @@ void menu_action_activate(menu *m, menu_item *item) {
 void mixer_turn_action(menu *m_ptr, int direction) {
     log_config(MAIN_CTX, "menu_turn_action(%d)\n", direction);
 #ifdef ALSA
-    if (menu_get_current_item(m_ptr)
-        && menu_item_get_object_type(menu_get_current_item(m_ptr)) == OBJ_TYPE_MIXER) {
-        log_config(MAIN_CTX, "Mixer menu\n");
-        menu_item *mixer_item = menu_get_current_item(m_ptr);
-        char *mixer_name = (char *) menu_item_get_object(mixer_item);
-        int vol = alsa_get_volume(mixer_name);
-        log_config(MAIN_CTX, "Current volume of mixer %s: %d\n", mixer_name, vol);
-        alsa_set_volume(app->default_mixer, vol + direction * 2);
-        log_config(MAIN_CTX, "New volume: %d\n", vol);
-        char label[13];
-        vol_label(label, vol);
-        menu_item_update_label(mixer_item, label);
-    } else {
-        log_config(MAIN_CTX, "Volume menu item\n");
-        menu_item_show(app->volume_menu_item);
-        int vol = alsa_get_volume(app->default_mixer);
-        log_config(MAIN_CTX, "Current volume: %d\n", vol);
-        alsa_set_volume(app->default_mixer, vol + direction * 2);
-        vol = alsa_get_volume(app->default_mixer);
-        log_config(MAIN_CTX, "New volume: %d\n", vol);
-        char label[13];
-        vol_label(label, vol);
-        menu_item_update_label(app->volume_menu_item, label);
-        menu_item_show(app->volume_menu_item);
-    }
+    log_config(MAIN_CTX, "Volume menu item\n");
+    menu_item_show(app->volume_menu_item);
+    int vol = alsa_get_volume();
+    log_config(MAIN_CTX, "Current volume: %d\n", vol);
+    alsa_set_volume(vol + direction * 2);
+    vol = alsa_get_volume();
+    log_config(MAIN_CTX, "New volume: %d\n", vol);
+    char label[13];
+    vol_label(label, vol);
+    menu_item_set_label(app->volume_menu_item, label);
+    menu_item_show(app->volume_menu_item);
 #else
     log_config(MAIN_CTX, "Volume menu item\n");
     menu_item_show(app->volume_menu_item);
@@ -668,25 +691,6 @@ void init_mixer_menu(radio_config config) {
     }
 
 #ifdef ALSA
-    app->mixer_menu = menu_new_root(app->ctrl, 1, NULL, 0, NULL, 0);
-    menu_set_label(app->mixer_menu, "Mixers");
-    menu_set_transient(app->mixer_menu, 1);
-
-    int n_mixers;
-    const char **alsa_mixers = alsa_get_mixers(config.mixer_device, &n_mixers);
-    for (int n = 0; n < n_mixers; n++) {
-        const char *alsa_mixer = alsa_mixers[n];
-        menu *mixer_sub_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
-        menu_set_label(mixer_sub_menu, alsa_mixer);
-        menu_add_sub_menu(app->mixer_menu, alsa_mixer, mixer_sub_menu, NULL);
-        const int volume = alsa_get_volume(alsa_mixers[n]);
-        char label[13];
-        vol_label(label, volume);
-        menu_item_new(
-            mixer_sub_menu, label, NULL, alsa_mixer, OBJ_TYPE_MIXER, NULL, -1, NULL, NULL, -1);
-    }
-    free(alsa_mixers);
-
     const int volume = alsa_get_volume(app->default_mixer);
 #else
     const int volume = media_player_get_volume();
@@ -713,43 +717,21 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
         if (m_ptr == app->nav_menu || m_ptr == app->volume_menu) {
             radio_app_open_info_menu();
         } else if (m_ptr == app->info_menu) {
-            menu_open(app->options_menu);
-        } else if (m_ptr == app->options_menu) {
-            menu_open(app->info_menu);
+            /* Options menu disabled for now. */
         } else if (m_ptr && menu_get_parent(m_ptr) && menu_get_parent(m_ptr) != m_ptr) {
             menu_open(menu_get_parent(m_ptr));
         }
         break;
 #ifdef ALSA
     case ACTIVATE_1:
-        if (m_ptr == app->mixer_menu && item_ptr) {
-            menu_open_sub_menu(app->ctrl, item_ptr);
-        } else {
-            menu_open(app->mixer_menu);
-        }
         break;
     case HOLD_1:
-        if (m_ptr == app->mixer_menu) {
-            log_config(MAIN_CTX, "Opening volume menu\n");
-            menu_open(app->volume_menu);
-        } else {
-            log_config(MAIN_CTX, "Opening mixer menu\n");
-            menu_open(app->mixer_menu);
-        }
         break;
     case TURN_LEFT_1:
-        if (m_ptr == app->mixer_menu) {
-            menu_turn_left(m_ptr);
-        } else {
-            mixer_turn_action(m_ptr, -1);
-        }
+        mixer_turn_action(m_ptr, -1);
         break;
     case TURN_RIGHT_1:
-        if (m_ptr == app->mixer_menu) {
-            menu_turn_right((menu *) m_ptr);
-        } else {
-            mixer_turn_action(m_ptr, 1);
-        }
+        mixer_turn_action(m_ptr, 1);
         break;
 #else
     case TURN_LEFT_1:
@@ -760,7 +742,7 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
         break;
 #endif
     case DISPOSE:
-        if (menu_item_get_user_data(item_ptr) && menu_item_get_menu(item_ptr) != app->radio_menu) {
+        if (menu_item_get_user_data(item_ptr)) {
             const void *obj = menu_item_get_user_data(item_ptr);
             switch (menu_item_get_object_type(item_ptr)) {
             case OBJ_TYPE_DIRECTORY:
@@ -901,6 +883,7 @@ int menu_call_back(menu_ctrl *ctrl) {
     return 1;
 }
 
+#if 0
 static int stop_song_action(menu_event evt, menu *m, menu_item *item) {
     player_playback_stop(app->radio_player);
     return 1;
@@ -920,6 +903,7 @@ void init_options_menu() {
                   NULL,
                   -1);
 }
+#endif
 
 void init_info_menu(radio_config config) {
     app->info_menu = menu_new_root(app->ctrl, 1, config.info_font, config.info_font_size, NULL, 0);
@@ -927,6 +911,16 @@ void init_info_menu(radio_config config) {
     menu_set_transient(app->info_menu, 1);
 
 
+    app->player_icon_item = menu_item_new(app->info_menu,
+                                          NULL,
+                                          NULL,
+                                          NULL,
+                                          UNKNOWN_OBJECT_TYPE,
+                                          config.info_font,
+                                          config.info_font_size,
+                                          NULL,
+                                          NULL,
+                                          -1);
     app->player_item = menu_item_new(app->info_menu,
                                      "VE 301",
                                      NULL,
@@ -937,6 +931,7 @@ void init_info_menu(radio_config config) {
                                      NULL,
                                      NULL,
                                      -1);
+    update_player_menu_item(app->radio_player);
     app->title_item = menu_item_new(app->info_menu,
                                     "VE 301",
                                     NULL,
@@ -1000,7 +995,7 @@ void init_info_menu(radio_config config) {
         app->weather_item = NULL;
     }
 
-    init_options_menu();
+    /* init_options_menu(); */
 }
 
 void init_navigation_menu(radio_config config) {
@@ -1036,15 +1031,15 @@ void init_navigation_menu(radio_config config) {
                                                          NULL);
     }
 
-    app->lib_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
-    menu_set_label(app->lib_menu, "Bibliothek");
-    menu_add_sub_menu(app->nav_menu, "Bibliothek", app->lib_menu, NULL);
-    app->album_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
-    menu_set_label(app->album_menu, "Alben");
-    menu_add_sub_menu(app->lib_menu, "Alben", app->album_menu, NULL);
-    app->artist_menu = menu_new(app->ctrl, 3, NULL, 0, NULL, NULL, 0);
-    menu_set_label(app->artist_menu, "Artisten");
-    menu_add_sub_menu(app->lib_menu, "Artisten", app->artist_menu, NULL);
+    // app->lib_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
+    // menu_set_label(app->lib_menu, "Bibliothek");
+    // menu_add_sub_menu(app->nav_menu, "Bibliothek", app->lib_menu, NULL);
+    // app->album_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
+    // menu_set_label(app->album_menu, "Alben");
+    // menu_add_sub_menu(app->lib_menu, "Alben", app->album_menu, NULL);
+    // app->artist_menu = menu_new(app->ctrl, 3, NULL, 0, NULL, NULL, 0);
+    // menu_set_label(app->artist_menu, "Artisten");
+    // menu_add_sub_menu(app->lib_menu, "Artisten", app->artist_menu, NULL);
 
     app->system_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
     menu_set_label(app->system_menu, "System");
@@ -1054,8 +1049,6 @@ void init_navigation_menu(radio_config config) {
     menu_set_label(network_menu, "Network");
     menu_add_sub_menu(app->system_menu, "Network", network_menu, &item_action_update_network_menu);
 
-    app->song_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
-    menu_set_label(app->song_menu, "Songs");
 }
 
 struct radio_app *radio_app_new() {
@@ -1064,6 +1057,8 @@ struct radio_app *radio_app_new() {
     app->callback_t = 0;
     app->wthr.temp = 0;
     app->wthr.weather_icon = NULL;
+    app->spotify_player = NULL;
+    app->bluetooth_player = NULL;
     return app;
 }
 
@@ -1083,9 +1078,6 @@ void radio_app_create_menu(radio_config config) {
                               &menu_action_listener,
                               &menu_call_back);
 
-#ifdef ALSA
-    app->default_mixer = my_copystr(config.alsa_mixer_name);
-#endif
     app->time_menu_item_format = my_copystr(config.time_menu_item_format);
 
     app->info_menu_item_seconds = config.info_menu_item_seconds;
@@ -1139,8 +1131,13 @@ void radio_app_init(const char *name,
     app = radio_app_new();
     app->check_internet_interval = time_check_interval_new(CHECK_INTERNET_SECONDS);
     check_internet();
+    app->default_mixer = my_copystr(config.alsa_mixer_name);
+    if (!alsa_init(app->default_mixer)) {
+        log_warning(MAIN_CTX, "Could not initialize alsa mixer %s\n", app->default_mixer);
+    }
     init_players(radio_player_name, radio_player_label);
     radio_app_create_menu(config);
+    start_players();
 }
 
 void radio_app_loop() {
@@ -1156,14 +1153,18 @@ void radio_app_close() {
     stop_weather_thread();
     log_info(MAIN_CTX, "Weather thread stopped\n");
 #ifdef BLUETOOTH
-    log_info(MAIN_CTX, "Stopping bluetooth\n");
-    player_stop(app->bluetooth_player);
-    log_info(MAIN_CTX, "Bluetooth stopped\n");
+    if (app->bluetooth_player) {
+        log_info(MAIN_CTX, "Stopping bluetooth\n");
+        player_stop(app->bluetooth_player);
+        log_info(MAIN_CTX, "Bluetooth stopped\n");
+    }
 #endif
 #ifdef SPOTIFY
-    log_info(MAIN_CTX, "Stopping spotify\n");
-    player_stop(app->spotify_player);
-    log_info(MAIN_CTX, "Spotify stopped\n");
+    if (app->spotify_player) {
+        log_info(MAIN_CTX, "Stopping spotify\n");
+        player_stop(app->spotify_player);
+        log_info(MAIN_CTX, "Spotify stopped\n");
+    }
 #endif
     if (app->default_theme) {
         free_theme(app->default_theme);
@@ -1181,13 +1182,11 @@ void radio_app_close() {
         app->spotify_theme = NULL;
     }
 #endif
-    {
         player_event *event = player_next_event();
         while (event) {
             player_event_free(event);
             event = player_next_event();
         }
-    }
     log_info(MAIN_CTX, "Stopping audio\n");
     player_stop(app->radio_player);
     log_info(MAIN_CTX, "Audio stopped\n");
@@ -1202,6 +1201,7 @@ void radio_app_close() {
         app->check_internet_interval = NULL;
     }
 #ifdef ALSA
+    alsa_close();
     if (app->default_mixer) {
         free(app->default_mixer);
         app->default_mixer = NULL;

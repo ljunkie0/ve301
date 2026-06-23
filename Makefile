@@ -7,7 +7,7 @@ STRIP=$(ARCH)-strip
 
 BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
-AUDIO_OBJS=audio/player.o audio/mpd_player.o audio/song.o audio/playlist.o audio/radio_browser.o
+AUDIO_OBJS=audio/player.o audio/mpd_media_player.o audio/song.o audio/playlist.o audio/radio_browser.o
 OBJS=radio_app.o theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser_menu.o input_menu.o weather.o 
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
@@ -18,9 +18,10 @@ LIB_MPD=-lmpdclient
 LIB_WEATHER=-lcurl -lcjson -lpthread
 LIB_WS=-lwebsockets
 
-ifeq ($WITH_ALSA),1)
+ifeq ($(WITH_ALSA),1)
+	ADD_CFLAGS += -DALSA
 	LIB_ASOUND = -lasound
-	AUDIO_OBJ += audio/alsa.o
+	AUDIO_OBJS += audio/alsa.o
 endif
 
 ifeq ($(WITH_SPOTIFY),1)
@@ -66,7 +67,7 @@ MNL_LIB=/usr/lib/$(ARCH)/libmnl.so
 all: ve301
 
 ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o
-	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
+	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(LIB_ASOUND) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
 
 strip: ve301
 	$(STRIP) ve301
@@ -150,7 +151,7 @@ menu/%_obj.o: ../src/menu/%_obj.c ../src/menu/%_obj.h | menu
 menu/menu_%.o: ../src/menu/menu_%.c ../src/menu/menu_%.h ../src/menu/menu_%_priv.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-audio/mpd_player.o: ../src/audio/mpd_player.c ../src/audio/media_player.h | audio
+audio/mpd_media_player.o: ../src/audio/mpd_media_player.c ../src/audio/media_player.h | audio
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 audio/%.o: ../src/audio/%.c ../src/audio/%.h | audio

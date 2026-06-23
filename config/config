@@ -1,0 +1,49 @@
+#log_levels: BASE MAIN MENU AUDIO ENCODER SDL WEATHER BLUETOOTH SPOTIFY
+log_levels=131111114
+#log_levels=555555555
+#Geometry
+window_width=640
+window_height=320
+clip_w=0
+clip_h=170
+clip_x=0
+clip_y=60
+y_offset=170
+x_offset=0
+angle_offset=0.0
+radius_labels=400
+radius_scales_start=470
+radius_scales_end=550
+hsv_style=0
+info_menu_item_seconds=7
+radio_menu_segments_per_item=2
+#MPD
+mpd_host=127.0.0.1
+radio_icon=ve301_logo_48.png
+#ALSA
+alsa_mixer_name=Master
+#Spotify
+spotify_enabled=0
+spotify_host=127.0.0.1
+check_spotify_seconds=1
+spotify_icon=spotify_logo_48.png
+#Bluetooth
+bluetooth_enabled=0
+check_bluetooth_seconds=1
+bluetooth_icon=bluetooth_logo_48.png
+#Weather
+weather_api_key=
+weather_location=
+weather_units=metric
+##
+# Radio Browser
+##
+radio_browser_enabled=0
+radio_browser_countrycode=DE
+radio_browser_station_limit=50
+radio_browser_category_limit=50
+radio_browser_language_limit=50
+radio_browser_server=https://de1.api.radio-browser.info
+radio_browser_user_agent=VE301
+# Theme
+include theme.mauve

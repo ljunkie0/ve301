@@ -9,7 +9,6 @@
 #include "menu/menu_item.h"
 #include "radio_app.h"
 #include <stdlib.h>
-#include <string.h>
 
 struct __radio_browser_config {
     char radio_browser_countrycode[MAX_CONFIG_LINE_LENGTH];
@@ -71,8 +70,8 @@ void radio_browser_play_station(radio_browser_station *station) {
     song *s = song_new(unknown_song_id, stream_url, NULL, station_name);
     if (!player_playback_start(radio_browser_config.radio_player, s)) {
         log_error(MAIN_CTX, "Radio Browser: could not play station %s\n", station_name);
+        song_free(s);
     }
-    song_free(s);
     free(stream_url);
 }
 
