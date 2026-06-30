@@ -12,7 +12,7 @@ light_image_path=light.png
 light_image_x=0
 light_image_y=0
 # Find this font or use another. Not daring to share it.
-#font=P22Speyside.otf
+font=BarlowCondensed-Medium.ttf
 font_size=48
 info_font_size=64
 weather_font=weathericons-regular-webfont.ttf

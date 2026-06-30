@@ -232,16 +232,20 @@ void base_init(const char *appname, FILE *dflt_log_file, int log_level) {
     init_log_file(appname, dflt_log_file);
 
     init_config_file(appname);
+
     char *lls = get_config_value("log_levels", "11111111");
     int i = 0;
-    while (lls && lls[i] && i < NUM_CTX) {
-        char c[2];
-        c[0] = lls[i];
-        c[1] = 0;
-        set_log_level(i, atoi(c));
-        i++;
+
+    if (log_level < 0) {
+        while (lls && lls[i] && i < NUM_CTX) {
+            char c[2];
+            c[0] = lls[i];
+            c[1] = 0;
+            set_log_level(i, atoi(c));
+            i++;
+        }
+        free(lls);
     }
-    free(lls);
 
     while (i < NUM_CTX) {
         set_log_level(i++, log_level);

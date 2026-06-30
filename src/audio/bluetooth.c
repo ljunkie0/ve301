@@ -256,6 +256,7 @@ player *bluetooth_init(char *label, char *icon, int check_millis) {
                                          &__bt_cleanup,
                                          NULL,
                                          NULL,
+                                         NULL,
                                          NULL);
 
     return __bluetooth_data.player;

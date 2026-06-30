@@ -11,6 +11,17 @@ PC/wifi-scan/wifi_scan.h
 README.md
 Raspberry/Dockerfile
 Raspberry/Makefile
+config/BarlowCondensed-Medium.ttf
+config/bluetooth_logo_48.png
+config/config
+config/light.png
+config/skala_bg_blue_grid.jpg
+config/skala_bg_green_grid.jpg
+config/skala_bg_mauve_grid.jpg
+config/spotify_logo_48.png
+config/theme.mauve
+config/ve301_logo_48.png
+config/weathericons-regular-webfont.ttf
 playground/test_bump_mapping.c
 sample.config
 src/audio.c

@@ -1,6 +1,11 @@
-#log_levels: BASE MAIN MENU AUDIO ENCODER SDL WEATHER BLUETOOTH SPOTIFY
-log_levels=131111114
-#log_levels=555555555
+#log contexts: BASE MAIN MENU AUDIO ENCODER SDL WEATHER BLUETOOTH SPOTIFY
+#log levels
+# 1 ERROR
+# 2 WARNING
+# 3 INFO
+# 4 CONFIG
+# 5 TRACE
+log_levels=111111111
 #Geometry
 window_width=640
 window_height=320

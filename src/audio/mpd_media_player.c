@@ -14,6 +14,7 @@
 #define RADIO_PLAYLIST "Radio"
 
 static pthread_mutex_t internet_radios_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t volume_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct __mpd_player {
     player *player;
@@ -21,6 +22,7 @@ struct __mpd_player {
     int current_song_id;
     time_check_interval *check_internet_radios_interval;
     playlist *internet_radios;
+    int current_volume;
 } __mpd_player;
 
 static struct mpd_connection *__connect_mpd(const char *context, int timeout_ms);
@@ -77,6 +79,24 @@ void __mpd_playback_stop(void *data) {
     }
 }
 
+void __mpd_volume_set(void *data) {
+    int volume = *((int *) data);
+    if (__mpd_check_connection("Player", &__mpd_player.player_conn)) {
+        pthread_mutex_lock(&volume_mutex);
+        if (!mpd_run_set_volume(__mpd_player.player_conn, volume)) {
+            log_error(AUDIO_CTX,
+                      "Failed to set volume: %s\n",
+                      mpd_connection_get_error_message(__mpd_player.player_conn));
+            if (mpd_connection_get_error(__mpd_player.player_conn) != MPD_ERROR_SUCCESS) {
+                mpd_connection_clear_error(__mpd_player.player_conn);
+            }
+        } else {
+            __mpd_player.current_volume = volume;
+        }
+        pthread_mutex_unlock(&volume_mutex);
+    }
+}
+
 player *media_player_new(const char *name, char *icon, const char *label, const long check_millis) {
     player *mpd_player = player_new(name,
                                     icon,
@@ -87,11 +107,14 @@ player *media_player_new(const char *name, char *icon, const char *label, const 
                                     &__mpd_cleanup,
                                     NULL,
                                     &__mpd_playback_start,
-                                    &__mpd_playback_stop);
+                                    &__mpd_playback_stop,
+                                    &__mpd_volume_set);
 
     __mpd_player.player = mpd_player;
     __mpd_player.player_conn = NULL;
     __mpd_player.check_internet_radios_interval = time_check_interval_new(5000);
+    __mpd_player.current_song_id = -1;
+    __mpd_player.current_volume = -1;
 
     return mpd_player;
 }
@@ -101,6 +124,17 @@ playlist *media_player_get_internet_radios() {
     playlist *pl = playlist_clone(__mpd_player.internet_radios);
     pthread_mutex_unlock(&internet_radios_mutex);
     return pl;
+}
+
+int media_player_get_volume() {
+    pthread_mutex_lock(&internet_radios_mutex);
+    int volume = __mpd_player.current_volume;
+    pthread_mutex_unlock(&internet_radios_mutex);
+    return volume;
+}
+
+void media_player_set_volume(int volume) {
+    player_volume_set(__mpd_player.player, volume);
 }
 
 static playlist *__mpd_get_internet_radios(playlist *internet_radios,
@@ -244,6 +278,15 @@ static void __mpd_update(struct mpd_connection *conn) {
         mpd_song_free(current_mpd_song);
     }
 
+    int volume = mpd_run_get_volume(__mpd_player.player_conn);
+
+    if (__mpd_player.current_volume != volume) {
+        pthread_mutex_lock(&volume_mutex);
+        __mpd_player.current_volume = volume;
+        pthread_mutex_unlock(&volume_mutex);
+        player_emit_event(__mpd_player.player, PLAYER_VOLUME_CHANGED);
+    }
+
     if (check_time_interval(__mpd_player.check_internet_radios_interval)) {
         pthread_mutex_lock(&internet_radios_mutex);
         __mpd_player.internet_radios = __mpd_get_internet_radios(__mpd_player.internet_radios,
@@ -372,27 +415,4 @@ static song *__mpd_find_song_in_playlist_by_url(const char *url, playlist *playl
         }
     }
     return NULL;
-}
-
-static int __mpd_get_volume(struct mpd_connection *conn) {
-    int vol = mpd_run_get_volume(conn);
-    if (vol < 0 && mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-        const char *msg = mpd_connection_get_error_message(conn);
-        log_error(AUDIO_CTX, "Failed to get volume from mpd: %s\n", msg);
-        __mpd_response_finish(conn);
-        return 0;
-    }
-    return vol;
-}
-
-static void __mpd_set_volume(int volume, struct mpd_connection *conn) {
-    if (!mpd_send_set_volume(conn, (unsigned int) volume)) {
-        log_error(AUDIO_CTX,
-                  "Failed to set volume %d: %s\n",
-                  volume,
-                  mpd_connection_get_error_message(conn));
-        __mpd_response_finish(conn);
-    } else {
-        __mpd_response_finish(conn);
-    }
 }

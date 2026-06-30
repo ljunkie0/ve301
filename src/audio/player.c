@@ -53,6 +53,7 @@ typedef struct __player_internal {
     int thread_running;
     player_action *playback_start_function;
     player_action *playback_stop_function;
+    player_action *volume_set_function;
     player_init_function *init_function;
     player_run_function *run_function;
     player_cleanup_function *cleanup_function;
@@ -75,7 +76,8 @@ player *player_new(const char *name,
                    player_cleanup_function *cleanup_function,
                    player_abort_function *abort_function,
                    player_action *playback_start_function,
-                   player_action *playback_stop_function) {
+                   player_action *playback_stop_function,
+                   player_action *volume_set_function) {
     __player_internal *p_internal = malloc(sizeof(__player_internal));
     p_internal->player.name = my_copystr(name);
     p_internal->player.active = 0;
@@ -93,6 +95,7 @@ player *player_new(const char *name,
 
     p_internal->playback_start_function = playback_start_function;
     p_internal->playback_stop_function = playback_stop_function;
+    p_internal->volume_set_function = volume_set_function;
     p_internal->init_function = init_function;
     p_internal->run_function = run_function;
     p_internal->cleanup_function = cleanup_function;
@@ -163,7 +166,7 @@ static void player_listener(player_event event) {
     pthread_mutex_unlock(&__player_event_mutex);
 }
 
-static void player_emit_event(player *p, player_status status) {
+void player_emit_event(player *p, player_status status) {
     if (p) {
         player_event event = {p, status};
         player_listener(event);
@@ -330,7 +333,7 @@ void *__player_thread_function(void *data) {
         result = p_internal->init_function();
     }
 
-    struct timespec sleep_ns = {0, 20 * 1000000};
+    struct timespec sleep_ns = {0, 50 * 1000000};
 
     while (p_internal->thread_running) {
         __player_action *next_action = player_next_action(&p_internal->player);
@@ -394,6 +397,16 @@ int player_playback_start(player *p, void *song) {
     __player_internal *p_internal = (__player_internal *) p;
     if (p_internal->playback_start_function) {
         __player_enqueue_action(p, p_internal->playback_start_function, song);
+    }
+    return 1;
+}
+
+int player_volume_set(player *p, int volume) {
+    __player_internal *p_internal = (__player_internal *) p;
+    if (p_internal->volume_set_function) {
+        int *vol_ptr = malloc(sizeof(int));
+        *vol_ptr = volume;
+        __player_enqueue_action(p, p_internal->volume_set_function, vol_ptr);
     }
     return 1;
 }
@@ -499,5 +512,10 @@ __player_action *player_next_action(player *owner) {
 }
 
 void player_action_free(__player_action *action) {
+    __player_internal *p_internal = (__player_internal *) action->owner;
+    if (p_internal->volume_set_function == action->action) {
+        free(action->data);
+    }
+
     free(action);
 }

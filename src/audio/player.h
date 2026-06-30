@@ -29,7 +29,8 @@ typedef enum {
     PLAYER_PLAYBACK_STOPPED,
     PLAYER_ACTIVATED = 100,
     PLAYER_METADATA_CHANGED,
-    PLAYER_COVER_CHANGED
+    PLAYER_COVER_CHANGED,
+    PLAYER_VOLUME_CHANGED
 } player_status;
 
 typedef void player_action(void *data);
@@ -69,7 +70,8 @@ player *player_new(const char *name,
                    player_cleanup_function *cleanup_function,
                    player_abort_function *abort_function,
                    player_action *playback_start_function,
-                   player_action *playback_stop_function);
+                   player_action *playback_stop_function,
+                   player_action *volume_set_function);
 char *player_get_name(player *p);
 void player_free(player *p);
 int player_is_active(player *p);
@@ -88,10 +90,12 @@ player_status player_get_playback_status(player *p);
 int player_do_check(player *p);
 int player_start(player *p);
 int player_stop(player *p);
+void player_emit_event(player *p, player_status status);
 player_event *player_next_event(void);
 void player_event_free(player_event *event);
 
 int player_playback_stop(player *p);
 int player_playback_start(player *p, void *song);
+int player_volume_set(player *p, int volume);
 
 #endif

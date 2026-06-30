@@ -72,7 +72,8 @@ typedef enum {
 
 void radio_app_init(const char *app_name,
                     const char *radio_player_name,
-                    const char *radio_player_label);
+                    const char *radio_player_label,
+                    const int verbose_level);
 void radio_app_loop();
 void radio_app_close();
 

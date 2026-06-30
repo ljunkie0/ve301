@@ -19,9 +19,10 @@
 #ifndef ALSA_H
 #define ALSA_H
 
-const int alsa_init(char *mixer);
+const int alsa_init(const char *mixer_device, const char *mixer);
 int alsa_close();
 const int alsa_set_volume(const int value);
 const int alsa_get_volume();
 const int alsa_enabled();
+const int alsa_next_volume_event(int *volume);
 #endif

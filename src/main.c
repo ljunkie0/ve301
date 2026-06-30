@@ -17,9 +17,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "radio_app.h"
+#include <string.h>
 
 int main(int argc, char **argv) {
-    radio_app_init("ve301", "VE301", "VE 301");
+    int verbosity_level = 1;
+
+    if (argc > 1) {
+        if (argv[1][0] == '-') {
+            int l = strlen(argv[1]);
+            for (int c = 1; c < l; c++) {
+                if (argv[1][c] == 'v') {
+                    verbosity_level++;
+                }
+            }
+        }
+    } else {
+        verbosity_level = -1;
+    }
+
+    radio_app_init("ve301", "VE301", "VE 301", verbosity_level);
     radio_app_loop();
     radio_app_close();
     return 0;

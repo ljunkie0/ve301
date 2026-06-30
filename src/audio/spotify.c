@@ -524,6 +524,7 @@ player *spotify_init(char *spotify_host,
                                   &__spotify_cleanup,
                                   &__spotify_abort,
                                   NULL,
+                                  NULL,
                                   NULL);
     return __spotify_player;
 }

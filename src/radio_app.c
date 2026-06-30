@@ -42,6 +42,7 @@
 #define PLAYER_EVENT_STATE 1
 #define PLAYER_EVENT_METADATA 2
 #define PLAYER_EVENT_COVER 4
+#define PLAYER_EVENT_VOLUME 8
 struct radio_app {
     menu_ctrl *ctrl;
     menu *radio_menu;
@@ -73,9 +74,8 @@ struct radio_app {
     menu_item *volume_menu_item;
     char *volume_mixer;
     char *time_menu_item_format;
-#ifdef ALSA
+    int alsa_enabled;
     char *default_mixer;
-#endif
     int info_menu_item_seconds;
     radio_theme *default_theme;
     player *radio_player;
@@ -126,6 +126,7 @@ typedef struct radio_config {
     int light_img_x;
     int light_img_y;
     int warp_speed;
+    int alsa_enabled;
     char mixer_device[MAX_CONFIG_LINE_LENGTH];
     char alsa_mixer_name[MAX_CONFIG_LINE_LENGTH];
     int info_menu_item_seconds;
@@ -144,6 +145,7 @@ typedef struct radio_config {
 static struct radio_app *app;
 
 static int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr);
+static void radio_app_show_volume_menu(int volume);
 
 static void radio_app_touch_activity(void) {
     time_t timer;
@@ -184,8 +186,14 @@ void read_radio_config(radio_config *config) {
     config->radio_radius_labels = get_config_value_int("radio_radius_labels", config->radius_labels);
     config->info_menu_item_seconds = get_config_value_int("info_menu_item_seconds",
                                                           INFO_MENU_ITEM_SECONDS);
+#ifdef ALSA
+    config->alsa_enabled = get_config_value_int("alsa_enabled", 0);
     config_value(config->mixer_device, "alsa_mixer_device", "default");
     config_value(config->alsa_mixer_name, "alsa_mixer_name", "Master");
+#else
+    config->alsa_enabled = 0;
+    config->mixer_device = NULL;
+#endif
     config_value(config->weather_api_key, "weather_api_key", "");
     config_value(config->weather_location, "weather_location", "");
     config_value(config->weather_units, "weather_units", "metric");
@@ -291,6 +299,8 @@ static int player_event_mask(player_status status) {
         return PLAYER_EVENT_METADATA;
     case PLAYER_COVER_CHANGED:
         return PLAYER_EVENT_COVER;
+    case PLAYER_VOLUME_CHANGED:
+        return PLAYER_EVENT_VOLUME;
     default:
         return 0;
     }
@@ -382,6 +392,12 @@ static int process_player_event(player *p, radio_theme *player_theme, int events
             && player_get_cover_image_path(p)) {
             menu_set_bg_image(app->info_menu, player_get_cover_image_path(p));
         }
+
+        if ((events & (PLAYER_EVENT_VOLUME))) {
+            int volume = media_player_get_volume();
+            radio_app_show_volume_menu(volume);
+        }
+
     } else if ((events & PLAYER_EVENT_STATE) && player_active_changed(p)) {
         log_info(MAIN_CTX, "%s disconnected\n", player_get_name(p));
         if (p != app->radio_player) {
@@ -513,6 +529,31 @@ void vol_label(char *buffer, int volume) {
     }
     snprintf(buffer, 20, "Volume: %d%%", volume);
 }
+
+static void radio_app_show_volume_menu(int volume) {
+    char label[20];
+
+    vol_label(label, volume);
+    menu_item_set_label(app->volume_menu_item, label);
+    menu_item_show(app->volume_menu_item);
+}
+
+#ifdef ALSA
+static void process_alsa_events(void) {
+    int volume = 0;
+    int has_event = 0;
+
+    while (alsa_next_volume_event(&volume)) {
+        has_event = 1;
+    }
+
+    if (has_event) {
+        volume = alsa_get_volume();
+        log_config(MAIN_CTX, "ALSA volume changed: %d\n", volume);
+        radio_app_show_volume_menu(volume);
+    }
+}
+#endif
 
 int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) {
     if (evt == DISPOSE) {
@@ -653,31 +694,26 @@ void menu_action_activate(menu *m, menu_item *item) {
 }
 
 void mixer_turn_action(menu *m_ptr, int direction) {
-    log_config(MAIN_CTX, "menu_turn_action(%d)\n", direction);
+    int vol = 0;
+    if (app->alsa_enabled) {
 #ifdef ALSA
-    log_config(MAIN_CTX, "Volume menu item\n");
-    menu_item_show(app->volume_menu_item);
-    int vol = alsa_get_volume();
-    log_config(MAIN_CTX, "Current volume: %d\n", vol);
-    alsa_set_volume(vol + direction * 2);
-    vol = alsa_get_volume();
-    log_config(MAIN_CTX, "New volume: %d\n", vol);
-    char label[13];
-    vol_label(label, vol);
-    menu_item_set_label(app->volume_menu_item, label);
-    menu_item_show(app->volume_menu_item);
-#else
-    log_config(MAIN_CTX, "Volume menu item\n");
-    menu_item_show(app->volume_menu_item);
-    int vol = media_player_get_volume() + direction * 2;
-    log_config(MAIN_CTX, "Current volume: %d\n", vol);
-    media_player_set_volume(vol);
-    log_config(MAIN_CTX, "New volume: %d\n", vol);
-    char label[13];
-    vol_label(label, vol);
-    menu_item_set_label(app->volume_menu_item, label);
-    menu_item_show(app->volume_menu_item);
+        log_config(MAIN_CTX, "menu_turn_action(%d)\n", direction);
+        log_config(MAIN_CTX, "Volume menu item\n");
+        vol = alsa_get_volume();
+        log_config(MAIN_CTX, "Current volume: %d\n", vol);
+        alsa_set_volume(vol + direction * 2);
+        vol = alsa_get_volume();
 #endif
+    } else {
+        log_config(MAIN_CTX, "Volume menu item\n");
+        vol = media_player_get_volume() + direction * 2;
+        log_config(MAIN_CTX, "Current volume: %d\n", vol);
+        media_player_set_volume(vol);
+        log_config(MAIN_CTX, "New volume: %d\n", vol);
+        radio_app_show_volume_menu(vol);
+    }
+    log_config(MAIN_CTX, "New volume: %d\n", vol);
+    radio_app_show_volume_menu(vol);
 }
 
 void init_mixer_menu(radio_config config) {
@@ -691,12 +727,12 @@ void init_mixer_menu(radio_config config) {
     }
 
 #ifdef ALSA
-    const int volume = alsa_get_volume(app->default_mixer);
+    const int volume = alsa_get_volume();
 #else
     const int volume = media_player_get_volume();
 #endif
 
-    char label[13];
+    char label[20];
     vol_label(label, volume);
 
     app->volume_menu_item = menu_item_new(
@@ -817,7 +853,7 @@ int menu_call_back(menu_ctrl *ctrl) {
     }
 
     if (check_time_interval(app->check_internet_interval)) {
-        log_config(MAIN_CTX, "Checking internet\n");
+        log_trace(MAIN_CTX, "Checking internet\n");
         int ia = check_internet();
         if (ia != app->internet_available) {
             app->internet_available = ia;
@@ -828,6 +864,9 @@ int menu_call_back(menu_ctrl *ctrl) {
     }
 
     process_player_events();
+#ifdef ALSA
+    process_alsa_events();
+#endif
 
     time_t timer;
     time(&timer);
@@ -1051,14 +1090,17 @@ void init_navigation_menu(radio_config config) {
 
 }
 
-struct radio_app *radio_app_new() {
+struct radio_app *radio_app_new(radio_config config) {
     struct radio_app *app = malloc(sizeof(struct radio_app));
     app->info_menu_t = 0;
     app->callback_t = 0;
     app->wthr.temp = 0;
     app->wthr.weather_icon = NULL;
+    app->radio_player = NULL;
     app->spotify_player = NULL;
     app->bluetooth_player = NULL;
+    app->default_mixer = NULL;
+    app->alsa_enabled = config.alsa_enabled;
     return app;
 }
 
@@ -1124,17 +1166,25 @@ void radio_app_create_menu(radio_config config) {
 
 void radio_app_init(const char *name,
                     const char *radio_player_name,
-                    const char *radio_player_label) {
-    base_init(name, stderr, IR_LOG_LEVEL_DEBUG);
+                    const char *radio_player_label,
+                    const int verbose_level) {
+    base_init(name, stderr, verbose_level);
     radio_config config;
     read_radio_config(&config);
-    app = radio_app_new();
+    app = radio_app_new(config);
     app->check_internet_interval = time_check_interval_new(CHECK_INTERNET_SECONDS);
     check_internet();
-    app->default_mixer = my_copystr(config.alsa_mixer_name);
-    if (!alsa_init(app->default_mixer)) {
-        log_warning(MAIN_CTX, "Could not initialize alsa mixer %s\n", app->default_mixer);
+#ifdef ALSA
+    if (config.alsa_enabled) {
+        app->default_mixer = my_copystr(config.alsa_mixer_name);
+        if (!alsa_init(config.mixer_device, app->default_mixer)) {
+            log_warning(MAIN_CTX,
+                        "Could not initialize alsa mixer %s on device %s\n",
+                        app->default_mixer,
+                        config.mixer_device);
+        }
     }
+#endif
     init_players(radio_player_name, radio_player_label);
     radio_app_create_menu(config);
     start_players();
