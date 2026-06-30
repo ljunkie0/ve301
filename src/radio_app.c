@@ -843,85 +843,6 @@ static void radio_app_rotate_info_menu(menu_ctrl *ctrl) {
     } while (current_id != start_id);
 }
 
-int menu_call_back(menu_ctrl *ctrl) {
-    long methodTime_s = current_time_millis();
-
-    log_debug(MAIN_CTX, "Start: Callback\n");
-
-    if (menu_ctrl_get_active(ctrl) != app->info_menu) {
-        app->current_menu = menu_ctrl_get_active(ctrl);
-    }
-
-    if (check_time_interval(app->check_internet_interval)) {
-        log_trace(MAIN_CTX, "Checking internet\n");
-        int ia = check_internet();
-        if (ia != app->internet_available) {
-            app->internet_available = ia;
-            log_info(MAIN_CTX,
-                     "Internet internet became %s\n",
-                     app->internet_available ? "available" : "unavailable");
-        }
-    }
-
-    process_player_events();
-#ifdef ALSA
-    process_alsa_events();
-#endif
-
-    time_t timer;
-    time(&timer);
-
-    if (timer - app->callback_t > CALLBACK_SECONDS) {
-        log_config(MAIN_CTX, "Updating time\n");
-
-        app->callback_t = timer;
-
-        if (app->weather_item && app->temperature_item) {
-            char temp_str[255];
-            sprintf(temp_str, "%.1f°C", ((double) round(10.0 * app->wthr.temp)) / 10);
-            menu_item_set_label(app->temperature_item, temp_str);
-
-            if (app->wthr.weather_icon) {
-                menu_item_set_label(app->weather_item, app->wthr.weather_icon);
-            }
-        }
-
-        update_time_item(timer);
-    }
-
-    if (timer - app->info_menu_t > app->info_menu_item_seconds) {
-        log_config(MAIN_CTX, "Updating info menu\n");
-        app->info_menu_t = timer;
-        if (!app->current_menu || !menu_is_sticky(app->current_menu)) {
-            if (app->internet_available) {
-                char *title_item_label = menu_item_get_label(app->title_item);
-                if (!strcmp(title_item_label, "No internet")) {
-                    menu_item_set_label(app->title_item, "VE 301");
-                }
-
-                radio_app_rotate_info_menu(ctrl);
-
-            } else {
-                char *title_item_label = menu_item_get_label(app->title_item);
-                if (strcmp(title_item_label, "No internet")) {
-                    menu_item_set_label(app->title_item, "No internet");
-                }
-                menu_item_warp_to(app->title_item);
-            }
-        }
-    }
-
-    log_debug(MAIN_CTX, "End:  Callback\n");
-
-    long methodTime_e = current_time_millis();
-
-    if (methodTime_e - methodTime_s >= 100) {
-        __log_warning(MAIN_CTX, "Time spend: %d\n", methodTime_e - methodTime_s);
-    }
-
-    return 1;
-}
-
 #if 0
 static int stop_song_action(menu_event evt, menu *m, menu_item *item) {
     player_playback_stop(app->radio_player);
@@ -1035,6 +956,89 @@ void init_info_menu(radio_config config) {
     }
 
     /* init_options_menu(); */
+}
+
+static void update_info_menu(menu_ctrl *ctrl, const time_t timer) {
+    log_config(MAIN_CTX, "Updating info menu\n");
+    app->info_menu_t = timer;
+    if (!app->current_menu || !menu_is_sticky(app->current_menu)) {
+        if (app->internet_available) {
+            char *title_item_label = menu_item_get_label(app->title_item);
+            if (!strcmp(title_item_label, "No internet")) {
+                menu_item_set_label(app->title_item, "VE 301");
+            }
+
+            radio_app_rotate_info_menu(ctrl);
+
+        } else {
+            char *title_item_label = menu_item_get_label(app->title_item);
+            if (strcmp(title_item_label, "No internet")) {
+                menu_item_set_label(app->title_item, "No internet");
+            }
+            menu_item_warp_to(app->title_item);
+        }
+    }
+}
+
+int menu_call_back(menu_ctrl *ctrl) {
+    long methodTime_s = current_time_millis();
+
+    log_debug(MAIN_CTX, "Start: Callback\n");
+
+    if (menu_ctrl_get_active(ctrl) != app->info_menu) {
+        app->current_menu = menu_ctrl_get_active(ctrl);
+    }
+
+    if (check_time_interval(app->check_internet_interval)) {
+        log_trace(MAIN_CTX, "Checking internet\n");
+        int ia = check_internet();
+        if (ia != app->internet_available) {
+            app->internet_available = ia;
+            log_info(MAIN_CTX,
+                     "Internet internet became %s\n",
+                     app->internet_available ? "available" : "unavailable");
+        }
+    }
+
+    process_player_events();
+#ifdef ALSA
+    process_alsa_events();
+#endif
+
+    time_t timer;
+    time(&timer);
+
+    if (timer - app->callback_t > CALLBACK_SECONDS) {
+        log_config(MAIN_CTX, "Updating time\n");
+
+        app->callback_t = timer;
+
+        if (app->weather_item && app->temperature_item) {
+            char temp_str[255];
+            sprintf(temp_str, "%.1f°C", ((double) round(10.0 * app->wthr.temp)) / 10);
+            menu_item_set_label(app->temperature_item, temp_str);
+
+            if (app->wthr.weather_icon) {
+                menu_item_set_label(app->weather_item, app->wthr.weather_icon);
+            }
+        }
+
+        update_time_item(timer);
+    }
+
+    if (timer - app->info_menu_t > app->info_menu_item_seconds) {
+        update_info_menu(ctrl, timer);
+    }
+
+    log_debug(MAIN_CTX, "End:  Callback\n");
+
+    long methodTime_e = current_time_millis();
+
+    if (methodTime_e - methodTime_s >= 100) {
+        __log_warning(MAIN_CTX, "Time spend: %d\n", methodTime_e - methodTime_s);
+    }
+
+    return 1;
 }
 
 void init_navigation_menu(radio_config config) {
