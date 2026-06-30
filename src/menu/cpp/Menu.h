@@ -38,13 +38,13 @@ public:
          const char *font,
          int fontSize,
          item_action *action,
-         char *font2ndLine,
+         const char *font2ndLine,
          int fontSize2ndLine);
     ~Menu();
     Menu(const Menu &) = delete;
     Menu &operator=(const Menu &) = delete;
 
-    int setBackgroundImage(char *bgImagePath);
+    int setBackgroundImage(const char *bgImagePath);
     int setColors(SDL_Color *defaultColor, SDL_Color *selectedColor, SDL_Color *scaleColor);
     menu_item *newSubMenu(const char *label, item_action *action);
     menu_item *addSubMenu(const char *label, Menu *subMenu, item_action *action);

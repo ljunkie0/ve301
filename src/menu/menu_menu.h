@@ -35,13 +35,13 @@ menu *menu_new(menu_ctrl *ctrl,
                const char *font,
                int font_size,
                item_action *action,
-               char *font_2nd_line,
+               const char *font_2nd_line,
                int font_size_2nd_line);
 menu *menu_new_root(menu_ctrl *ctrl,
                     int lines,
                     const char *font,
                     int font_size,
-                    char *font_2nd_line,
+                    const char *font_2nd_line,
                     int font_size_2nd_line);
 menu_item *menu_new_sub_menu(menu *m, const char *label, item_action *action);
 menu_item *menu_add_sub_menu(menu *m, const char *label, menu *sub_menu, item_action *action);
@@ -62,7 +62,7 @@ void menu_set_transient(menu *m, int transient);
 int menu_is_sticky(menu *m);
 menu_item *menu_get_current_item(menu *m);
 int menu_get_current_id(menu *m);
-int menu_set_bg_image(menu *m, char *bgImagePath);
+int menu_set_bg_image(menu *m, const char *bgImagePath);
 int menu_set_colors(menu *m,
                     SDL_Color *default_color,
                     SDL_Color *selected_color,

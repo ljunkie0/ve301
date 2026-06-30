@@ -27,7 +27,7 @@ MenuItem::MenuItem(
         const char *font,
         int fontSize,
         item_action *action,
-        char *font2ndLine,
+        const char *font2ndLine,
         int fontSize2ndLine) {
 
     init(m,
@@ -81,7 +81,7 @@ void MenuItem::init(
         const char *font,
         int fontSize,
         item_action *action,
-        char *font2ndLine,
+        const char *font2ndLine,
         int fontSize2ndLine) {
     this->m = m;
     this->handle = menu_item_new(m->handle,

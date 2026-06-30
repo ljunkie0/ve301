@@ -343,7 +343,7 @@ int menu_item_set_icon(menu_item *item, const char *icon) {
 }
 
 menu_item *menu_item_new(menu *m, const char *label, const char *icon, const void *object, int object_type,
-                         const char *font, int font_size, item_action *action, char *font_2nd_line, int font_size_2nd_line) {
+                         const char *font, int font_size, item_action *action, const char *font_2nd_line, int font_size_2nd_line) {
 
     menu_item *item = malloc(sizeof(menu_item));
     item->unicode_label = NULL;

@@ -23,7 +23,7 @@ Menu::Menu(MenuCtrl *ctrl,
          const char *font,
          int font_size,
          item_action *action,
-         char *font_2nd_line,
+         const char *font_2nd_line,
          int font_size_2nd_line) {
 
 	this->ctrl = ctrl;
@@ -37,7 +37,7 @@ Menu::Menu(MenuCtrl *ctrl,
 
 }
 
-int Menu::setBackgroundImage(char *bgImagePath) {
+int Menu::setBackgroundImage(const char *bgImagePath) {
 	return menu_set_bg_image(this->handle, bgImagePath);
 }
 

@@ -46,6 +46,9 @@ static char *__spotify_cover_path = NULL;
 static int __spotify_connect();
 static int __spotify_download_cover(const char *url);
 static int __spotify_file_exists(const char *path);
+static char *__spotify_api_url(const char *host, const char *path);
+static int __spotify_post_command(const char *path) __attribute__((unused));
+static char *__spotify_join_artist_names(cJSON *artist_names);
 static const char *__spotify_cover_ext_for_type(const char *content_type);
 
 static void __spotify_fill_info(cJSON *metadata) {
@@ -57,12 +60,12 @@ static void __spotify_fill_info(cJSON *metadata) {
     cJSON *album_cover_url = cJSON_GetObjectItem(metadata, "album_cover_url");
     cJSON *position = cJSON_GetObjectItem(metadata, "position");
     cJSON *duration = cJSON_GetObjectItem(metadata, "duration");
+    char *artists = __spotify_join_artist_names(artist_names);
 
     player_set_title(__spotify_player, name ? name->valuestring : NULL);
     player_set_album(__spotify_player,
                      album_name ? album_name->valuestring : NULL);
-    player_set_artist(__spotify_player,
-                      artist_names ? artist_names->valuestring : NULL);
+    player_set_artist(__spotify_player, artists);
     if (__spotify_data.show_cover
         && player_set_cover_uri(__spotify_player,
                                 album_cover_url ? album_cover_url->valuestring : NULL)) {
@@ -80,8 +83,8 @@ static void __spotify_fill_info(cJSON *metadata) {
         log_config(SPOTIFY_CTX, "Track URI: %s\n", uri->valuestring);
     if (name)
         log_config(SPOTIFY_CTX, "Track Name: %s\n", name->valuestring);
-    if (artist_names)
-        log_config(SPOTIFY_CTX, "Artists: %s\n", artist_names->valuestring);
+    if (artists)
+        log_config(SPOTIFY_CTX, "Artists: %s\n", artists);
     if (album_name)
         log_config(SPOTIFY_CTX, "Album: %s\n", album_name->valuestring);
     if (album_cover_url)
@@ -90,11 +93,54 @@ static void __spotify_fill_info(cJSON *metadata) {
         log_config(SPOTIFY_CTX, "Position: %d ms\n", position->valueint);
     if (duration)
         log_config(SPOTIFY_CTX, "Duration: %d ms\n", duration->valueint);
+    free(artists);
 }
 
 static int __spotify_file_exists(const char *path) {
     struct stat st;
     return path && stat(path, &st) == 0 && st.st_size > 0;
+}
+
+static char *__spotify_join_artist_names(cJSON *artist_names) {
+    if (cJSON_IsString(artist_names) && artist_names->valuestring) {
+        return my_copystr(artist_names->valuestring);
+    }
+    if (!cJSON_IsArray(artist_names)) {
+        return NULL;
+    }
+
+    size_t length = 0;
+    cJSON *artist = NULL;
+    cJSON_ArrayForEach(artist, artist_names) {
+        if (!cJSON_IsString(artist) || !artist->valuestring) {
+            continue;
+        }
+        if (length > 0) {
+            length += 2;
+        }
+        length += strlen(artist->valuestring);
+    }
+
+    if (length == 0) {
+        return NULL;
+    }
+
+    char *artists = calloc(length + 1, sizeof(char));
+    if (!artists) {
+        return NULL;
+    }
+
+    cJSON_ArrayForEach(artist, artist_names) {
+        if (!cJSON_IsString(artist) || !artist->valuestring) {
+            continue;
+        }
+        if (artists[0] != '\0') {
+            strcat(artists, ", ");
+        }
+        strcat(artists, artist->valuestring);
+    }
+
+    return artists;
 }
 
 static const char *__spotify_cover_ext_for_type(const char *content_type) {
@@ -294,6 +340,71 @@ static size_t __spotify_write_memory_callback(void *contents, size_t size,
     return realsize;
 }
 
+static char *__spotify_api_url(const char *host, const char *path) {
+    if (!host || !path) {
+        return NULL;
+    }
+
+    const char *separator = path[0] == '/' ? "" : "/";
+    char *url = NULL;
+    if (asprintf(&url, "http://%s:3678%s%s", host, separator, path) < 0) {
+        return NULL;
+    }
+    return url;
+}
+
+static int __spotify_post_command(const char *path) {
+    CURLcode global_res = curl_global_init(CURL_GLOBAL_ALL);
+    if (global_res != CURLE_OK) {
+        log_error(SPOTIFY_CTX, "curl_global_init() failed: %s\n",
+                  curl_easy_strerror(global_res));
+        return 0;
+    }
+
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        curl_global_cleanup();
+        return 0;
+    }
+
+    char *url = __spotify_api_url(__spotify_data.host, path);
+    if (!url) {
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
+        return 0;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+    CURLcode res = curl_easy_perform(curl);
+    long response_code = 0;
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    }
+
+    if (res != CURLE_OK) {
+        log_error(SPOTIFY_CTX, "Spotify API POST %s failed: %s\n",
+                  path, curl_easy_strerror(res));
+    } else if (response_code < 200 || response_code >= 300) {
+        log_warning(SPOTIFY_CTX, "Spotify API POST %s returned HTTP %ld\n",
+                    path, response_code);
+    } else {
+        log_config(SPOTIFY_CTX, "Spotify API POST %s returned HTTP %ld\n",
+                   path, response_code);
+    }
+
+    free(url);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return res == CURLE_OK && response_code >= 200 && response_code < 300;
+}
+
 void __spotify_get_device_status(const char *host) {
     CURL *curl;
     CURLcode res;
@@ -307,7 +418,13 @@ void __spotify_get_device_status(const char *host) {
     curl = curl_easy_init();
 
     if (curl) {
-        char *url = my_cat3str("http://", host, ":3678/status");
+        char *url = __spotify_api_url(host, "/status");
+        if (!url) {
+            curl_easy_cleanup(curl);
+            curl_global_cleanup();
+            free(chunk.memory);
+            return;
+        }
         curl_easy_setopt(curl, CURLOPT_URL, url);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
@@ -514,7 +631,8 @@ player *spotify_init(char *spotify_host,
                      char *icon,
                      int check_millis,
                      int show_cover) {
-    strncpy(__spotify_data.host, spotify_host, 255);
+    strncpy(__spotify_data.host, spotify_host, sizeof(__spotify_data.host) - 1);
+    __spotify_data.host[sizeof(__spotify_data.host) - 1] = '\0';
     __spotify_player = player_new("SPOTIFY",
                                   icon,
                                   label,

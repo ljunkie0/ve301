@@ -55,7 +55,7 @@ public:
     int setActiveColor(u_int8_t r, u_int8_t g, u_int8_t b);
     int setSelectedColor(u_int8_t r, u_int8_t g, u_int8_t b);
     void setLight(double x, double y, double radius, double alpha);
-    void setLightImage(char *path, int x, int y);
+    void setLightImage(const char *path, int x, int y);
     void setOffset(int xOffset, int yOffset);
     void setAngleOffset(double a);
     void setWarpSpeed(int warpSpeed);

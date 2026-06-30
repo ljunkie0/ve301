@@ -11,6 +11,7 @@ launch.json
 /PC/*.o
 /PC/**/*.o
 /PC/ve301
+/PC/mainObjective
 /PC/menu/
 /PC/base/
 /PC/audio/

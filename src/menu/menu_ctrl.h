@@ -96,7 +96,7 @@ int menu_ctrl_set_active_color_rgb(menu_ctrl *ctrl, u_int8_t r, u_int8_t g, u_in
 int menu_ctrl_set_selected_color_rgb(menu_ctrl *ctrl, u_int8_t r, u_int8_t g, u_int8_t b);
 void menu_ctrl_set_light(
     menu_ctrl *ctrl, double light_x, double light_y, double radius, double alpha);
-void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path, int x, int y);
+void menu_ctrl_set_light_img(menu_ctrl *ctrl, const char *path, int x, int y);
 void menu_ctrl_set_offset(menu_ctrl *ctrl, int x_offset, int y_offset);
 void menu_ctrl_set_angle_offset(menu_ctrl *ctrl, double a);
 void menu_ctrl_set_warp_speed(menu_ctrl *ctrl, int warp_speed);

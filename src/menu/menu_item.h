@@ -41,7 +41,7 @@ menu_item *menu_item_new(menu *m,
                          const char *font,
                          int font_size,
                          item_action *action,
-                         char *font_2nd_line,
+                         const char *font_2nd_line,
                          int font_size_2nd_line);
 void menu_item_free(menu_item *item);
 int menu_item_is_sub_menu(menu_item *item);
@@ -49,9 +49,11 @@ void menu_item_activate(menu_item *item);
 void menu_item_warp_to(menu_item *item);
 void menu_item_show(menu_item *item);
 int menu_item_set_label(menu_item *item, const char *label);
+menu_item *menu_item_update_label(menu_item *item, const char *label);
 char *menu_item_get_label(menu_item *item);
 char *menu_item_get_icon(menu_item *i);
 int menu_item_set_icon(menu_item *item, const char *icon);
+menu_item *menu_item_update_icon(menu_item *item, const char *icon);
 void menu_item_set_visible(menu_item *item, const int visible);
 int menu_item_get_visible(menu_item *item);
 void menu_item_set_object_type(menu_item *item, int object_type);

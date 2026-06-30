@@ -697,7 +697,7 @@ void menu_ctrl_set_light(
     menu_ctrl_draw(ctrl);
 }
 
-void menu_ctrl_set_light_img(menu_ctrl *ctrl, char *path, int x, int y) {
+void menu_ctrl_set_light_img(menu_ctrl *ctrl, const char *path, int x, int y) {
     if (ctrl->light_texture) {
         SDL_DestroyTexture(ctrl->light_texture);
     }

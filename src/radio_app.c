@@ -154,7 +154,7 @@ static void radio_app_touch_activity(void) {
     log_debug(MAIN_CTX, "radio_app_touch_activity: app->info_menu_t = %d\n", app->info_menu_t);
 }
 
-void read_radio_config(radio_config *config) {
+static void read_radio_config(radio_config *config) {
     config_value_path(config->font, "font", DEFAULT_FONT);
     config->font_size = get_config_value_int("font_size", DEFAULT_FONT_SIZE);
     config_value_path(config->info_font, "info_font", config->font);
@@ -209,7 +209,7 @@ void read_radio_config(radio_config *config) {
     config->radio_browser_language_limit = get_config_value_int("radio_browser_language_limit", 50);
 }
 
-void update_time_item(time_t timer) {
+static void update_time_item(time_t timer) {
     char buffer[25];
 
     struct tm current_tm_info;
@@ -220,7 +220,7 @@ void update_time_item(time_t timer) {
     log_debug(MAIN_CTX, "buffer = %p\n", buffer);
 }
 
-int weather_listener(weather *weather) {
+static int weather_listener(weather *weather) {
     if (weather) {
         app->wthr.temp = weather->temp;
         if (app->wthr.weather_icon) {
@@ -233,7 +233,7 @@ int weather_listener(weather *weather) {
     return 1;
 }
 
-void update_menu_item_icon_or_label(menu_item *item, char *icon, char *label) {
+static void update_menu_item_label_or_icon(menu_item *item, char *label, char *icon) {
     if (icon) {
         menu_item_set_icon(item, icon);
         menu_item_set_label(item, NULL);
@@ -243,7 +243,7 @@ void update_menu_item_icon_or_label(menu_item *item, char *icon, char *label) {
     }
 }
 
-void apply_radio_theme(radio_theme *theme) {
+static void apply_radio_theme(radio_theme *theme) {
     if (app->current_theme == theme) {
         return;
     }
@@ -280,11 +280,11 @@ void apply_radio_theme(radio_theme *theme) {
     free(info_scale_clr);
 }
 
-void update_title_artist_menu_item(menu_item *item, char *label, char *icon, char *label_default) {
-    if (label) {
-        update_menu_item_icon_or_label(item, NULL, label);
+static void update_metadata_menu_item(menu_item *item, char *value, char *fallback_icon, char *fallback_label) {
+    if (value) {
+        update_menu_item_label_or_icon(item, value, NULL);
     } else {
-        update_menu_item_icon_or_label(item, icon, label_default);
+        update_menu_item_label_or_icon(item, fallback_label, fallback_icon);
     }
 }
 
@@ -347,8 +347,8 @@ static void update_player_menu_item(player *p) {
 static void radio_app_restore_radio_defaults(void) {
     apply_radio_theme(app->default_theme);
     update_player_menu_item(app->radio_player);
-    update_menu_item_icon_or_label(app->title_item, NULL, "VE 301");
-    update_menu_item_icon_or_label(app->artist_item, NULL, "VE 301");
+    update_menu_item_label_or_icon(app->title_item, "VE 301", NULL);
+    update_menu_item_label_or_icon(app->artist_item, "VE 301", NULL);
 }
 
 static int process_player_event(player *p, radio_theme *player_theme, int events) {
@@ -377,11 +377,11 @@ static int process_player_event(player *p, radio_theme *player_theme, int events
                        player_get_name(p),
                        title,
                        artist);
-            update_title_artist_menu_item(app->title_item,
+            update_metadata_menu_item(app->title_item,
                                           player_get_title(p),
                                           player_get_icon(p),
                                           player_get_label(p));
-            update_title_artist_menu_item(app->artist_item,
+            update_metadata_menu_item(app->artist_item,
                                           player_get_artist(p),
                                           player_get_icon(p),
                                           player_get_label(p));
@@ -490,7 +490,7 @@ void init_players(const char *radio_player_name, const char *radio_player_label)
 #endif
 }
 
-void update_radio_menu() {
+static void update_radio_menu(void) {
     menu_clear(app->radio_menu);
 
     playlist *internet_radios = media_player_get_internet_radios();
@@ -555,7 +555,7 @@ static void process_alsa_events(void) {
 }
 #endif
 
-int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) {
+static int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) {
     if (evt == DISPOSE) {
         if (menu_item_get_user_data(item)) {
             network_interface *interface = (network_interface *) menu_item_get_user_data(item);
@@ -607,7 +607,7 @@ int item_action_update_interface_menu(menu_event evt, menu *m, menu_item *item) 
     return 0;
 }
 
-int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
+static int item_action_update_network_menu(menu_event evt, menu *m, menu_item *item) {
     if (evt == DISPOSE) {
         return 0;
     }
@@ -656,7 +656,7 @@ static void radio_app_open_active_or_nav_menu(void) {
     }
 }
 
-void menu_action_activate(menu *m, menu_item *item) {
+static void menu_action_activate(menu *m, menu_item *item) {
     if (item) {
         char *label = menu_item_get_label(item);
         log_config(MAIN_CTX, "Action: %s\n", label);
@@ -693,7 +693,7 @@ void menu_action_activate(menu *m, menu_item *item) {
     }
 }
 
-void mixer_turn_action(menu *m_ptr, int direction) {
+static void mixer_turn_action(menu *m_ptr, int direction) {
     int vol = 0;
     if (app->alsa_enabled) {
 #ifdef ALSA
@@ -716,14 +716,14 @@ void mixer_turn_action(menu *m_ptr, int direction) {
     radio_app_show_volume_menu(vol);
 }
 
-void init_mixer_menu(radio_config config) {
-    app->volume_menu = menu_new_root(app->ctrl, 1, config.info_font, config.info_font_size, NULL, 0);
+static void init_mixer_menu(const radio_config *config) {
+    app->volume_menu = menu_new_root(app->ctrl, 1, config->info_font, config->info_font_size, NULL, 0);
     menu_set_label(app->volume_menu, "Volume");
     menu_set_transient(app->volume_menu, 1);
     menu_set_draw_only_active(app->volume_menu, 1);
 
-    if (config.info_bg_image_path[0]) {
-        menu_set_bg_image(app->volume_menu, config.info_bg_image_path);
+    if (config->info_bg_image_path[0]) {
+        menu_set_bg_image(app->volume_menu, config->info_bg_image_path);
     }
 
 #ifdef ALSA
@@ -739,7 +739,7 @@ void init_mixer_menu(radio_config config) {
         app->volume_menu, label, NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, -1, NULL, NULL, -1);
 }
 
-int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
+static int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     if (log_level_enabled(MAIN_CTX, IR_LOG_LEVEL_CONFIG)) {
         char *label = item_ptr ? menu_item_get_label(item_ptr) : "";
         log_config(MAIN_CTX, "action(%d, %p, %s)\n", evt, m_ptr, label);
@@ -807,8 +807,8 @@ int menu_action_listener(menu_event evt, menu *m_ptr, menu_item *item_ptr) {
     return 0;
 }
 
-static void radio_app_rotate_info_menu(menu_ctrl *ctrl) {
-    menu *root = menu_ctrl_get_root(ctrl);
+static void radio_app_rotate_info_menu(void) {
+    menu *root = app->info_menu;
     int start_id;
     int current_id;
     int max_id;
@@ -865,8 +865,8 @@ void init_options_menu() {
 }
 #endif
 
-void init_info_menu(radio_config config) {
-    app->info_menu = menu_new_root(app->ctrl, 1, config.info_font, config.info_font_size, NULL, 0);
+static void init_info_menu(const radio_config *config) {
+    app->info_menu = menu_new_root(app->ctrl, 1, config->info_font, config->info_font_size, NULL, 0);
     menu_set_label(app->info_menu, "Infos");
     menu_set_transient(app->info_menu, 1);
 
@@ -876,8 +876,8 @@ void init_info_menu(radio_config config) {
                                           NULL,
                                           NULL,
                                           UNKNOWN_OBJECT_TYPE,
-                                          config.info_font,
-                                          config.info_font_size,
+                                          config->info_font,
+                                          config->info_font_size,
                                           NULL,
                                           NULL,
                                           -1);
@@ -886,8 +886,8 @@ void init_info_menu(radio_config config) {
                                      NULL,
                                      NULL,
                                      UNKNOWN_OBJECT_TYPE,
-                                     config.info_font,
-                                     config.info_font_size,
+                                     config->info_font,
+                                     config->info_font_size,
                                      NULL,
                                      NULL,
                                      -1);
@@ -897,8 +897,8 @@ void init_info_menu(radio_config config) {
                                     NULL,
                                     NULL,
                                     UNKNOWN_OBJECT_TYPE,
-                                    config.info_font,
-                                    config.info_font_size,
+                                    config->info_font,
+                                    config->info_font_size,
                                     NULL,
                                     NULL,
                                     -1);
@@ -907,8 +907,8 @@ void init_info_menu(radio_config config) {
                                      NULL,
                                      NULL,
                                      UNKNOWN_OBJECT_TYPE,
-                                     config.info_font,
-                                     config.info_font_size,
+                                     config->info_font,
+                                     config->info_font_size,
                                      NULL,
                                      NULL,
                                      -1);
@@ -920,35 +920,35 @@ void init_info_menu(radio_config config) {
                                    NULL,
                                    NULL,
                                    OBJ_TYPE_TIME,
-                                   config.info_font,
-                                   config.time_font_size,
+                                   config->info_font,
+                                   config->time_font_size,
                                    NULL,
-                                   config.info_font,
-                                   0.6 * config.time_font_size);
+                                   config->info_font,
+                                   0.6 * config->time_font_size);
     update_time_item(timer);
 
-    if (strlen(config.weather_api_key) > 0 && strlen(config.weather_location) > 0) {
-        init_weather(120, config.weather_api_key, config.weather_location, config.weather_units);
+    if (strlen(config->weather_api_key) > 0 && strlen(config->weather_location) > 0) {
+        init_weather(120, config->weather_api_key, config->weather_location, config->weather_units);
         app->weather_item = menu_item_new(app->info_menu,
                                           " ",
                                           NULL,
                                           NULL,
                                           UNKNOWN_OBJECT_TYPE,
-                                          config.weather_font,
-                                          config.weather_font_size,
+                                          config->weather_font,
+                                          config->weather_font_size,
                                           NULL,
-                                          config.font,
-                                          config.font_size);
+                                          config->font,
+                                          config->font_size);
         app->temperature_item = menu_item_new(app->info_menu,
                                               "Weather",
                                               NULL,
                                               NULL,
                                               UNKNOWN_OBJECT_TYPE,
-                                              config.info_font,
-                                              config.temp_font_size,
+                                              config->info_font,
+                                              config->temp_font_size,
                                               NULL,
-                                              config.font,
-                                              config.font_size);
+                                              config->font,
+                                              config->font_size);
         start_weather_thread(&weather_listener);
 
     } else {
@@ -958,7 +958,7 @@ void init_info_menu(radio_config config) {
     /* init_options_menu(); */
 }
 
-static void update_info_menu(menu_ctrl *ctrl, const time_t timer) {
+static void update_info_menu(const time_t timer) {
     log_config(MAIN_CTX, "Updating info menu\n");
     app->info_menu_t = timer;
     if (!app->current_menu || !menu_is_sticky(app->current_menu)) {
@@ -968,7 +968,7 @@ static void update_info_menu(menu_ctrl *ctrl, const time_t timer) {
                 menu_item_set_label(app->title_item, "VE 301");
             }
 
-            radio_app_rotate_info_menu(ctrl);
+            radio_app_rotate_info_menu();
 
         } else {
             char *title_item_label = menu_item_get_label(app->title_item);
@@ -981,12 +981,13 @@ static void update_info_menu(menu_ctrl *ctrl, const time_t timer) {
 }
 
 int menu_call_back(menu_ctrl *ctrl) {
+    (void) ctrl;
     long methodTime_s = current_time_millis();
 
     log_debug(MAIN_CTX, "Start: Callback\n");
 
-    if (menu_ctrl_get_active(ctrl) != app->info_menu) {
-        app->current_menu = menu_ctrl_get_active(ctrl);
+    if (menu_ctrl_get_active(app->ctrl) != app->info_menu) {
+        app->current_menu = menu_ctrl_get_active(app->ctrl);
     }
 
     if (check_time_interval(app->check_internet_interval)) {
@@ -1027,7 +1028,7 @@ int menu_call_back(menu_ctrl *ctrl) {
     }
 
     if (timer - app->info_menu_t > app->info_menu_item_seconds) {
-        update_info_menu(ctrl, timer);
+        update_info_menu(timer);
     }
 
     log_debug(MAIN_CTX, "End:  Callback\n");
@@ -1041,7 +1042,7 @@ int menu_call_back(menu_ctrl *ctrl) {
     return 1;
 }
 
-void init_navigation_menu(radio_config config) {
+static void init_navigation_menu(const radio_config *config) {
     app->nav_menu = menu_new_root(app->ctrl, 1, NULL, 0, NULL, 0);
     menu_set_label(app->nav_menu, "Navigation");
     menu_ctrl_set_active(app->ctrl, app->nav_menu);
@@ -1058,15 +1059,15 @@ void init_navigation_menu(radio_config config) {
                                                     RADIO_MENU_SEGMENTS_PER_ITEM));
     app->radio_menu_item = menu_add_sub_menu(app->nav_menu, "Radio", app->radio_menu, NULL);
 
-    if (config.radio_browser_enabled) {
+    if (config->radio_browser_enabled) {
         app->radio_browser_menu = radio_browser_menu_init(app->ctrl,
                                                           &radio_app_touch_activity,
-                                                          config.radio_browser_server,
-                                                          config.radio_browser_user_agent,
-                                                          config.radio_browser_countrycode,
-                                                          config.radio_browser_station_limit,
-                                                          config.radio_browser_category_limit,
-                                                          config.radio_browser_language_limit,
+                                                          config->radio_browser_server,
+                                                          config->radio_browser_user_agent,
+                                                          config->radio_browser_countrycode,
+                                                          config->radio_browser_station_limit,
+                                                          config->radio_browser_category_limit,
+                                                          config->radio_browser_language_limit,
                                                           app->radio_player);
         app->radio_browser_menu_item = menu_add_sub_menu(app->nav_menu,
                                                          "Radio Browser",
@@ -1094,7 +1095,7 @@ void init_navigation_menu(radio_config config) {
 
 }
 
-struct radio_app *radio_app_new(radio_config config) {
+static struct radio_app *radio_app_new(const radio_config *config) {
     struct radio_app *app = malloc(sizeof(struct radio_app));
     app->info_menu_t = 0;
     app->callback_t = 0;
@@ -1104,49 +1105,49 @@ struct radio_app *radio_app_new(radio_config config) {
     app->spotify_player = NULL;
     app->bluetooth_player = NULL;
     app->default_mixer = NULL;
-    app->alsa_enabled = config.alsa_enabled;
+    app->alsa_enabled = config->alsa_enabled;
     return app;
 }
 
-void radio_app_create_menu(radio_config config) {
-    app->ctrl = menu_ctrl_new(config.w,
-                              config.h,
-                              config.x_offset,
-                              config.y_offset,
-                              config.radius_labels,
-                              config.draw_scales,
-                              config.radius_scales_start,
-                              config.radius_scales_end,
-                              config.angle_offset,
-                              config.font,
-                              config.font_size,
-                              config.font_size,
+static void radio_app_create_menu(const radio_config *config) {
+    app->ctrl = menu_ctrl_new(config->w,
+                              config->h,
+                              config->x_offset,
+                              config->y_offset,
+                              config->radius_labels,
+                              config->draw_scales,
+                              config->radius_scales_start,
+                              config->radius_scales_end,
+                              config->angle_offset,
+                              config->font,
+                              config->font_size,
+                              config->font_size,
                               &menu_action_listener,
                               &menu_call_back);
 
-    app->time_menu_item_format = my_copystr(config.time_menu_item_format);
+    app->time_menu_item_format = my_copystr(config->time_menu_item_format);
 
-    app->info_menu_item_seconds = config.info_menu_item_seconds;
+    app->info_menu_item_seconds = config->info_menu_item_seconds;
 
-    if (config.light_alpha) {
+    if (config->light_alpha) {
         menu_ctrl_set_light(app->ctrl,
-                            config.light_x,
-                            config.light_y,
-                            config.light_radius,
-                            config.light_alpha);
+                            config->light_x,
+                            config->light_y,
+                            config->light_radius,
+                            config->light_alpha);
     }
 
-    if (config.light_img[0]) {
-        menu_ctrl_set_light_img(app->ctrl, config.light_img, config.light_img_x, config.light_img_y);
+    if (config->light_img[0]) {
+        menu_ctrl_set_light_img(app->ctrl, config->light_img, config->light_img_x, config->light_img_y);
     }
 
-    menu_ctrl_set_warp_speed(app->ctrl, config.warp_speed);
+    menu_ctrl_set_warp_speed(app->ctrl, config->warp_speed);
 
     /* Info Menu */
     init_info_menu(config);
 
     /* Message Menu */
-    app->message_menu = menu_new_root(app->ctrl, 1, config.info_font, config.info_font_size, NULL, 0);
+    app->message_menu = menu_new_root(app->ctrl, 1, config->info_font, config->info_font_size, NULL, 0);
     menu_set_label(app->message_menu, "Messages");
     menu_set_segments_per_item(app->message_menu, 1);
     app->message_menu_item = menu_item_new(
@@ -1175,7 +1176,7 @@ void radio_app_init(const char *name,
     base_init(name, stderr, verbose_level);
     radio_config config;
     read_radio_config(&config);
-    app = radio_app_new(config);
+    app = radio_app_new(&config);
     app->check_internet_interval = time_check_interval_new(CHECK_INTERNET_SECONDS);
     check_internet();
 #ifdef ALSA
@@ -1190,7 +1191,7 @@ void radio_app_init(const char *name,
     }
 #endif
     init_players(radio_player_name, radio_player_label);
-    radio_app_create_menu(config);
+    radio_app_create_menu(&config);
     start_players();
 }
 

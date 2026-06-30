@@ -233,7 +233,7 @@ menu *menu_new(
     const char *font,
     int font_size,
     item_action *action,
-    char *font_2nd_line,
+    const char *font_2nd_line,
     int font_size_2nd_line
     ) {
 
@@ -326,7 +326,7 @@ menu *menu_new_root(
     int lines,
     const char *font,
     int font_size,
-    char *font_2nd_line,
+    const char *font_2nd_line,
     int font_size_2nd_line
     ) {
     menu *m = menu_new(ctrl,lines,font, font_size, NULL, font_2nd_line, font_size_2nd_line);
@@ -452,7 +452,7 @@ int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color
 
 }
 
-int menu_set_bg_image(menu *m, char *bg_image_path) {
+int menu_set_bg_image(menu *m, const char *bg_image_path) {
     if ((!bg_image_path && !m->bg_image_path)
         || (bg_image_path && m->bg_image_path && !strcmp(bg_image_path, m->bg_image_path))) {
         return 0;

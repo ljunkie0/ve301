@@ -37,7 +37,7 @@ private:
               const char *font,
               int fontSize,
               item_action *action,
-              char *font2ndLine,
+              const char *font2ndLine,
               int fontSize2ndLine);
 
 public:
@@ -49,7 +49,7 @@ public:
              const char *font,
              int fontSize,
              item_action *action,
-             char *font2ndLine,
+             const char *font2ndLine,
              int fontSize2ndLine);
     MenuItem(Menu *m,
              const char *label);

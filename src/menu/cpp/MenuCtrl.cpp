@@ -86,7 +86,7 @@ void MenuCtrl::setLight(double x, double y, double radius, double alpha) {
 	menu_ctrl_set_light(this->ctrl,x,y,radius,alpha);
 }
 
-void MenuCtrl::setLightImage(char *path, int x, int y) {
+void MenuCtrl::setLightImage(const char *path, int x, int y) {
 	menu_ctrl_set_light_img(this->ctrl,path,x,y);
 }
 
