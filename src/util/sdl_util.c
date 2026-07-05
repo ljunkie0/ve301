@@ -18,8 +18,8 @@
  */
 
 #include "sdl_util.h"
-#include "base/log_contexts.h"
-#include "base/logging.h"
+#include "../base/log_contexts.h"
+#include "../base/logging.h"
 
 inline float Q_rsqrt( float number ) {
 

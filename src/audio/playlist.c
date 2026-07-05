@@ -17,7 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "playlist.h"
-#include "../base.h"
+#include "../base/base.h"
 #include <stdlib.h>
 
 int playlist_add_song(playlist *p, song *s) {

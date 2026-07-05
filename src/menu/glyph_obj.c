@@ -23,7 +23,7 @@
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
 #include "../base/util.h"
-#include "../sdl_util.h"
+#include "../util/sdl_util.h"
 #include <SDL2/SDL2_rotozoom.h>
 
 /**

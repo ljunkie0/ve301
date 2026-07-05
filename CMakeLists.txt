@@ -118,8 +118,8 @@ target_link_libraries(wifi-scan
 )
 
 set(VE301_SOURCES
-    src/base.c
-    src/input_menu.c
+    src/base/base.c
+    src/input_menu/input_menu.c
     src/main.c
     src/radio_browser/menu.c
     src/radio_app/actions.c
@@ -131,10 +131,10 @@ set(VE301_SOURCES
     src/radio_app/players.c
     src/radio_app/themes.c
     src/radio_app/volume_menu.c
-    src/sdl_util.c
-    src/theme.c
+    src/util/sdl_util.c
+    src/radio_app/theme.c
     src/weather/weather.c
-    src/wifi.c
+    src/util/wifi.c
     src/base/config.c
     src/base/log_contexts.c
     src/base/logging.c
@@ -236,8 +236,8 @@ install(TARGETS ve301 RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/test_menu.c")
     add_executable(test_menu
         src/test_menu.c
-        src/base.c
-        src/sdl_util.c
+        src/base/base.c
+        src/util/sdl_util.c
         src/base/config.c
         src/base/log_contexts.c
         src/base/logging.c

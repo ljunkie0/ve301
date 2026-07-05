@@ -16,11 +16,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef INPUT_MENU_H
-#define INPUT_MENU_H
-#include "menu/menu.h"
-typedef void input_menu_ok_action(menu *menu, char *input);
-menu *input_menu_new (menu_ctrl *ctrl, char *font, int font_size, input_menu_ok_action *ok_action);
+#ifndef THEME_H
+#define THEME_H
 
+#include "../menu/menu_ctrl.h"
 
-#endif // INPUT_MENU_H
+typedef struct radio_theme {
+    theme *menu_theme;
+    char *info_bg_image_path;
+    char *volume_bg_image_path;
+    char *info_color;
+    char *info_scale_color;
+} radio_theme;
+
+radio_theme *new_radio_theme(char *info_bg_image_path, char *info_color, char *info_scale_color, char *volume_bg_image_path, theme *menu_theme);
+void free_radio_theme(radio_theme *radio_theme);
+radio_theme *get_config_theme(const char *theme_name);
+void free_theme(radio_theme *rth);
+
+#endif // THEME_H

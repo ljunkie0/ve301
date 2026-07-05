@@ -7,7 +7,7 @@
 #include "../base/logging.h"
 #include "../base/util.h"
 #include "../menu/menu_item.h"
-#include "../radio_app.h"
+#include "../radio_app/radio_app.h"
 #include <stdlib.h>
 
 #define RADIO_MENU_ITEMS_ON_SCALE_FACTOR 4

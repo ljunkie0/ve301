@@ -22,7 +22,7 @@
 
 #define _GNU_SOURCE
 
-#include "../radio_app.h"
+#include "radio_app.h"
 #ifdef ALSA
 #include "../audio/alsa.h"
 #endif
@@ -36,10 +36,10 @@
 #include "../base/util.h"
 #include "../menu/menu_item.h"
 #include "../radio_browser/menu.h"
-#include "../sdl_util.h"
-#include "../theme.h"
+#include "../util/sdl_util.h"
+#include "theme.h"
 #include "../weather/weather.h"
-#include "../wifi.h"
+#include "../util/wifi.h"
 
 #include <math.h>
 #include <stdio.h>

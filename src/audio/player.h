@@ -18,7 +18,7 @@
  */
 #ifndef PLAYER_H
 #define PLAYER_H
-#include "../base.h"
+#include "../base/base.h"
 
 typedef int update_player_func();
 

@@ -18,9 +18,9 @@
  */
 
 #include "theme.h"
-#include "base/config.h"
-#include "base/log_contexts.h"
-#include "base/logging.h"
+#include "../base/config.h"
+#include "../base/log_contexts.h"
+#include "../base/logging.h"
 #include <stdlib.h>
 
 radio_theme *new_radio_theme(char *info_bg_image_path, char *info_color, char *info_scale_color, char *volume_bg_image_path, theme *menu_theme) {

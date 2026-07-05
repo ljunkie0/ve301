@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include "radio_app.h"
+#include "radio_app/radio_app.h"
 #include <string.h>
 
 int main(int argc, char **argv) {

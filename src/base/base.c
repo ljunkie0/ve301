@@ -19,10 +19,10 @@
 #define _GNU_SOURCE
 
 #include "base.h"
-#include "base/config.h"
-#include "base/log_contexts.h"
-#include "base/logging.h"
-#include "base/util.h"
+#include "config.h"
+#include "log_contexts.h"
+#include "logging.h"
+#include "util.h"
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <netdb.h>

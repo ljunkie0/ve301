@@ -17,10 +17,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "input_menu.h"
-#include "base/util.h"
-#include "menu/menu_ctrl.h"
-#include "menu/menu_item_priv.h"
-#include "menu/menu_menu_priv.h"
+#include "../base/util.h"
+#include "../menu/menu_ctrl.h"
+#include "../menu/menu_item_priv.h"
+#include "../menu/menu_menu_priv.h"
 
 static const int input_menu_n_of_characters = 64;
 

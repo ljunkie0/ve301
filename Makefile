@@ -8,8 +8,8 @@ STRIP=$(ARCH)-strip
 BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
 AUDIO_OBJS=audio/player.o audio/mpd_media_player.o audio/song.o audio/playlist.o radio_browser/radio_browser.o
-RADIO_APP_OBJS=radio_app/core.o radio_app/config.o radio_app/themes.o radio_app/players.o radio_app/info_menu.o radio_app/volume_menu.o radio_app/navigation_menu.o radio_app/network_menu.o radio_app/actions.o
-OBJS=$(RADIO_APP_OBJS) theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser/menu.o input_menu.o weather/weather.o
+RADIO_APP_OBJS=radio_app/core.o radio_app/config.o radio_app/themes.o radio_app/players.o radio_app/info_menu.o radio_app/volume_menu.o radio_app/navigation_menu.o radio_app/network_menu.o radio_app/actions.o radio_app/theme.o
+OBJS=$(RADIO_APP_OBJS) base/base.o util/sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser/menu.o input_menu/input_menu.o weather/weather.o
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
@@ -67,8 +67,8 @@ MNL_LIB=/usr/lib/$(ARCH)/libmnl.so
 
 all: ve301
 
-ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o
-	$(CC) -o ve301 $(LDFLAGS) $(OBJS) wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(LIB_ASOUND) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
+ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o util/wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o
+	$(CC) -o ve301 $(LDFLAGS) $(OBJS) util/wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(LIB_ASOUND) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
 
 strip: ve301
 	$(STRIP) ve301
@@ -93,16 +93,16 @@ $(WIFI_SCAN_DIRECTORY)/wifi_scan.h:
 
 $(WIFI_SCAN_DIRECTORY)/wifi_scan.c: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
 	
-../src/wifi.h: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
+../src/util/wifi.h: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
 
 radio_app:
 	mkdir -p radio_app
 
-radio_app/%.o: ../src/radio_app/%.c ../src/radio_app/private.h ../src/radio_app.h ../src/wifi.h | radio_app
+radio_app/%.o: ../src/radio_app/%.c ../src/radio_app/private.h ../src/radio_app/radio_app.h ../src/util/wifi.h | radio_app
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o $(MENU_OBJS)
-	$(CC) -shared -o libve301.so $(JNI_OBJS) base.o sdl_util.o $(MENU_OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
+libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base/base.o util/sdl_util.o $(MENU_OBJS)
+	$(CC) -shared -o libve301.so $(JNI_OBJS) base/base.o util/sdl_util.o $(MENU_OBJS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(ADDITIONAL_LIBS)
 
 $(MPD_LIB):
 	sudo apt-get -y install libmpdclient-dev$(DPKG_ARCH)
@@ -138,6 +138,12 @@ audio:
 
 base:
 	mkdir base
+
+util:
+	mkdir -p util
+
+input_menu:
+	mkdir -p input_menu
 
 weather:
 	mkdir -p weather
@@ -182,6 +188,12 @@ radio_browser/%.o: ../src/radio_browser/%.c ../src/radio_browser/%.h | radio_bro
 weather/%.o: ../src/weather/%.c ../src/weather/%.h | weather
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
+input_menu/%.o: ../src/input_menu/%.c ../src/input_menu/%.h | input_menu
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+util/%.o: ../src/util/%.c ../src/util/%.h | util
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
 menu/examples/%.o: ../src/menu/%.c ../src/menu/%.h ../src/menu/examples/%.c ../src/menu/examples/%.h
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
@@ -218,8 +230,8 @@ tests/audio:
 tests/audio/player:
 	mkdir -p tests/audio/player
 
-tests/audio/player_test.bin: tests/test.o tests/audio/player/player_test.o audio/player.o base.o base/config.o base/util.o base/logging.o base/log_contexts.o | tests/audio
-	$(CC) -o tests/audio/player_test.bin tests/test.o tests/audio/player/player_test.o audio/player.o base.o base/config.o base/util.o base/logging.o base/log_contexts.o $(LDFLAGS) -lpthread -lm
+tests/audio/player_test.bin: tests/test.o tests/audio/player/player_test.o audio/player.o base/base.o base/config.o base/util.o base/logging.o base/log_contexts.o | tests/audio
+	$(CC) -o tests/audio/player_test.bin tests/test.o tests/audio/player/player_test.o audio/player.o base/base.o base/config.o base/util.o base/logging.o base/log_contexts.o $(LDFLAGS) -lpthread -lm
 
 tests/audio/player_test: tests/audio/player_test.bin
 	@if ./$<; then 		printf 'PASS %s\n' '$@'; 	else 		status=$$?; 		printf 'FAIL %s (exit %s)\n' '$@' "$$status"; 		exit $$status; 	fi
@@ -227,8 +239,8 @@ tests/audio/player_test: tests/audio/player_test.bin
 test_menu.o: ../src/test_menu.c
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 	
-test_menu: test_menu.o ${MENU_OBJS} base.o sdl_util.o $(ADDITIONAL_OBJS)
-	$(CC) -o test_menu test_menu.o $(MENU_OBJS) base.o sdl_util.o $(LDFLAGS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
+test_menu: test_menu.o ${MENU_OBJS} base/base.o util/sdl_util.o $(ADDITIONAL_OBJS)
+	$(CC) -o test_menu test_menu.o $(MENU_OBJS) base/base.o util/sdl_util.o $(LDFLAGS) $(ADDITIONAL_OBJS) $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(ADDITIONAL_LIBS)
 
 menu/cpp:
 	mkdir -p menu/cpp
@@ -236,11 +248,11 @@ menu/cpp:
 menu/cpp/%.o: ../src/menu/cpp/%.cpp | menu/cpp
 	$(CXX) $(CFLAGS) -c -o $@ "$<"
 
-mainObjective.o: base.o sdl_util.o $(MENU_OBJS) ../src/mainObjective.cpp ../src/menu/cpp/MenuCtrl.cpp ../src/menu/cpp/Menu.cpp ../src/menu/cpp/MenuItem.cpp
+mainObjective.o: base/base.o util/sdl_util.o $(MENU_OBJS) ../src/mainObjective.cpp ../src/menu/cpp/MenuCtrl.cpp ../src/menu/cpp/Menu.cpp ../src/menu/cpp/MenuItem.cpp
 	$(CXX) $(CFLAGS) -c ../src/mainObjective.cpp
 
-mainObjective: mainObjective.o menu/menu_menu.o menu/glyph_obj.o menu/text_obj.o menu/cpp/MenuCtrl.o menu/cpp/Menu.o menu/cpp/MenuItem.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o
-	$(CXX) -o mainObjective mainObjective.o base.o sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o $(MENU_OBJS) menu/cpp/MenuCtrl.o menu/cpp/Menu.o menu/cpp/MenuItem.o $(LIBS_SDL)
+mainObjective: mainObjective.o menu/menu_menu.o menu/glyph_obj.o menu/text_obj.o menu/cpp/MenuCtrl.o menu/cpp/Menu.o menu/cpp/MenuItem.o base/base.o util/sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o
+	$(CXX) -o mainObjective mainObjective.o base/base.o util/sdl_util.o base/config.o base/logging.o base/util.o base/log_contexts.o $(MENU_OBJS) menu/cpp/MenuCtrl.o menu/cpp/Menu.o menu/cpp/MenuItem.o $(LIBS_SDL)
 
 java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 	mkdir -p java
@@ -248,9 +260,11 @@ java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 
 
 clean:
-	rm -f $(OBJS) main.o wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301 bt_devices
+	rm -f $(OBJS) main.o util/wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301 bt_devices
 	rm -rf menu
 	rm -rf radio_app
+	rm -rf util
+	rm -rf input_menu
 	rm -rf radio_browser
 	rm -rf weather
 	rm -rf raspberry

@@ -16,11 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#include "../base.h"
+#include "../base/base.h"
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
 #include "../base/util.h"
-#include "../sdl_util.h"
+#include "../util/sdl_util.h"
 #include "menu_ctrl_priv.h"
 #include "menu_item_priv.h"
 #include "menu_menu_priv.h"
