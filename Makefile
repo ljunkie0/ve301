@@ -8,7 +8,7 @@ STRIP=$(ARCH)-strip
 BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
 AUDIO_OBJS=audio/player.o audio/mpd_media_player.o audio/song.o audio/playlist.o radio_browser/radio_browser.o
-RADIO_APP_OBJS=radio_app/core.o radio_app/config.o radio_app/themes.o radio_app/players.o radio_app/info_menu.o radio_app/volume_menu.o radio_app/navigation_menu.o radio_app/network_menu.o radio_app/actions.o radio_app/theme.o
+RADIO_APP_OBJS=radio_app/core.o radio_app/config.o radio_app/themes.o radio_app/players.o radio_app/info_menu.o radio_app/volume_menu.o radio_app/navigation_menu.o radio_app/navigation_hooks.o radio_app/network_menu.o radio_app/actions.o radio_app/theme.o
 OBJS=$(RADIO_APP_OBJS) base/base.o util/sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser/menu.o input_menu/input_menu.o weather/weather.o
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
@@ -98,7 +98,7 @@ $(WIFI_SCAN_DIRECTORY)/wifi_scan.c: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
 radio_app:
 	mkdir -p radio_app
 
-radio_app/%.o: ../src/radio_app/%.c ../src/radio_app/private.h ../src/radio_app/radio_app.h ../src/util/wifi.h | radio_app
+radio_app/%.o: ../src/radio_app/%.c ../src/radio_app/private.h ../src/radio_app/radio_app.h ../src/radio_app/config.h ../src/radio_app/navigation.h ../src/util/wifi.h | radio_app
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base/base.o util/sdl_util.o $(MENU_OBJS)
@@ -182,7 +182,7 @@ base/%.o: ../src/base/%.c ../src/base/%.h | base
 raspberry/%.o: ../src/raspberry/%.c ../src/raspberry/%.h | raspberry
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-radio_browser/%.o: ../src/radio_browser/%.c ../src/radio_browser/%.h | radio_browser
+radio_browser/%.o: ../src/radio_browser/%.c ../src/radio_browser/%.h ../src/radio_app/navigation.h ../src/radio_app/config.h | radio_browser
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 weather/%.o: ../src/weather/%.c ../src/weather/%.h | weather

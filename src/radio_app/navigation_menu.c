@@ -18,6 +18,7 @@
  */
 
 #include "private.h"
+#include "navigation.h"
 
 #define RADIO_MENU_SEGMENTS_PER_ITEM 1
 #define RADIO_MENU_NO_OF_LINES 3
@@ -69,21 +70,14 @@ void init_navigation_menu(
                                                     RADIO_MENU_SEGMENTS_PER_ITEM));
     app->radio_menu_item = menu_add_sub_menu(app->nav_menu, "Radio", app->radio_menu, NULL);
 
-    if (config->radio_browser_enabled) {
-        app->radio_browser_menu = radio_browser_menu_init(app->ctrl,
-                                                          &radio_app_touch_activity,
-                                                          config->radio_browser_server,
-                                                          config->radio_browser_user_agent,
-                                                          config->radio_browser_countrycode,
-                                                          config->radio_browser_station_limit,
-                                                          config->radio_browser_category_limit,
-                                                          config->radio_browser_language_limit,
-                                                          app->radio_player);
-        app->radio_browser_menu_item = menu_add_sub_menu(app->nav_menu,
-                                                         "Radio Browser",
-                                                         app->radio_browser_menu,
-                                                         NULL);
-    }
+    radio_app_navigation_context navigation_context = {
+        .ctrl = app->ctrl,
+        .nav_menu = app->nav_menu,
+        .config = config,
+        .radio_player = app->radio_player,
+        .touch_activity = &radio_app_touch_activity,
+    };
+    radio_app_attach_navigation_hooks(&navigation_context);
 
     // app->lib_menu = menu_new(app->ctrl, 1, NULL, 0, NULL, NULL, 0);
     // menu_set_label(app->lib_menu, "Bibliothek");

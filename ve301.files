@@ -111,9 +111,12 @@ src/player.h
 src/radio_app/radio_app.h
 src/radio_app/actions.c
 src/radio_app/config.c
+src/radio_app/config.h
 src/radio_app/core.c
 src/radio_app/info_menu.c
 src/radio_app/navigation_menu.c
+src/radio_app/navigation_hooks.c
+src/radio_app/navigation.h
 src/radio_app/network_menu.c
 src/radio_app/players.c
 src/radio_app/private.h

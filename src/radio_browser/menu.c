@@ -19,7 +19,7 @@ struct __radio_browser_config {
     int radio_browser_station_limit;
     int radio_browser_category_limit;
     int radio_browser_language_limit;
-    __radio_app_touch_activity *radio_app_touch_activity;
+    radio_app_touch_activity_fn *radio_app_touch_activity;
     item_action *menu_action_listener;
     player *radio_player;
 };
@@ -271,15 +271,15 @@ int radio_browser_item_action(menu_event evt, menu *m, menu_item *item) {
     return 0;
 }
 
-menu *radio_browser_menu_init(menu_ctrl *ctrl,
-                              __radio_app_touch_activity *radio_app_touch_activity,
-                              const char *server,
-                              const char *user_agent,
-                              const char *country_code,
-                              int station_limit,
-                              int category_limit,
-                              int language_limit,
-                              player *radio_player) {
+static menu *radio_browser_menu_new(menu_ctrl *ctrl,
+                                    radio_app_touch_activity_fn *radio_app_touch_activity,
+                                    const char *server,
+                                    const char *user_agent,
+                                    const char *country_code,
+                                    int station_limit,
+                                    int category_limit,
+                                    int language_limit,
+                                    player *radio_player) {
     radio_browser_config.menu_action_listener = menu_ctrl_get_item_action(ctrl);
     radio_browser_config.radio_app_touch_activity = radio_app_touch_activity;
     snprintf(radio_browser_config.radio_browser_countrycode,
@@ -338,6 +338,23 @@ menu *radio_browser_menu_init(menu_ctrl *ctrl,
     return radio_browser_menu;
 }
 
-void radio_browser_menu_close() {
+void radio_browser_attach_navigation_menu(const radio_app_navigation_context *ctx) {
+    if (!ctx || !ctx->config || !ctx->config->radio_browser_enabled) {
+        return;
+    }
+
+    menu *radio_browser_menu = radio_browser_menu_new(ctx->ctrl,
+                                                      ctx->touch_activity,
+                                                      ctx->config->radio_browser_server,
+                                                      ctx->config->radio_browser_user_agent,
+                                                      ctx->config->radio_browser_countrycode,
+                                                      ctx->config->radio_browser_station_limit,
+                                                      ctx->config->radio_browser_category_limit,
+                                                      ctx->config->radio_browser_language_limit,
+                                                      ctx->radio_player);
+    menu_add_sub_menu(ctx->nav_menu, "Radio Browser", radio_browser_menu, NULL);
+}
+
+void radio_browser_menu_close(void) {
     radio_browser_cleanup();
 }

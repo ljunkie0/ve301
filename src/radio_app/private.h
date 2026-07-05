@@ -23,6 +23,7 @@
 #define _GNU_SOURCE
 
 #include "radio_app.h"
+#include "config.h"
 #ifdef ALSA
 #include "../audio/alsa.h"
 #endif
@@ -30,7 +31,6 @@
 #include "../audio/media_player.h"
 #include "../audio/player.h"
 #include "../audio/spotify.h"
-#include "../base/config.h"
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
 #include "../base/util.h"
@@ -48,52 +48,6 @@
 #include <time.h>
 #include <unistd.h>
 
-typedef struct radio_config {
-    char info_bg_image_path[MAX_CONFIG_LINE_LENGTH];
-    char font[MAX_CONFIG_LINE_LENGTH];
-    char info_font[MAX_CONFIG_LINE_LENGTH];
-    int font_size;
-    int info_font_size;
-    char weather_font[MAX_CONFIG_LINE_LENGTH];
-    int weather_font_size;
-    int temp_font_size;
-    int time_font_size;
-    char time_menu_item_format[MAX_CONFIG_LINE_LENGTH];
-    int w;
-    int h;
-    int y_offset;
-    int x_offset;
-    double angle_offset;
-    int radius_labels;
-    int radius_scales_start;
-    int radius_scales_end;
-    int radio_radius_labels;
-    int draw_scales;
-    int light_x;
-    int light_y;
-    int light_z;
-    int light_radius;
-    int light_alpha;
-    char light_img[MAX_CONFIG_LINE_LENGTH];
-    int light_img_x;
-    int light_img_y;
-    int warp_speed;
-    int alsa_enabled;
-    char mixer_device[MAX_CONFIG_LINE_LENGTH];
-    char alsa_mixer_name[MAX_CONFIG_LINE_LENGTH];
-    int info_menu_item_seconds;
-    char weather_api_key[MAX_CONFIG_LINE_LENGTH];
-    char weather_location[MAX_CONFIG_LINE_LENGTH];
-    char weather_units[MAX_CONFIG_LINE_LENGTH];
-    int radio_browser_enabled;
-    char radio_browser_countrycode[MAX_CONFIG_LINE_LENGTH];
-    char radio_browser_server[MAX_CONFIG_LINE_LENGTH];
-    char radio_browser_user_agent[MAX_CONFIG_LINE_LENGTH];
-    int radio_browser_station_limit;
-    int radio_browser_category_limit;
-    int radio_browser_language_limit;
-} radio_config;
-
 struct radio_app {
     menu_ctrl *ctrl;
     menu *radio_menu;
@@ -101,10 +55,6 @@ struct radio_app {
     menu *info_menu;
     menu *nav_menu;
     menu *lib_menu;
-    menu *radio_browser_menu;
-    menu *radio_browser_local_menu;
-    menu *radio_browser_tag_menu;
-    menu *radio_browser_language_menu;
     menu *album_menu;
     menu *artist_menu;
     menu *song_menu;
@@ -114,7 +64,6 @@ struct radio_app {
     menu *message_menu;
     menu *options_menu;
     menu_item *message_menu_item;
-    menu_item *radio_browser_menu_item;
     menu_item *player_icon_item;
     menu_item *player_item;
     menu_item *title_item;

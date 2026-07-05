@@ -127,6 +127,7 @@ set(VE301_SOURCES
     src/radio_app/core.c
     src/radio_app/info_menu.c
     src/radio_app/navigation_menu.c
+    src/radio_app/navigation_hooks.c
     src/radio_app/network_menu.c
     src/radio_app/players.c
     src/radio_app/themes.c
