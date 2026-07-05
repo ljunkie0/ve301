@@ -12,6 +12,9 @@ launch.json
 /PC/**/*.o
 /PC/ve301
 /PC/mainObjective
+/PC/logging_output_test
+/PC/logging_output_test_trace
+/PC/player_test
 /PC/menu/
 /PC/base/
 /PC/audio/
