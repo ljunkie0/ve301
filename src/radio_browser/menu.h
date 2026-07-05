@@ -1,7 +1,7 @@
 #ifndef RADIO_BROWSER_MENU_H
 #define RADIO_BROWSER_MENU_H
-#include "audio/player.h"
-#include "menu/menu_ctrl.h"
+#include "../audio/player.h"
+#include "../menu/menu_ctrl.h"
 typedef void __radio_app_touch_activity(int);
 
 menu *radio_browser_menu_init(menu_ctrl *ctrl,

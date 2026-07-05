@@ -122,8 +122,8 @@ src/radio_app/volume_menu.c
 src/radio_app_snippets.c
 src/radio_browser/radio_browser.c
 src/radio_browser/radio_browser.h
-src/radio_browser_menu.c
-src/radio_browser_menu.h
+src/radio_browser/menu.c
+src/radio_browser/menu.h
 src/raspberry/rotaryencoder.c
 src/raspberry/rotaryencoder.h
 src/sdl_util.c

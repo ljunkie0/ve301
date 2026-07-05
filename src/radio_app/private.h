@@ -35,7 +35,7 @@
 #include "../base/logging.h"
 #include "../base/util.h"
 #include "../menu/menu_item.h"
-#include "../radio_browser_menu.h"
+#include "../radio_browser/menu.h"
 #include "../sdl_util.h"
 #include "../theme.h"
 #include "../weather.h"

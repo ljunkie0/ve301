@@ -121,7 +121,7 @@ set(VE301_SOURCES
     src/base.c
     src/input_menu.c
     src/main.c
-    src/radio_browser_menu.c
+    src/radio_browser/menu.c
     src/radio_app/actions.c
     src/radio_app/config.c
     src/radio_app/core.c

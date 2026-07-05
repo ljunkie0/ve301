@@ -1,13 +1,13 @@
-#include "radio_browser_menu.h"
-#include "audio/player.h"
-#include "radio_browser/radio_browser.h"
-#include "audio/song.h"
-#include "base/config.h"
-#include "base/log_contexts.h"
-#include "base/logging.h"
-#include "base/util.h"
-#include "menu/menu_item.h"
-#include "radio_app.h"
+#include "menu.h"
+#include "../audio/player.h"
+#include "radio_browser.h"
+#include "../audio/song.h"
+#include "../base/config.h"
+#include "../base/log_contexts.h"
+#include "../base/logging.h"
+#include "../base/util.h"
+#include "../menu/menu_item.h"
+#include "../radio_app.h"
 #include <stdlib.h>
 
 #define RADIO_MENU_ITEMS_ON_SCALE_FACTOR 4
