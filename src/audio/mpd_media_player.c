@@ -316,25 +316,31 @@ static void __mpd_update(struct mpd_connection *conn) {
 }
 
 static int __mpd_check_connection(char *context, struct mpd_connection **conn) {
+    if (!conn) {
+        return 0;
+    }
+
     if (!*conn) {
         *conn = __connect_mpd(context, 3000);
     }
 
-    if (*conn) {
-        struct mpd_status *mpd_stat = mpd_run_status(*conn);
-        if (!mpd_stat) {
-            if (mpd_connection_get_error(*conn) != MPD_ERROR_SUCCESS) {
-                log_error(AUDIO_CTX,
-                          "mpd: Failed to get status: %s\n",
-                          mpd_connection_get_error_message(*conn));
-                mpd_connection_clear_error(*conn);
-            }
-            mpd_connection_free(*conn);
-            *conn = NULL;
-            return 0;
-        }
-        mpd_status_free(mpd_stat);
+    if (!*conn) {
+        return 0;
     }
+
+    struct mpd_status *mpd_stat = mpd_run_status(*conn);
+    if (!mpd_stat) {
+        if (mpd_connection_get_error(*conn) != MPD_ERROR_SUCCESS) {
+            log_error(AUDIO_CTX,
+                      "mpd: Failed to get status: %s\n",
+                      mpd_connection_get_error_message(*conn));
+            mpd_connection_clear_error(*conn);
+        }
+        mpd_connection_free(*conn);
+        *conn = NULL;
+        return 0;
+    }
+    mpd_status_free(mpd_stat);
     return 1;
 }
 

@@ -36,6 +36,14 @@ char *my_catstr(const char *str1, const char *str2);
 char *my_cat3str(const char *str1, const char *str2, const char *str3);
 int my_strcmp(const char *str1, const char *str2);
 char *my_strdup(const char *str);
+
+/*
+ * Split input into one or two newly allocated display lines.
+ * max_chars is the maximum number of UTF-8 characters per line.
+ * The caller owns line1 and line2; line2 is NULL for one-line output.
+ * Returns 1 or 2 on success, 0 on allocation or argument errors.
+ */
+int split_lines(char *input, char **line1, char **line2, size_t max_chars);
 int is_blank(const char *str);
 
 void get_sinus_and_cosinus(int angle, double *cos, double *sin);

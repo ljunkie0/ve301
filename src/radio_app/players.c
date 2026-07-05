@@ -22,11 +22,45 @@
 #define CHECK_RADIO_SECONDS 1
 #define CHECK_BLUETOOTH_SECONDS 1
 #define CHECK_SPOTIFY_SECONDS 1
+#define TITLE_ITEM_LINE_CHARS 24
 
 #define PLAYER_EVENT_STATE 1
 #define PLAYER_EVENT_METADATA 2
 #define PLAYER_EVENT_COVER 4
 #define PLAYER_EVENT_VOLUME 8
+
+static char *split_title_item_label(char *value) {
+    char *line1;
+    char *line2;
+    char *label = NULL;
+    int lines = split_lines(value, &line1, &line2, TITLE_ITEM_LINE_CHARS);
+
+    if (lines == 1) {
+        return line1;
+    }
+
+    if (lines == 2) {
+        size_t len = strlen(line1) + strlen(line2) + 2;
+        label = malloc(len);
+        if (label) {
+            snprintf(label, len, "%s\n%s", line1, line2);
+        }
+        free(line1);
+        free(line2);
+    }
+
+    return label;
+}
+
+static void update_title_menu_item(char *value, char *fallback_icon, char *fallback_label) {
+    if (value) {
+        char *label = split_title_item_label(value);
+        update_menu_item_label_or_icon(app->title_item, label ? label : value, NULL);
+        free(label);
+    } else {
+        update_menu_item_label_or_icon(app->title_item, fallback_label, fallback_icon);
+    }
+}
 
 static void update_metadata_menu_item(
     menu_item *item, char *value, char *fallback_icon, char *fallback_label) {
@@ -131,10 +165,9 @@ static int process_player_event(
                        player_get_name(p),
                        title,
                        artist);
-            update_metadata_menu_item(app->title_item,
-                                      player_get_title(p),
-                                      player_get_icon(p),
-                                      player_get_label(p));
+            update_title_menu_item(player_get_title(p),
+                                   player_get_icon(p),
+                                   player_get_label(p));
             update_metadata_menu_item(app->artist_item,
                                       player_get_artist(p),
                                       player_get_icon(p),

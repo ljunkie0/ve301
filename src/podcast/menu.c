@@ -31,10 +31,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 
 #define PODCAST_MENU_ITEMS_ON_SCALE_FACTOR 3
 #define PODCAST_EPISODE_MENU_ITEMS_ON_SCALE_FACTOR 2
+#define PODCAST_EPISODE_TITLE_LINE_CHARS 24
 
 typedef struct podcast_menu_state {
     item_action *menu_action_listener;
@@ -49,195 +49,15 @@ static podcast_menu_state state = {0};
 
 static int podcast_item_action(menu_event evt, menu *m, menu_item *item);
 
-#define PODCAST_EPISODE_TITLE_LINE_CHARS 24
-#define PODCAST_EPISODE_TITLE_MIN_SPLIT_CHARS 8
-
-static size_t podcast_utf8_char_len(const char *s) {
-    unsigned char c = (unsigned char) s[0];
-
-    if (c >= 0xf8) {
-        return 5;
-    }
-    if (c >= 0xf0) {
-        return 4;
-    }
-    if (c >= 0xe0) {
-        return 3;
-    }
-    if (c >= 0xc0) {
-        return 2;
-    }
-    return 1;
-}
-
-static size_t podcast_utf8_count_range(const char *s, size_t bytes) {
-    size_t chars = 0;
-    size_t i = 0;
-
-    while (s && i < bytes && s[i]) {
-        size_t char_len = podcast_utf8_char_len(s + i);
-        if (i + char_len > bytes) {
-            break;
-        }
-        i += char_len;
-        chars++;
-    }
-
-    return chars;
-}
-
-static size_t podcast_utf8_count(const char *s) {
-    return s ? podcast_utf8_count_range(s, strlen(s)) : 0;
-}
-
-static size_t podcast_utf8_offset_for_chars(const char *s, size_t max_chars) {
-    size_t chars = 0;
-    size_t i = 0;
-
-    while (s && s[i] && chars < max_chars) {
-        i += podcast_utf8_char_len(s + i);
-        chars++;
-    }
-
-    return i;
-}
-
-static char *podcast_copy_trimmed_range(const char *s, size_t bytes) {
-    const char *start = s;
-    const char *end = s + bytes;
-    char *copy;
-
-    while (start < end && isspace((unsigned char) *start)) {
-        start++;
-    }
-    while (end > start && isspace((unsigned char) *(end - 1))) {
-        end--;
-    }
-
-    copy = malloc((size_t) (end - start) + 1);
-    if (!copy) {
-        return NULL;
-    }
-    memcpy(copy, start, (size_t) (end - start));
-    copy[end - start] = '\0';
-    return copy;
-}
-
-static char *podcast_normalize_title(const char *title) {
-    char *normalized;
-    size_t len;
-    size_t out = 0;
-    int in_space = 1;
-
-    if (!title || !title[0]) {
-        return my_copystr("Episode");
-    }
-
-    len = strlen(title);
-    normalized = malloc(len + 1);
-    if (!normalized) {
-        return NULL;
-    }
-
-    for (size_t i = 0; i < len; i++) {
-        unsigned char c = (unsigned char) title[i];
-        if (isspace(c)) {
-            if (!in_space) {
-                normalized[out++] = ' ';
-                in_space = 1;
-            }
-        } else {
-            normalized[out++] = title[i];
-            in_space = 0;
-        }
-    }
-
-    if (out > 0 && normalized[out - 1] == ' ') {
-        out--;
-    }
-    normalized[out] = '\0';
-
-    return normalized;
-}
-
-static int podcast_title_split_char(char c) {
-    return c == ' ' || c == '-' || c == ':' || c == '/';
-}
-
-static size_t podcast_title_find_split(const char *title, size_t max_chars) {
-    size_t target = podcast_utf8_offset_for_chars(title, max_chars);
-    size_t best = 0;
-
-    for (size_t i = 0; title[i] && i <= target; i++) {
-        if (podcast_title_split_char(title[i])
-            && podcast_utf8_count_range(title, i) >= PODCAST_EPISODE_TITLE_MIN_SPLIT_CHARS) {
-            best = i;
-            if (title[i] != ' ') {
-                best = i + 1;
-            }
-        }
-    }
-
-    if (best > 0) {
-        return best;
-    }
-
-    return target;
-}
-
-static char *podcast_title_ellipsize(const char *title, size_t max_chars) {
-    size_t chars = podcast_utf8_count(title);
-    size_t keep;
-    char *copy;
-
-    if (chars <= max_chars) {
-        return my_copystr(title);
-    }
-
-    keep = max_chars > 3 ? max_chars - 3 : max_chars;
-    copy = podcast_copy_trimmed_range(title, podcast_utf8_offset_for_chars(title, keep));
-    if (!copy) {
-        return NULL;
-    }
-
-    char *ellipsized = my_catstr(copy, "...");
-    free(copy);
-    return ellipsized;
-}
-
-static void podcast_episode_title_lines(const char *title, char **line1, char **line2) {
-    char *normalized = podcast_normalize_title(title);
-    size_t title_chars;
-    size_t split;
-
-    *line1 = NULL;
-    *line2 = NULL;
-
-    if (!normalized) {
-        return;
-    }
-
-    title_chars = podcast_utf8_count(normalized);
-    if (title_chars <= PODCAST_EPISODE_TITLE_LINE_CHARS) {
-        *line1 = normalized;
-        return;
-    }
-
-    split = podcast_title_find_split(normalized, PODCAST_EPISODE_TITLE_LINE_CHARS);
-    *line1 = podcast_copy_trimmed_range(normalized, split);
-    *line2 = podcast_title_ellipsize(normalized + split, PODCAST_EPISODE_TITLE_LINE_CHARS);
-
-    free(normalized);
-}
 
 static char *podcast_episode_menu_label(const podcast_episode *episode) {
-    const char *title = episode && episode->name ? episode->name : "Episode";
+    char *title = episode && episode->name && episode->name[0] ? episode->name : "Episode";
     const char *date = episode && episode->date ? episode->date : "Unbekanntes Datum";
     char *line1;
     char *line2;
     char *label = NULL;
 
-    podcast_episode_title_lines(title, &line1, &line2);
+    split_lines(title, &line1, &line2, PODCAST_EPISODE_TITLE_LINE_CHARS);
     if (!line1) {
         return my_cat3str("Episode", "\n", date);
     }
