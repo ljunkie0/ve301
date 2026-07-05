@@ -93,7 +93,9 @@ Now configure and build:
  
 Usage:
   Create a directory ~/.ve301
-  Copy the sample sample.config to ~/.ve301/config
+  Copy sample-config/config to ~/.ve301/config
+  If you want the Podcasts menu, copy sample-config/podcasts to ~/.ve301/podcasts and edit the feed lines.
+  Podcast feed lines use the format `Display name|RSS/Atom URL`.
   Make sure that MPD is running on the machine indicated as mpd_host in the config (default is localhost).
   The MPD server should have a playlist called [Radio Streams].m3u. Its content is shown in the Radio submenu.
   The name is chosen because with the old MPD client MPDroid you can add Stations via you mobile.

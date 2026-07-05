@@ -66,6 +66,9 @@ typedef struct radio_config {
     int radio_browser_station_limit;
     int radio_browser_category_limit;
     int radio_browser_language_limit;
+    int podcast_enabled;
+    char podcast_feeds_file[MAX_CONFIG_LINE_LENGTH];
+    int podcast_episode_limit;
 } radio_config;
 
 #endif // VE301_RADIO_APP_CONFIG_H

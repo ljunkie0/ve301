@@ -1,0 +1,7 @@
+# Podcast feed list for VE301
+# Format: Display name|RSS/Atom URL
+# Copy this file to ~/.ve301/podcasts and adapt it to your feeds.
+
+# Example feed entries
+Example Podcast|https://example.com/podcast/feed.xml
+Another Podcast|https://example.org/feed.rss

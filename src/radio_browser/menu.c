@@ -10,7 +10,7 @@
 #include "../radio_app/radio_app.h"
 #include <stdlib.h>
 
-#define RADIO_MENU_ITEMS_ON_SCALE_FACTOR 4
+#define RADIO_MENU_ITEMS_ON_SCALE_FACTOR 3
 
 struct __radio_browser_config {
     char radio_browser_countrycode[MAX_CONFIG_LINE_LENGTH];

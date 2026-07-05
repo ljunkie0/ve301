@@ -89,6 +89,7 @@ pkg_check_modules(SDL2_TTF REQUIRED IMPORTED_TARGET SDL2_ttf)
 pkg_check_modules(SDL2_GFX REQUIRED IMPORTED_TARGET SDL2_gfx)
 pkg_check_modules(MPD REQUIRED IMPORTED_TARGET libmpdclient)
 pkg_check_modules(CJSON REQUIRED IMPORTED_TARGET libcjson)
+pkg_check_modules(XML2 REQUIRED IMPORTED_TARGET libxml-2.0)
 pkg_check_modules(MNL REQUIRED IMPORTED_TARGET libmnl)
 
 if(WITH_SPOTIFY)
@@ -122,6 +123,8 @@ set(VE301_SOURCES
     src/input_menu/input_menu.c
     src/main.c
     src/radio_browser/menu.c
+    src/podcast/menu.c
+    src/podcast/podcast.c
     src/radio_app/actions.c
     src/radio_app/config.c
     src/radio_app/core.c
@@ -217,6 +220,7 @@ target_link_libraries(ve301
         PkgConfig::SDL2_GFX
         PkgConfig::MPD
         PkgConfig::CJSON
+        PkgConfig::XML2
         m
 )
 

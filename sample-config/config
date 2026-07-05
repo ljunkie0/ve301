@@ -50,5 +50,10 @@ radio_browser_category_limit=50
 radio_browser_language_limit=50
 radio_browser_server=https://de1.api.radio-browser.info
 radio_browser_user_agent=VE301
+# Podcasts
+##
+podcast_enabled=0
+podcast_episode_limit=50
+podcast_feeds_file=podcasts
 # Theme
 include theme.mauve

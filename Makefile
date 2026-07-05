@@ -9,7 +9,8 @@ BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
 AUDIO_OBJS=audio/player.o audio/mpd_media_player.o audio/song.o audio/playlist.o radio_browser/radio_browser.o
 RADIO_APP_OBJS=radio_app/core.o radio_app/config.o radio_app/themes.o radio_app/players.o radio_app/info_menu.o radio_app/volume_menu.o radio_app/navigation_menu.o radio_app/navigation_hooks.o radio_app/network_menu.o radio_app/actions.o radio_app/theme.o
-OBJS=$(RADIO_APP_OBJS) base/base.o util/sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser/menu.o input_menu/input_menu.o weather/weather.o
+PODCAST_OBJS=podcast/menu.o podcast/podcast.o
+OBJS=$(RADIO_APP_OBJS) $(PODCAST_OBJS) base/base.o util/sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser/menu.o input_menu/input_menu.o weather/weather.o
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
@@ -17,6 +18,7 @@ JNI_INCLUDES=-I $(JAVA_HOME)/include -I $(JAVA_HOME)/include/linux
 LIBS_SDL=-lm -lSDL2 -lSDL2_ttf -lSDL2_gfx -lSDL2_image
 LIB_MPD=-lmpdclient
 LIB_WEATHER=-lcurl -lcjson -lpthread
+LIB_XML2=-lxml2
 LIB_WS=-lwebsockets
 
 ifeq ($(WITH_ALSA),1)
@@ -55,7 +57,7 @@ IR_LOG_LEVEL_TRACE=5
 
 LOG_LEVEL=${IR_LOG_LEVEL_TRACE}
 
-CFLAGS = -I$(WIFI_SCAN_DIRECTORY) -Wall $(CFLAGS_O) -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
+CFLAGS = -I$(WIFI_SCAN_DIRECTORY) -I/usr/include/libxml2 -Wall $(CFLAGS_O) -DLOG_LEVEL=${LOG_LEVEL} -fPIC ${ADD_CFLAGS}
 
 CURL_LIB=/usr/lib/$(ARCH)/libcurl.so
 MPD_LIB=/usr/lib/$(ARCH)/libmpdclient.so
@@ -68,7 +70,7 @@ MNL_LIB=/usr/lib/$(ARCH)/libmnl.so
 all: ve301
 
 ve301: $(OBJS) $(ADDITIONAL_OBJS) main.o util/wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o
-	$(CC) -o ve301 $(LDFLAGS) $(OBJS) util/wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_BT) $(LIB_SPOTIFY) $(LIB_ASOUND) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
+	$(CC) -o ve301 $(LDFLAGS) $(OBJS) util/wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) main.o $(LIBS_SDL) $(LIB_MPD) $(LIB_WEATHER) $(LIB_XML2) $(LIB_BT) $(LIB_SPOTIFY) $(LIB_ASOUND) $(ADDITIONAL_LIBS) $(LIB_ASOUND) -lmnl
 
 strip: ve301
 	$(STRIP) ve301
@@ -151,6 +153,9 @@ weather:
 radio_browser:
 	mkdir -p radio_browser
 
+podcast:
+	mkdir -p podcast
+
 raspberry:
 	mkdir -p raspberry
 
@@ -183,6 +188,12 @@ raspberry/%.o: ../src/raspberry/%.c ../src/raspberry/%.h | raspberry
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 radio_browser/%.o: ../src/radio_browser/%.c ../src/radio_browser/%.h ../src/radio_app/navigation.h ../src/radio_app/config.h | radio_browser
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+podcast/menu.o: ../src/podcast/menu.c ../src/podcast/menu.h ../src/podcast/podcast.h ../src/radio_app/navigation.h ../src/radio_app/config.h ../src/radio_app/radio_app.h | podcast
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+podcast/podcast.o: ../src/podcast/podcast.c ../src/podcast/podcast.h ../src/base/util.h ../src/base/log_contexts.h ../src/base/logging.h | podcast
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 weather/%.o: ../src/weather/%.c ../src/weather/%.h | weather
@@ -266,6 +277,7 @@ clean:
 	rm -rf util
 	rm -rf input_menu
 	rm -rf radio_browser
+	rm -rf podcast
 	rm -rf weather
 	rm -rf raspberry
 	rm -rf audio

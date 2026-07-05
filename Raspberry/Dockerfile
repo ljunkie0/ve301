@@ -23,6 +23,7 @@ RUN mkdir /build \
         libcjson-dev:arm64 \
 	libwebsockets-dev:arm64 \
 	libmnl-dev:arm64 \
+	libxml2-dev:arm64 \
         bc \
         dpkg-dev \
         liblzma-dev \
