@@ -102,6 +102,28 @@ Usage:
   If you want the Podcasts menu, set podcast_enabled=1 in ~/.ve301/config,
   copy sample-config/podcasts to ~/.ve301/podcasts, and edit the feed lines.
   Podcast feed lines use the format `Display name|RSS/Atom URL`.
+  If you want Spotify, build with Spotify support enabled and run
+  https://github.com/devgianlu/go-librespot as the Spotify Connect client.
+  The Makefile desktop and Raspberry builds enable Spotify by default. For
+  CMake builds, use a preset with WITH_SPOTIFY=ON or pass
+  `-DWITH_SPOTIFY=ON`.
+  go-librespot must run with its API server enabled on port 3678, for example
+  in `~/.config/go-librespot/config.yml`:
+
+      server:
+        enabled: true
+        address: 127.0.0.1
+        port: 3678
+
+  Then set the VE301 config:
+
+      spotify_enabled=1
+      spotify_host=127.0.0.1
+      check_spotify_seconds=1
+      spotify_icon=spotify_logo_48.png
+
+  If go-librespot runs on another host, set `spotify_host` to that host and
+  make sure its API server is reachable from VE301.
   Make sure that MPD is running on the machine indicated as mpd_host in the config (default is localhost).
   The MPD server should have a playlist called [Radio Streams].m3u. Its content is shown in the Radio submenu.
   The name is chosen because with the old MPD client MPDroid you can add Stations via you mobile.
