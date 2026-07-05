@@ -66,6 +66,7 @@ DBUS_LIB=/usr/lib/$(ARCH)/libdbus-1.so
 WEBSOCKETS_LIB=/usr/lib/$(ARCH)/libwebsockets.so
 CJSON_LIB=/usr/lib/$(ARCH)/libcjson.so
 MNL_LIB=/usr/lib/$(ARCH)/libmnl.so
+XML2_LIB=/usr/lib/$(ARCH)/libxml2.so
 
 all: ve301
 
@@ -127,7 +128,10 @@ $(CJSON_LIB):
 $(MNL_LIB):
 	sudo apt-get -y install libmnl-dev$(DPKG_ARCH)
 
-debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB) $(WEBSOCKETS_LIB) $(CJSON_LIB) $(MNL_LIB)
+$(XML2_LIB):
+	sudo apt-get -y install libxml2-dev$(DPKG_ARCH)
+
+debian-dependencies-install: $(SDL_LIB) $(MPD_LIB) $(CURL_LIB) $(DBUS_LIB) $(WEBSOCKETS_LIB) $(CJSON_LIB) $(MNL_LIB) $(XML2_LIB)
 
 %.o: ../src/%.c ../src/%.h
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"

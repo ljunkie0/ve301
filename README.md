@@ -7,8 +7,8 @@ the latter there are better mpd clients).
 The project was inspired by https://amrhein.eu/Radio2.
 
 In addition to being an mpd client it can also display the current weather
-condition and reacts to the bluetooth daemon for devices that connect as
-audio source.
+condition, browse Radio Browser stations, play configured podcast feeds, and
+reacts to the bluetooth daemon for devices that connect as audio source.
 
 It is still a work in progress and needs a lot of clean up. I also
 guess there are still memory leaks and I am not sure whether the way
@@ -17,7 +17,7 @@ it is reasonably fast. The performance heavily depends on the config, e.g.
 bump mapping slows down the most.
 
 Building:
-Go into the apropriate build folder (PC for desktop, Raspberry for Raspberry PI)
+Go into the appropriate build folder (PC for desktop, Raspberry for Raspberry PI)
 and type make.
 This will probably fail as there are some dependencies to be installed. For convenience,
 if you are running a debian system, you can try "make debian-dependencies-install".
@@ -27,8 +27,12 @@ This will install the dependencies
  - libsdl2-ttf-dev
  - libsdl2-gfx-dev
  - libcurl4-openssl-dev
- - dbus-1-dev
- - mpd-client-dev
+ - libdbus-1-dev
+ - libmpdclient-dev
+ - libcjson-dev
+ - libwebsockets-dev
+ - libmnl-dev
+ - libxml2-dev
 
 For Raspberry PI you need a running docker instead. Within the Raspberry folder type
   
@@ -38,7 +42,7 @@ To clean
 
     sudo make armhf-docker-clean
     
-First run will take some time as it create the apropriate docker image.
+First run will take some time as it creates the appropriate docker image.
 
 CMake:
 Desktop builds can also be done with CMake:
@@ -66,7 +70,8 @@ libraries that the Docker image uses:
       libcurl4-gnutls-dev:arm64 \
       libcjson-dev:arm64 \
       libwebsockets-dev:arm64 \
-      libmnl-dev:arm64
+      libmnl-dev:arm64 \
+      libxml2-dev:arm64
 
 WiringPi is required for Raspberry builds.
 
@@ -94,7 +99,8 @@ Now configure and build:
 Usage:
   Create a directory ~/.ve301
   Copy sample-config/config to ~/.ve301/config
-  If you want the Podcasts menu, copy sample-config/podcasts to ~/.ve301/podcasts and edit the feed lines.
+  If you want the Podcasts menu, set podcast_enabled=1 in ~/.ve301/config,
+  copy sample-config/podcasts to ~/.ve301/podcasts, and edit the feed lines.
   Podcast feed lines use the format `Display name|RSS/Atom URL`.
   Make sure that MPD is running on the machine indicated as mpd_host in the config (default is localhost).
   The MPD server should have a playlist called [Radio Streams].m3u. Its content is shown in the Radio submenu.
