@@ -121,7 +121,16 @@ set(VE301_SOURCES
     src/base.c
     src/input_menu.c
     src/main.c
-    src/radio_app.c
+    src/radio_browser_menu.c
+    src/radio_app/actions.c
+    src/radio_app/config.c
+    src/radio_app/core.c
+    src/radio_app/info_menu.c
+    src/radio_app/navigation_menu.c
+    src/radio_app/network_menu.c
+    src/radio_app/players.c
+    src/radio_app/themes.c
+    src/radio_app/volume_menu.c
     src/sdl_util.c
     src/theme.c
     src/weather.c
@@ -136,10 +145,11 @@ set(VE301_SOURCES
     src/menu/menu_menu.c
     src/menu/text_obj.c
     src/audio/audio.c
+    src/audio/mpd_media_player.c
     src/audio/player.c
     src/audio/playlist.c
     src/audio/song.c
-    src/audio/radio_browser.c
+    src/radio_browser/radio_browser.c
 )
 
 if(WITH_SPOTIFY)
@@ -155,7 +165,7 @@ if(WITH_ALSA)
 endif()
 
 if(VE301_RASPBERRY AND WITH_WIRINGPI)
-    list(APPEND VE301_SOURCES src/rotaryencoder.c)
+    list(APPEND VE301_SOURCES src/raspberry/rotaryencoder.c)
 endif()
 
 add_executable(ve301 ${VE301_SOURCES})

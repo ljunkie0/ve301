@@ -30,7 +30,7 @@
 #include <time.h>
 #include <unistd.h>
 #ifdef RASPBERRY
-#include "../rotaryencoder.h"
+#include "../raspberry/rotaryencoder.h"
 #endif
 
 #include "menu_item_priv.h"

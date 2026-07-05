@@ -1,6 +1,6 @@
 #include "radio_browser_menu.h"
 #include "audio/player.h"
-#include "audio/radio_browser.h"
+#include "radio_browser/radio_browser.h"
 #include "audio/song.h"
 #include "base/config.h"
 #include "base/log_contexts.h"
@@ -9,6 +9,8 @@
 #include "menu/menu_item.h"
 #include "radio_app.h"
 #include <stdlib.h>
+
+#define RADIO_MENU_ITEMS_ON_SCALE_FACTOR 4
 
 struct __radio_browser_config {
     char radio_browser_countrycode[MAX_CONFIG_LINE_LENGTH];
@@ -179,7 +181,7 @@ int radio_browser_item_action(menu_event evt, menu *m, menu_item *item) {
         log_config(MAIN_CTX, "action(%d, %p, %s)\n", evt, item, label);
     }
 
-    radio_browser_config.radio_app_touch_activity();
+    radio_browser_config.radio_app_touch_activity(-1);
 
     (void) m;
     if (!item) {

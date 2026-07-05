@@ -1,7 +1,7 @@
 #WIRINGPI=/home/chris/Dokumente/Development/WiringPi
 #ARCH=arm-linux-gnueabihf
 ARCH=aarch64-linux-gnu
-ADDITIONAL_OBJS=rotaryencoder.o
+ADDITIONAL_OBJS=raspberry/rotaryencoder.o
 ADDITIONAL_LIBS=-L$(WIRINGPI)/wiringPi -lwiringPi -lrt
 CFLAGS_ADDITIONAL=-mtune=cortex-a53 -mcpu=cortex-a53 -I $(WIRINGPI)/wiringPi -DRASPBERRY
 LIBRS_ARCH=arm-linux-gnueabihf

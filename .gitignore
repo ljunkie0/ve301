@@ -19,6 +19,7 @@ launch.json
 /Raspberry/*.o
 /Raspberry/**/*.o
 /Raspberry/ve301
+/Raspberry/install_to_ve301.sh
 /Raspberry/menu/
 /Raspberry/base/
 /Raspberry/audio/

@@ -30,8 +30,8 @@
 #define _GNU_SOURCE
 
 #include "rotaryencoder.h"
-#include "base/log_contexts.h"
-#include "base/logging.h"
+#include "../base/log_contexts.h"
+#include "../base/logging.h"
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>

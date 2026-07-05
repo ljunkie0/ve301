@@ -7,8 +7,9 @@ STRIP=$(ARCH)-strip
 
 BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
-AUDIO_OBJS=audio/player.o audio/mpd_media_player.o audio/song.o audio/playlist.o audio/radio_browser.o
-OBJS=radio_app.o theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser_menu.o input_menu.o weather.o 
+AUDIO_OBJS=audio/player.o audio/mpd_media_player.o audio/song.o audio/playlist.o radio_browser/radio_browser.o
+RADIO_APP_OBJS=radio_app/core.o radio_app/config.o radio_app/themes.o radio_app/players.o radio_app/info_menu.o radio_app/volume_menu.o radio_app/navigation_menu.o radio_app/network_menu.o radio_app/actions.o
+OBJS=$(RADIO_APP_OBJS) theme.o base.o sdl_util.o $(BASE_OBJS) $(MENU_OBJS) $(AUDIO_OBJS) radio_browser_menu.o input_menu.o weather.o
 JNI_OBJS=java/org_ljunkie_ve301_Application.o java/org_ljunkie_ve301_MenuControl.o java/org_ljunkie_ve301_Menu.o java/org_ljunkie_ve301_MenuItem.o java/menu_jni.o
 #JNI_INCLUDES=-I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include -I /usr/lib/jvm/java-1.17.0-openjdk-amd64/include/linux
 JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
@@ -94,7 +95,10 @@ $(WIFI_SCAN_DIRECTORY)/wifi_scan.c: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
 	
 ../src/wifi.h: $(WIFI_SCAN_DIRECTORY)/wifi_scan.h
 
-radio_app.o: ../src/radio_app.c ../src/radio_app.h ../src/wifi.h
+radio_app:
+	mkdir -p radio_app
+
+radio_app/%.o: ../src/radio_app/%.c ../src/radio_app/private.h ../src/radio_app.h ../src/wifi.h | radio_app
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 libve301.so: $(SDL_LIB) $(JNI_OBJS) $(ADDITIONAL_OBJS) base.o sdl_util.o $(MENU_OBJS)
@@ -135,6 +139,12 @@ audio:
 base:
 	mkdir base
 
+radio_browser:
+	mkdir -p radio_browser
+
+raspberry:
+	mkdir -p raspberry
+
 test_dir:
 	mkdir -p tests
 
@@ -158,6 +168,12 @@ audio/%.o: ../src/audio/%.c ../src/audio/%.h | audio
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 base/%.o: ../src/base/%.c ../src/base/%.h | base
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+raspberry/%.o: ../src/raspberry/%.c ../src/raspberry/%.h | raspberry
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+radio_browser/%.o: ../src/radio_browser/%.c ../src/radio_browser/%.h | radio_browser
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
 menu/examples/%.o: ../src/menu/%.c ../src/menu/%.h ../src/menu/examples/%.c ../src/menu/examples/%.h
@@ -228,6 +244,9 @@ java/%.o: ../src/java/%.c ../src/java/%.h $(OBJS)
 clean:
 	rm -f $(OBJS) main.o wifi.o $(WIFI_SCAN_DIRECTORY)/wifi_scan.o $(ADDITIONAL_OBJS) $(JNI_OBJS) libve301.so ve301 bt_devices
 	rm -rf menu
+	rm -rf radio_app
+	rm -rf radio_browser
+	rm -rf raspberry
 	rm -rf audio
 	rm -rf base 
 	rm -rf tests
