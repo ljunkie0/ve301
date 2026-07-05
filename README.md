@@ -96,34 +96,54 @@ Now configure and build:
     cmake --preset raspberry
     cmake --build --preset raspberry
  
+Spotify:
+Spotify support uses https://github.com/devgianlu/go-librespot as the Spotify
+Connect client. VE301 does not play Spotify directly; it reads player state from
+go-librespot and sends control requests to the go-librespot API server.
+
+The Makefile desktop and Raspberry builds enable Spotify by default. For CMake
+builds, use a preset with WITH_SPOTIFY=ON or pass `-DWITH_SPOTIFY=ON`.
+
+go-librespot must run with its API server enabled on port 3678, for example in
+`~/.config/go-librespot/config.yml`:
+
+    server:
+      enabled: true
+      address: 127.0.0.1
+      port: 3678
+
+Then set the VE301 config:
+
+    spotify_enabled=1
+    spotify_host=127.0.0.1
+    check_spotify_seconds=1
+    spotify_icon=spotify_logo_48.png
+
+If go-librespot runs on another host, set `spotify_host` to that host and make
+sure its API server is reachable from VE301.
+
+Bluetooth:
+Bluetooth support uses the system DBus to observe BlueALSA and BlueZ state for
+devices that connect as an audio sink. VE301 does not provide the Bluetooth
+audio sink itself; BlueZ and BlueALSA must be installed, configured, and running
+so that paired devices can stream audio to the machine. VE301 listens for DBus
+events and shows connection and track metadata in the menu.
+
+The Makefile desktop and Raspberry builds enable Bluetooth by default. For CMake
+builds, pass `-DWITH_BLUETOOTH=ON` if the selected preset does not enable it.
+
+Set the VE301 config:
+
+    bluetooth_enabled=1
+    check_bluetooth_seconds=1
+    bluetooth_icon=bluetooth_logo_48.png
+
 Usage:
   Create a directory ~/.ve301
   Copy sample-config/config to ~/.ve301/config
   If you want the Podcasts menu, set podcast_enabled=1 in ~/.ve301/config,
   copy sample-config/podcasts to ~/.ve301/podcasts, and edit the feed lines.
   Podcast feed lines use the format `Display name|RSS/Atom URL`.
-  If you want Spotify, build with Spotify support enabled and run
-  https://github.com/devgianlu/go-librespot as the Spotify Connect client.
-  The Makefile desktop and Raspberry builds enable Spotify by default. For
-  CMake builds, use a preset with WITH_SPOTIFY=ON or pass
-  `-DWITH_SPOTIFY=ON`.
-  go-librespot must run with its API server enabled on port 3678, for example
-  in `~/.config/go-librespot/config.yml`:
-
-      server:
-        enabled: true
-        address: 127.0.0.1
-        port: 3678
-
-  Then set the VE301 config:
-
-      spotify_enabled=1
-      spotify_host=127.0.0.1
-      check_spotify_seconds=1
-      spotify_icon=spotify_logo_48.png
-
-  If go-librespot runs on another host, set `spotify_host` to that host and
-  make sure its API server is reachable from VE301.
   Make sure that MPD is running on the machine indicated as mpd_host in the config (default is localhost).
   The MPD server should have a playlist called [Radio Streams].m3u. Its content is shown in the Radio submenu.
   The name is chosen because with the old MPD client MPDroid you can add Stations via you mobile.
