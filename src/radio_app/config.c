@@ -86,7 +86,11 @@ void read_radio_config(
     config->radio_browser_station_limit = get_config_value_int("radio_browser_station_limit", 50);
     config->radio_browser_category_limit = get_config_value_int("radio_browser_category_limit", 50);
     config->radio_browser_language_limit = get_config_value_int("radio_browser_language_limit", 50);
+    config->radio_browser_station_font_size
+        = get_config_value_int("radio_browser_station_font_size", config->font_size);
     config->podcast_enabled = get_config_value_int("podcast_enabled", 0);
     config_value_path(config->podcast_feeds_file, "podcast_feeds_file", "podcasts");
     config->podcast_episode_limit = get_config_value_int("podcast_episode_limit", 50);
+    config->podcast_episode_font_size
+        = get_config_value_int("podcast_episode_font_size", config->font_size);
 }

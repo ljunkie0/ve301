@@ -21,6 +21,7 @@
 
 #include "podcast.h"
 #include "../audio/song.h"
+#include "../base/config.h"
 #include "../base/log_contexts.h"
 #include "../base/logging.h"
 #include "../base/util.h"
@@ -28,6 +29,7 @@
 #include "../radio_app/radio_app.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #define PODCAST_MENU_ITEMS_ON_SCALE_FACTOR 3
 
@@ -36,6 +38,8 @@ typedef struct podcast_menu_state {
     radio_app_touch_activity_fn *touch_activity;
     player *radio_player;
     unsigned int episode_limit;
+    char font[MAX_CONFIG_LINE_LENGTH];
+    int episode_font_size;
 } podcast_menu_state;
 
 static podcast_menu_state state = {0};
@@ -174,6 +178,8 @@ void podcast_attach_navigation_menu(const radio_app_navigation_context *ctx) {
     state.episode_limit = ctx->config->podcast_episode_limit > 0
                               ? (unsigned int) ctx->config->podcast_episode_limit
                               : 50;
+    snprintf(state.font, sizeof(state.font), "%s", ctx->config->font);
+    state.episode_font_size = ctx->config->podcast_episode_font_size;
 
     podcast_feed_list *feeds = podcast_feed_list_load(ctx->config->podcast_feeds_file);
 
@@ -202,7 +208,13 @@ void podcast_attach_navigation_menu(const radio_app_navigation_context *ctx) {
         podcast_feed *feed = feeds->feeds[i];
         feeds->feeds[i] = NULL;
 
-        menu *feed_menu = menu_new(ctx->ctrl, 3, NULL, 0, &podcast_item_action, NULL, 0);
+        menu *feed_menu = menu_new(ctx->ctrl,
+                                   3,
+                                   state.font,
+                                   state.episode_font_size,
+                                   &podcast_item_action,
+                                   state.font,
+                                   state.episode_font_size);
         menu_set_label(feed_menu, feed->name);
         podcast_set_submenu_geometry(feed_menu);
 

@@ -9,6 +9,7 @@
 #include "../menu/menu_item.h"
 #include "../radio_app/radio_app.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 #define RADIO_MENU_ITEMS_ON_SCALE_FACTOR 3
 
@@ -19,6 +20,8 @@ struct __radio_browser_config {
     int radio_browser_station_limit;
     int radio_browser_category_limit;
     int radio_browser_language_limit;
+    int radio_browser_station_font_size;
+    char font[MAX_CONFIG_LINE_LENGTH];
     radio_app_touch_activity_fn *radio_app_touch_activity;
     item_action *menu_action_listener;
     player *radio_player;
@@ -144,8 +147,13 @@ void radio_browser_fill_entry_menu(menu *entry_menu,
         if (!entry) {
             continue;
         }
-        menu *sub_menu
-            = menu_new(menu_get_ctrl(entry_menu), 3, NULL, 0, &radio_browser_item_action, NULL, 0);
+        menu *sub_menu = menu_new(menu_get_ctrl(entry_menu),
+                                  3,
+                                  radio_browser_config.font,
+                                  radio_browser_config.radio_browser_station_font_size,
+                                  &radio_browser_item_action,
+                                  NULL,
+                                  0);
         menu_set_label(sub_menu, entry->label);
         menu_set_no_items_on_scale(sub_menu,
                                    RADIO_MENU_ITEMS_ON_SCALE_FACTOR
@@ -279,6 +287,8 @@ static menu *radio_browser_menu_new(menu_ctrl *ctrl,
                                     int station_limit,
                                     int category_limit,
                                     int language_limit,
+                                    const char *font,
+                                    int station_font_size,
                                     player *radio_player) {
     radio_browser_config.menu_action_listener = menu_ctrl_get_item_action(ctrl);
     radio_browser_config.radio_app_touch_activity = radio_app_touch_activity;
@@ -289,6 +299,8 @@ static menu *radio_browser_menu_new(menu_ctrl *ctrl,
     radio_browser_config.radio_browser_station_limit = station_limit;
     radio_browser_config.radio_browser_category_limit = category_limit;
     radio_browser_config.radio_browser_language_limit = language_limit;
+    snprintf(radio_browser_config.font, sizeof(radio_browser_config.font), "%s", font);
+    radio_browser_config.radio_browser_station_font_size = station_font_size;
     radio_browser_config.radio_player = radio_player;
 
     radio_browser_init(user_agent, server);
@@ -298,7 +310,13 @@ static menu *radio_browser_menu_new(menu_ctrl *ctrl,
     menu_set_no_items_on_scale(radio_browser_menu, 3);
     menu_set_segments_per_item(radio_browser_menu, 2);
 
-    menu *radio_browser_local_menu = menu_new(ctrl, 3, NULL, 0, &radio_browser_item_action, NULL, 0);
+    menu *radio_browser_local_menu = menu_new(ctrl,
+                                              3,
+                                              radio_browser_config.font,
+                                              radio_browser_config.radio_browser_station_font_size,
+                                              &radio_browser_item_action,
+                                              NULL,
+                                              0);
     menu_set_label(radio_browser_local_menu, "Lokal");
     menu_set_no_items_on_scale(radio_browser_local_menu,
                                RADIO_MENU_ITEMS_ON_SCALE_FACTOR
@@ -351,6 +369,8 @@ void radio_browser_attach_navigation_menu(const radio_app_navigation_context *ct
                                                       ctx->config->radio_browser_station_limit,
                                                       ctx->config->radio_browser_category_limit,
                                                       ctx->config->radio_browser_language_limit,
+                                                      ctx->config->font,
+                                                      ctx->config->radio_browser_station_font_size,
                                                       ctx->radio_player);
     menu_add_sub_menu(ctx->nav_menu, "Radio Browser", radio_browser_menu, NULL);
 }
