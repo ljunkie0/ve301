@@ -50,21 +50,9 @@ void menu_item_action(menu_event evt, menu_ctrl *ctrl, menu_item *item) {
 }
 
 void menu_item_update_cnt_rad(menu_item *item, SDL_Point center, int radius) {
-
-    int lines = 1;
-    if (item->num_label_chars2 > 0) {
-        lines = 2;
-    }
-
-    int line;
-    for (line = 0; line < lines; line++) {
-
-        text_obj_update_cnt_rad(item->label_default, center, radius, item->line, item->menu->n_o_lines);
-        text_obj_update_cnt_rad(item->label_active, center, radius, item->line, item->menu->n_o_lines);
-        text_obj_update_cnt_rad(item->label_current, center, radius, item->line, item->menu->n_o_lines);
-
-    }
-
+    text_obj_update_cnt_rad(item->label_default, center, radius, item->line, item->menu->n_o_lines);
+    text_obj_update_cnt_rad(item->label_active, center, radius, item->line, item->menu->n_o_lines);
+    text_obj_update_cnt_rad(item->label_current, center, radius, item->line, item->menu->n_o_lines);
 }
 
 int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
@@ -80,37 +68,28 @@ int menu_item_draw(menu_item *item, menu_item_state st, double angle) {
               st,
               angle);
 
-    int lines = 1;
-    if (item->num_label_chars2 > 0) {
-        lines = 2;
+    text_obj *label = item->label_default;
+    if (st == ACTIVE) {
+        label = item->label_active;
+    } else if (st == SELECTED) {
+        label = item->label_current;
     }
 
-    int line;
-    for (line = 0; line < lines; line++) {
-        text_obj *label = item->label_default;
-        if (st == ACTIVE) {
-            label = item->label_active;
-        } else if (st == SELECTED) {
-            label = item->label_current;
-        }
-
-        if (label) {
-            text_obj_draw(item->menu->ctrl->renderer,
-                          NULL,
-                          label,
-                          item->menu->radius_labels,
-                          item->menu->ctrl->center.x,
-                          item->menu->ctrl->center.y,
-                          angle,
-                          item->menu->ctrl->light_x,
-                          item->menu->ctrl->light_y,
-                          item->menu->ctrl->font_bumpmap,
-                          item->menu->ctrl->shadow_offset,
-                          item->menu->ctrl->shadow_alpha);
-        } else {
-            log_info(MENU_CTX, "No label, no drawing\n");
-        }
-
+    if (label) {
+        text_obj_draw(item->menu->ctrl->renderer,
+                      NULL,
+                      label,
+                      item->menu->radius_labels,
+                      item->menu->ctrl->center.x,
+                      item->menu->ctrl->center.y,
+                      angle,
+                      item->menu->ctrl->light_x,
+                      item->menu->ctrl->light_y,
+                      item->menu->ctrl->font_bumpmap,
+                      item->menu->ctrl->shadow_offset,
+                      item->menu->ctrl->shadow_alpha);
+    } else {
+        log_info(MENU_CTX, "No label, no drawing\n");
     }
 
     return 1;

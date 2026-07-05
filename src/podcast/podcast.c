@@ -108,6 +108,71 @@ static int podcast_starts_with(const char *value, const char *prefix) {
     return strncmp(value, prefix, strlen(prefix)) == 0;
 }
 
+static int podcast_month_number(const char *month) {
+    static const char *months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
+
+    if (!month) {
+        return 0;
+    }
+
+    for (int i = 0; i < 12; i++) {
+        int matches = 1;
+        for (int c = 0; c < 3; c++) {
+            if (tolower((unsigned char) month[c])
+                != tolower((unsigned char) months[i][c])) {
+                matches = 0;
+                break;
+            }
+        }
+        if (matches) {
+            return i + 1;
+        }
+    }
+
+    return 0;
+}
+
+static char *podcast_format_date(const char *date) {
+    if (!date || !date[0]) {
+        return NULL;
+    }
+
+    if (strlen(date) >= 10 && isdigit((unsigned char) date[0])
+        && isdigit((unsigned char) date[1]) && isdigit((unsigned char) date[2])
+        && isdigit((unsigned char) date[3]) && date[4] == '-'
+        && isdigit((unsigned char) date[5]) && isdigit((unsigned char) date[6])
+        && date[7] == '-' && isdigit((unsigned char) date[8])
+        && isdigit((unsigned char) date[9])) {
+        char buffer[11];
+        snprintf(buffer, sizeof(buffer), "%c%c.%c%c.%c%c%c%c",
+                 date[8], date[9], date[5], date[6], date[0], date[1], date[2], date[3]);
+        return my_copystr(buffer);
+    }
+
+    const char *value = strchr(date, ',');
+    value = value ? value + 1 : date;
+    while (*value && isspace((unsigned char) *value)) {
+        value++;
+    }
+
+    int day = 0;
+    int year = 0;
+    char month[4] = {0};
+    if (sscanf(value, "%d %3s %d", &day, month, &year) == 3) {
+        int month_number = podcast_month_number(month);
+        if (month_number > 0) {
+            char buffer[11];
+            snprintf(buffer, sizeof(buffer), "%02d.%02d.%04d", day, month_number, year);
+            return my_copystr(buffer);
+        }
+    }
+
+    return my_copystr(date);
+}
+
 static char *podcast_fetch_url(const char *url) {
     if (!url || !url[0]) {
         return NULL;
@@ -229,13 +294,14 @@ static podcast_feed *podcast_feed_new(const char *name, const char *url) {
     return feed;
 }
 
-static podcast_episode *podcast_episode_new(const char *name, const char *url) {
+static podcast_episode *podcast_episode_new(const char *name, const char *url, const char *date) {
     podcast_episode *episode = calloc(1, sizeof(podcast_episode));
     if (!episode) {
         return NULL;
     }
 
     episode->name = podcast_copy_or_default(name, "Episode");
+    episode->date = podcast_format_date(date);
     episode->url = podcast_copy_or_default(url, NULL);
     if (!episode->url) {
         podcast_episode_free(episode);
@@ -300,6 +366,7 @@ podcast_feed_list *podcast_feed_list_load(const char *path) {
 
 static podcast_episode *podcast_episode_from_rss_item(xmlNodePtr item) {
     char *name = podcast_node_child_text_dup(item, "title");
+    char *date = podcast_node_child_text_dup(item, "pubDate");
     char *url = NULL;
 
     for (xmlNodePtr child = item->children; child; child = child->next) {
@@ -324,12 +391,14 @@ static podcast_episode *podcast_episode_from_rss_item(xmlNodePtr item) {
 
     if (!url || !url[0]) {
         free(name);
+        free(date);
         free(url);
         return NULL;
     }
 
-    podcast_episode *episode = podcast_episode_new(name, url);
+    podcast_episode *episode = podcast_episode_new(name, url, date);
     free(name);
+    free(date);
     free(url);
     return episode;
 }
@@ -355,6 +424,11 @@ static int podcast_atom_link_is_audio(xmlNodePtr link) {
 
 static podcast_episode *podcast_episode_from_atom_entry(xmlNodePtr entry) {
     char *name = podcast_node_child_text_dup(entry, "title");
+    char *date = podcast_node_child_text_dup(entry, "published");
+    if (!date || !date[0]) {
+        free(date);
+        date = podcast_node_child_text_dup(entry, "updated");
+    }
     char *url = NULL;
 
     for (xmlNodePtr child = entry->children; child; child = child->next) {
@@ -374,12 +448,14 @@ static podcast_episode *podcast_episode_from_atom_entry(xmlNodePtr entry) {
 
     if (!url || !url[0]) {
         free(name);
+        free(date);
         free(url);
         return NULL;
     }
 
-    podcast_episode *episode = podcast_episode_new(name, url);
+    podcast_episode *episode = podcast_episode_new(name, url, date);
     free(name);
+    free(date);
     free(url);
     return episode;
 }
@@ -494,6 +570,7 @@ void podcast_episode_free(podcast_episode *episode) {
     }
 
     free_and_set_null((void **) &episode->name);
+    free_and_set_null((void **) &episode->date);
     free_and_set_null((void **) &episode->url);
     free(episode);
 }

@@ -36,6 +36,7 @@ typedef struct podcast_feed_list {
 
 typedef struct podcast_episode {
     char *name;
+    char *date;
     char *url;
 } podcast_episode;
 

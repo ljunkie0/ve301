@@ -21,18 +21,24 @@
 
 #include "glyph_obj.h"
 
+#define TEXT_OBJ_MAX_LINES 3
+
+/**
+* Represents one rendered line in a menu item label.
+**/
+typedef struct text_obj_line {
+    int n_glyphs;
+    glyph_obj **glyphs_objs;
+    int width;
+    int height;
+} text_obj_line;
+
 /**
 * Represents one text (menu item label)
 **/
 typedef struct text_obj {
-    int n_glyphs; // The number of characters
-    int n_glyphs_2nd_line; // The number of characters on the seconds line if there is any
-    glyph_obj **glyphs_objs;
-    glyph_obj **glyphs_objs_2nd_line;
-    int width;
-    int width_2nd_line;
-    int height;
-    int height_2nd_line;
+    int n_lines;
+    text_obj_line lines[TEXT_OBJ_MAX_LINES];
 } text_obj;
 
 text_obj *text_obj_new(SDL_Renderer *renderer,
