@@ -38,7 +38,7 @@
 #include "../radio_browser/menu.h"
 #include "../sdl_util.h"
 #include "../theme.h"
-#include "../weather.h"
+#include "../weather/weather.h"
 #include "../wifi.h"
 
 #include <math.h>

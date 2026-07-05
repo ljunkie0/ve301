@@ -140,7 +140,7 @@ src/text_obj.c
 src/text_obj.h
 src/theme.c
 src/theme.h
-src/weather.c
-src/weather.h
+src/weather/weather.c
+src/weather/weather.h
 src/wifi.c
 src/wifi.h

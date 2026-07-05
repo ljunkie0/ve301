@@ -20,9 +20,9 @@
 #define _GNU_SOURCE
 
 #include "weather.h"
-#include "base/log_contexts.h"
-#include "base/logging.h"
-#include "base/util.h"
+#include "../base/log_contexts.h"
+#include "../base/logging.h"
+#include "../base/util.h"
 #include <cjson/cJSON.h>
 #include <curl/curl.h>
 #include <curl/easy.h>

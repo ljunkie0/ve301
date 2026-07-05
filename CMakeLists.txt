@@ -133,7 +133,7 @@ set(VE301_SOURCES
     src/radio_app/volume_menu.c
     src/sdl_util.c
     src/theme.c
-    src/weather.c
+    src/weather/weather.c
     src/wifi.c
     src/base/config.c
     src/base/log_contexts.c
