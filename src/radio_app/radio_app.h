@@ -35,7 +35,8 @@ typedef enum {
     OBJ_TYPE_RADIO_BROWSER_LANGUAGE,
     OBJ_TYPE_RADIO_BROWSER_STATION,
     OBJ_TYPE_PODCAST_FEED,
-    OBJ_TYPE_PODCAST_EPISODE
+    OBJ_TYPE_PODCAST_EPISODE,
+    OBJ_TYPE_WEATHER_ICON
 } object_type;
 
 void radio_app_init(const char *app_name,

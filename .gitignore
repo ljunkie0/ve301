@@ -9,6 +9,7 @@
 /PC/base/
 /PC/audio/
 /PC/wifi-scan/
+/PC/mongoose/
 /Raspberry/*.o
 /Raspberry/**/*.o
 /Raspberry/ve301
@@ -16,5 +17,6 @@
 /Raspberry/base/
 /Raspberry/audio/
 /Raspberry/wifi-scan/
+/Raspberry/mongoose/
 **/*.o
 /build/

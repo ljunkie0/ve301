@@ -69,6 +69,11 @@ void update_menu_item_label_or_icon(
     }
 }
 
+void radio_app_set_now_playing(const char *source, const char *title) {
+    update_menu_item_label_or_icon(app->artist_item, (char *) source, NULL);
+    update_menu_item_label_or_icon(app->title_item, (char *) title, NULL);
+}
+
 void radio_app_open_info_menu(
     void) {
     if (app && app->info_menu) {
@@ -209,6 +214,8 @@ void init_info_menu(
                                           NULL,
                                           config->font,
                                           config->font_size);
+        menu_item_set_object_type(app->weather_item, OBJ_TYPE_WEATHER_ICON);
+        menu_item_set_user_data(app->weather_item, my_copystr(config->weather_font));
         app->temperature_item = menu_item_new(app->info_menu,
                                               "Weather",
                                               NULL,

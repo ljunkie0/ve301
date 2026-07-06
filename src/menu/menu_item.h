@@ -68,6 +68,8 @@ void menu_item_free_user_data(menu_item *item);
 void menu_item_set_user_data(menu_item *item, void *user_data);
 int menu_item_get_id(menu_item *item);
 menu *menu_item_get_menu(menu_item *item);
+const char *menu_item_get_effective_font_path(menu_item *item);
+int menu_item_get_effective_font_size(menu_item *item);
 
 #ifdef __cplusplus
 }

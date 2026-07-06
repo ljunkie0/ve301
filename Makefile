@@ -21,6 +21,15 @@ LIB_WEATHER=-lcurl -lcjson -lpthread
 LIB_XML2=-lxml2
 LIB_WS=-lwebsockets
 
+ifeq ($(WITH_MENU_WEB),1)
+	MONGOOSE_REPOSITORY=https://github.com/cesanta/mongoose.git
+	MONGOOSE_TAG=7.22
+	MONGOOSE_DIRECTORY=$(CURDIR)/mongoose
+	MONGOOSE_DIR ?= $(MONGOOSE_DIRECTORY)
+	ADD_CFLAGS += -DMENU_WEB -I$(MONGOOSE_DIR)
+	MENU_OBJS += menu/menu_web.o third_party/mongoose.o
+endif
+
 ifeq ($(WITH_ALSA),1)
 	ADD_CFLAGS += -DALSA
 	LIB_ASOUND = -lasound
@@ -151,6 +160,9 @@ util:
 input_menu:
 	mkdir -p input_menu
 
+third_party:
+	mkdir -p third_party
+
 weather:
 	mkdir -p weather
 
@@ -178,6 +190,17 @@ menu/%_obj.o: ../src/menu/%_obj.c ../src/menu/%_obj.h | menu
 
 menu/menu_%.o: ../src/menu/menu_%.c ../src/menu/menu_%.h ../src/menu/menu_%_priv.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+menu/menu_web.o: ../src/menu/menu_web.c ../src/menu/menu_web.h ../src/menu/menu_ctrl.h ../src/menu/menu_menu.h ../src/menu/menu_item.h $(MONGOOSE_DIR)/mongoose.h | menu
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+
+third_party/mongoose.o: $(MONGOOSE_DIR)/mongoose.c $(MONGOOSE_DIR)/mongoose.h | third_party
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$(MONGOOSE_DIR)/mongoose.c"
+
+$(MONGOOSE_DIR)/mongoose.h:
+	GIT_SSL_NO_VERIFY=true git clone --branch $(MONGOOSE_TAG) --depth 1 $(MONGOOSE_REPOSITORY) $(MONGOOSE_DIR)
+
+$(MONGOOSE_DIR)/mongoose.c: $(MONGOOSE_DIR)/mongoose.h
 
 audio/mpd_media_player.o: ../src/audio/mpd_media_player.c ../src/audio/media_player.h | audio
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
@@ -280,6 +303,7 @@ clean:
 	rm -rf radio_app
 	rm -rf util
 	rm -rf input_menu
+	rm -rf third_party
 	rm -rf radio_browser
 	rm -rf podcast
 	rm -rf weather

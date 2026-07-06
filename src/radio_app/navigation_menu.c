@@ -76,6 +76,7 @@ void init_navigation_menu(
         .config = config,
         .radio_player = app->radio_player,
         .touch_activity = &radio_app_touch_activity,
+        .now_playing = &radio_app_set_now_playing,
     };
     radio_app_attach_navigation_hooks(&navigation_context);
 

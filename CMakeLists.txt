@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(WITH_SPOTIFY "Build Spotify integration" ON)
 option(WITH_BLUETOOTH "Build Bluetooth integration" OFF)
 option(WITH_ALSA "Build ALSA integration" OFF)
+option(WITH_MENU_WEB "Build Mongoose-backed menu web service" OFF)
 option(FSANITIZE "Enable AddressSanitizer" OFF)
 option(VE301_RASPBERRY "Enable Raspberry Pi specific sources and flags" OFF)
 option(WITH_WIRINGPI "Build WiringPi-backed rotary encoder support" OFF)
@@ -20,6 +21,20 @@ set(WIFI_SCAN_SOURCE_DIR "" CACHE PATH "Path to a wifi-scan checkout")
 set(WIRINGPI_ROOT "" CACHE PATH "Path to the WiringPi project root")
 set(WIRINGPI_INCLUDE_DIR "" CACHE PATH "Path to the WiringPi include directory")
 set(WIRINGPI_LIBRARY "" CACHE FILEPATH "Path to the WiringPi library")
+set(MONGOOSE_SOURCE_DIR "" CACHE PATH "Path to Mongoose source directory")
+
+if(WITH_MENU_WEB AND NOT MONGOOSE_SOURCE_DIR)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/PC/mongoose/mongoose.c")
+        set(MONGOOSE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/PC/mongoose")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/Raspberry/mongoose/mongoose.c")
+        set(MONGOOSE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/Raspberry/mongoose")
+    endif()
+endif()
+
+if(WITH_MENU_WEB AND NOT EXISTS "${MONGOOSE_SOURCE_DIR}/mongoose.c")
+    message(FATAL_ERROR
+        "WITH_MENU_WEB requires Mongoose sources. Run make -C PC WITH_MENU_WEB=1 or set MONGOOSE_SOURCE_DIR to a directory containing mongoose.c and mongoose.h.")
+endif()
 
 if(NOT WIFI_SCAN_SOURCE_DIR)
     if(EXISTS "${CMAKE_SOURCE_DIR}/PC/wifi-scan/wifi_scan.c")
@@ -168,6 +183,13 @@ if(WITH_ALSA)
     list(APPEND VE301_SOURCES src/audio/alsa.c)
 endif()
 
+if(WITH_MENU_WEB)
+    list(APPEND VE301_SOURCES
+        src/menu/menu_web.c
+        "${MONGOOSE_SOURCE_DIR}/mongoose.c"
+    )
+endif()
+
 if(VE301_RASPBERRY AND WITH_WIRINGPI)
     list(APPEND VE301_SOURCES src/raspberry/rotaryencoder.c)
 endif()
@@ -191,6 +213,11 @@ endif()
 
 if(WITH_BLUETOOTH)
     target_compile_definitions(ve301 PRIVATE BLUETOOTH)
+endif()
+
+if(WITH_MENU_WEB)
+    target_compile_definitions(ve301 PRIVATE MENU_WEB)
+    target_include_directories(ve301 PRIVATE "${MONGOOSE_SOURCE_DIR}")
 endif()
 
 if(VE301_RASPBERRY)

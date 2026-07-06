@@ -110,6 +110,7 @@ void update_player_menu_item(player *p);
 void init_info_menu(const radio_config *config);
 void radio_app_open_info_menu(void);
 void radio_app_touch_activity(int seconds);
+void radio_app_set_now_playing(const char *source, const char *title);
 void update_info_menu(const time_t timer);
 void update_menu_item_label_or_icon(menu_item *item, char *label, char *icon);
 void update_time_item(time_t timer);

@@ -107,8 +107,14 @@ void hsv_to_rgb(double h, double s, double v, u_int8_t *r, u_int8_t *g, u_int8_t
 void color_temp_to_rgb(double temp, u_int8_t *r, u_int8_t *g, u_int8_t *b, double value);
 int menu_ctrl_get_n_o_items_on_scale(menu_ctrl *ctrl);
 menu *menu_ctrl_get_active(menu_ctrl *ctrl);
+menu *menu_ctrl_get_current(menu_ctrl *ctrl);
+menu *menu_ctrl_get_current_transient(menu_ctrl *ctrl);
 menu *menu_ctrl_get_root(menu_ctrl *ctrl);
+int menu_ctrl_get_root_count(menu_ctrl *ctrl);
+menu *menu_ctrl_get_root_at(menu_ctrl *ctrl, int index);
 void *menu_ctrl_get_user_data(menu_ctrl *ctrl);
+int menu_ctrl_dispatch_item_event(menu_ctrl *ctrl, menu_item *item, menu_event evt);
+int menu_ctrl_dispatch_event(menu_ctrl *ctrl, menu_event evt);
 void menu_ctrl_set_sdl_event_callback(menu_ctrl *ctrl, menu_sdl_event_callback *callback);
 theme *theme_new();
 

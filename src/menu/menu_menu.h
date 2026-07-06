@@ -57,6 +57,7 @@ void menu_free(menu *m);
 menu_ctrl *menu_get_ctrl(menu *m);
 menu *menu_get_parent(menu *m);
 void menu_set_active_id(menu *m, int id);
+int menu_get_active_id(menu *m);
 char *menu_get_label(menu *m);
 int menu_is_transient(menu *m);
 void menu_set_transient(menu *m, int transient);
@@ -73,6 +74,9 @@ void menu_set_radius_labels(menu *m, int radius);
 void menu_set_segments_per_item(menu *m, int segments);
 void menu_set_draw_only_active(menu *menu, int draw_only_active);
 void menu_set_label(menu *m, const char *label);
+const char *menu_get_effective_background_path(menu *m);
+const char *menu_get_effective_font_path(menu *m);
+int menu_get_effective_font_size(menu *m);
 
 #ifdef __cplusplus
 }

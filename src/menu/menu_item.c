@@ -137,6 +137,38 @@ menu *menu_item_get_menu(menu_item *item) {
     return item->menu;
 }
 
+const char *menu_item_get_effective_font_path(menu_item *item) {
+    if (!item) {
+        return NULL;
+    }
+    if (item->font_path) {
+        return item->font_path;
+    }
+    if (item->menu && item->menu->font_path) {
+        return item->menu->font_path;
+    }
+    if (item->menu && item->menu->ctrl && item->menu->ctrl->font_path) {
+        return item->menu->ctrl->font_path;
+    }
+    return NULL;
+}
+
+int menu_item_get_effective_font_size(menu_item *item) {
+    if (!item) {
+        return 0;
+    }
+    if (item->font_size > 0 && item->font_path) {
+        return item->font_size;
+    }
+    if (item->menu && item->menu->font_size > 0 && item->menu->font_path) {
+        return item->menu->font_size;
+    }
+    if (item->menu && item->menu->ctrl) {
+        return item->menu->ctrl->font_size;
+    }
+    return 0;
+}
+
 int menu_item_is_sub_menu(menu_item *item) {
     return item->sub_menu != NULL;
 }
@@ -352,7 +384,11 @@ menu_item *menu_item_new(menu *m, const char *label, const char *icon, const voi
     }
     m->item[m->max_id] = item;
     item->font = NULL;
+    item->font_path = NULL;
+    item->font_size = font_size;
     item->font2 = NULL;
+    item->font2_path = NULL;
+    item->font_size2 = font_size_2nd_line;
     item->num_label_chars = 0;
     item->num_label_chars2 = 0;
     item->label_active = NULL;
@@ -366,12 +402,16 @@ menu_item *menu_item_new(menu *m, const char *label, const char *icon, const voi
         if (!dflt_font) {
             log_error(MENU_CTX, "Failed to load font: %s. Trying fixed font\n", SDL_GetError());
             dflt_font = my_OpenTTF_Font("fixed", font_size);
+            if (dflt_font) {
+                font = "fixed";
+            }
             if (!dflt_font) {
                 log_error(MENU_CTX, "Failed to load font: %s\n", SDL_GetError());
             }
         }
         if (dflt_font) {
             item->font = dflt_font;
+            item->font_path = my_copystr(font);
         }
     }
 
@@ -380,12 +420,16 @@ menu_item *menu_item_new(menu *m, const char *label, const char *icon, const voi
         if (!dflt_font) {
             log_error(MENU_CTX, "Failed to load font: %s. Trying fixed font\n", SDL_GetError());
             dflt_font = my_OpenTTF_Font("fixed", font_size_2nd_line);
+            if (dflt_font) {
+                font_2nd_line = "fixed";
+            }
             if (!dflt_font) {
                 log_error(MENU_CTX, "Failed to load font: %s\n", SDL_GetError());
             }
         }
         if (dflt_font) {
             item->font2 = dflt_font;
+            item->font2_path = my_copystr(font_2nd_line);
         }
     }
 
@@ -419,6 +463,9 @@ void menu_item_free(menu_item *item) {
         if (item->font2) {
             TTF_CloseFont(item->font2);
         }
+
+        free_and_set_null((void **) &item->font_path);
+        free_and_set_null((void **) &item->font2_path);
 
         if (item->sub_menu) {
             menu_free(item->sub_menu);
@@ -469,6 +516,9 @@ void menu_item_show(menu_item *item) {
     if (m != ctrl->current) {
         ctrl->warping = 1;
         ctrl->current = m;
+        if (m->transient) {
+            ctrl->current_transient = m;
+        }
         if (!m->transient) {
             ctrl->active = m;
         }

@@ -43,7 +43,11 @@ typedef struct menu {
     SDL_Texture *bg_image;
     char *bg_image_path;
     TTF_Font *font;
+    char *font_path;
+    int font_size;
     TTF_Font *font2;
+    char *font2_path;
+    int font_size2;
     SDL_Color *scale_color; /* The color of the scales */
     SDL_Color *default_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */
     SDL_Color *selected_color; /* The default foregound color, if NULL, the default_color from menu_ctrl is taken */

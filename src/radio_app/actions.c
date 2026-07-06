@@ -127,6 +127,9 @@ int menu_action_listener(
             case OBJ_TYPE_ARTIST:
                 menu_clear(menu_item_get_sub_menu(item_ptr));
                 break;
+            case OBJ_TYPE_WEATHER_ICON:
+                menu_item_free_user_data(item_ptr);
+                break;
             }
         }
         break;

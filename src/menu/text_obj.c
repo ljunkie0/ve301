@@ -397,6 +397,9 @@ static void text_obj_draw_line_shadow(SDL_Renderer *renderer,
         }
 
         texture = font_bumpmap ? glyph_obj->bumpmap_overlay : glyph_obj->texture;
+        if (!texture) {
+            continue;
+        }
 
         if (a >= -VISIBLE_ANGLE && a <= VISIBLE_ANGLE) {
             Uint8 orig_a, orig_r, orig_g, orig_b;

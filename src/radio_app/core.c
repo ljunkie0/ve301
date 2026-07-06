@@ -87,6 +87,7 @@ static void radio_app_create_menu(
     app->message_menu
         = menu_new_root(app->ctrl, 1, config->info_font, config->info_font_size, NULL, 0);
     menu_set_label(app->message_menu, "Messages");
+    menu_set_transient(app->message_menu, 1);
     menu_set_segments_per_item(app->message_menu, 1);
     app->message_menu_item = menu_item_new(
         app->message_menu, "", NULL, NULL, UNKNOWN_OBJECT_TYPE, NULL, 0, NULL, NULL, -1);

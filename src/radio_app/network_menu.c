@@ -78,21 +78,14 @@ int item_action_update_network_menu(
         return 0;
     }
 
-    menu_item_free_user_data(item);
-
     menu *sub_menu = menu_item_get_sub_menu(item);
     if (sub_menu) {
-        int id = menu_get_max_id(sub_menu);
-        while (id >= 0) {
-            menu_item_free_user_data(menu_get_item(sub_menu, id--));
-        }
         menu_clear(sub_menu);
     }
 
     network_interfaces *interfaces = get_network_interfaces();
 
     if (interfaces) {
-        menu_item_set_user_data(item, interfaces->interfaces);
         for (int i = 0; i < interfaces->n; i++) {
             network_interface *interface = interfaces->interfaces[i];
             interfaces->interfaces[i] = NULL;

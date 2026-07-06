@@ -28,6 +28,10 @@ extern "C" {
 
 #include <SDL2/SDL_ttf.h>
 
+#ifdef MENU_WEB
+#include "menu_web.h"
+#endif
+
 struct menu_ctrl {
     int w;
     int h;
@@ -40,6 +44,7 @@ struct menu_ctrl {
     menu **root;
     int n_roots;
     menu *current;
+    menu *current_transient;
     menu *active;
     int warp_speed; // 0-10
     double offset;
@@ -51,8 +56,10 @@ struct menu_ctrl {
     int radius_scales_start;
     int radius_scales_end;
     TTF_Font *font;
+    char *font_path;
     int font_size;
     TTF_Font *font2;
+    char *font2_path;
     int font_size2;
     SDL_Color *scale_color; /* The color of the scales */
     SDL_Color *default_color; /* The default foregound color */
@@ -67,6 +74,7 @@ struct menu_ctrl {
     Uint8 shadow_alpha; /* The alpha of the drop shadow */
     Uint8 indicator_alpha;
     SDL_Texture *bg_image;
+    char *bg_image_path;
     double bg_segment;
     theme *theme;
     SDL_Texture *light_texture;
@@ -83,6 +91,9 @@ struct menu_ctrl {
     **/
     void *user_data;
     menu_sdl_event_callback *sdl_event_callback;
+#ifdef MENU_WEB
+    menu_web *web;
+#endif
 };
 
 void menu_ctrl_draw_indicator(menu_ctrl *ctrl, double xc, double yc, double angle);

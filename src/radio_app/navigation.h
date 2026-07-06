@@ -25,6 +25,7 @@
 #include "../menu/menu_ctrl.h"
 
 typedef void radio_app_touch_activity_fn(int seconds);
+typedef void radio_app_now_playing_fn(const char *source, const char *title);
 
 typedef struct radio_app_navigation_context {
     menu_ctrl *ctrl;
@@ -32,6 +33,7 @@ typedef struct radio_app_navigation_context {
     const radio_config *config;
     player *radio_player;
     radio_app_touch_activity_fn *touch_activity;
+    radio_app_now_playing_fn *now_playing;
 } radio_app_navigation_context;
 
 typedef void radio_app_navigation_hook(const radio_app_navigation_context *ctx);

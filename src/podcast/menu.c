@@ -40,6 +40,7 @@ typedef struct podcast_menu_state {
     item_action *menu_action_listener;
     radio_app_touch_activity_fn *touch_activity;
     player *radio_player;
+    radio_app_now_playing_fn *now_playing;
     unsigned int episode_limit;
     char font[MAX_CONFIG_LINE_LENGTH];
     int episode_font_size;
@@ -194,6 +195,11 @@ static int podcast_item_action(menu_event evt, menu *m, menu_item *item) {
             return 0;
         }
 
+        const char *source = menu_get_label(m);
+        if (state.now_playing) {
+            state.now_playing(source && source[0] ? source : "Podcast", episode->name);
+        }
+
         song *s = song_new(unknown_song_id, episode->url, episode->name, episode->name);
         if (!player_playback_start(state.radio_player, s)) {
             log_error(MAIN_CTX, "Podcast: could not play episode %s\n", episode->name);
@@ -213,6 +219,7 @@ void podcast_attach_navigation_menu(const radio_app_navigation_context *ctx) {
     state.menu_action_listener = menu_ctrl_get_item_action(ctx->ctrl);
     state.touch_activity = ctx->touch_activity;
     state.radio_player = ctx->radio_player;
+    state.now_playing = ctx->now_playing;
     state.episode_limit = ctx->config->podcast_episode_limit > 0
                               ? (unsigned int) ctx->config->podcast_episode_limit
                               : 50;

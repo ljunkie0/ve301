@@ -30,6 +30,45 @@ int menu_get_max_id(menu *m) {
     return m->max_id;
 }
 
+const char *menu_get_effective_background_path(menu *m) {
+    if (!m) {
+        return NULL;
+    }
+    if (m->bg_image_path) {
+        return m->bg_image_path;
+    }
+    if (m->ctrl && m->ctrl->bg_image_path) {
+        return m->ctrl->bg_image_path;
+    }
+    return NULL;
+}
+
+const char *menu_get_effective_font_path(menu *m) {
+    if (!m) {
+        return NULL;
+    }
+    if (m->font_path) {
+        return m->font_path;
+    }
+    if (m->ctrl && m->ctrl->font_path) {
+        return m->ctrl->font_path;
+    }
+    return NULL;
+}
+
+int menu_get_effective_font_size(menu *m) {
+    if (!m) {
+        return 0;
+    }
+    if (m->font_size > 0 && m->font_path) {
+        return m->font_size;
+    }
+    if (m->ctrl) {
+        return m->ctrl->font_size;
+    }
+    return 0;
+}
+
 menu_item *menu_get_item(menu *m, int id) {
     return m->item[id];
 }
@@ -270,12 +309,22 @@ menu *menu_new(
     m->segments_per_item = ctrl->segments_per_item;
 
     m->font = NULL;
+    m->font_path = NULL;
+    m->font_size = font_size;
     if (font && font_size > 0) {
         m->font = my_OpenTTF_Font(font,font_size);
+        if (m->font) {
+            m->font_path = my_copystr(font);
+        }
     }
     m->font2 = NULL;
+    m->font2_path = NULL;
+    m->font_size2 = font_size_2nd_line;
     if (font_2nd_line && font_size_2nd_line > 0) {
         m->font2 = my_OpenTTF_Font(font_2nd_line, font_size_2nd_line);
+        if (m->font2) {
+            m->font2_path = my_copystr(font_2nd_line);
+        }
     }
 
     m->action = action;
@@ -317,6 +366,9 @@ void menu_free(menu *m) {
         if (m->font2) {
             TTF_CloseFont(m->font2);
         }
+
+        free_and_set_null((void **) &m->font_path);
+        free_and_set_null((void **) &m->font2_path);
 
         free (m);
     }
@@ -533,6 +585,10 @@ void menu_set_active_id(menu *m, int id) {
     m->active_id = id;
 }
 
+int menu_get_active_id(menu *m) {
+    return m ? m->active_id : -1;
+}
+
 char *menu_get_label(menu *m) {
     return m->label;
 }
@@ -551,6 +607,9 @@ int menu_is_transient(menu *m) {
 
 void menu_set_transient(menu *m, int transient) {
     m->transient = transient;
+    if (transient && m->ctrl && m->ctrl->current == m) {
+        m->ctrl->current_transient = m;
+    }
 }
 
 int menu_is_sticky(menu *m) {

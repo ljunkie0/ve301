@@ -36,7 +36,11 @@ typedef struct menu_item {
     int visible;
     menu *sub_menu;
     TTF_Font *font;
+    char *font_path;
+    int font_size;
     TTF_Font *font2;
+    char *font2_path;
+    int font_size2;
     menu *menu;
     int line; // The line (0 = default, >0 = above, <0 = below)
 

@@ -57,5 +57,8 @@ podcast_enabled=0
 podcast_episode_limit=50
 podcast_episode_font_size=48
 podcast_feeds_file=podcasts
+# Menu web service (requires build flag WITH_MENU_WEB=1)
+menu_web_enabled=1
+menu_web_listen=http://0.0.0.0:8000
 # Theme
 include theme.mauve

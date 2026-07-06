@@ -95,6 +95,27 @@ Now configure and build:
 
     cmake --preset raspberry
     cmake --build --preset raspberry
+
+Web UI:
+The Makefile desktop and Raspberry builds enable the Mongoose-backed menu web
+service by default. The first Makefile build clones Mongoose into the build
+directory if it is missing. The service mirrors the menu tree in a browser.
+It shows the current transient menu, such as Infos, Volume, or Messages, as
+a status bar at the bottom of the page. Volume can be changed with the
+buttons in the top right corner; browsers that expose keyboard media keys
+can also use AudioVolumeUp and AudioVolumeDown. Open the configured listen
+URL, for example http://localhost:8000/ on the desktop host.
+
+The service is controlled by the VE301 config:
+
+    menu_web_enabled=1
+    menu_web_listen=http://0.0.0.0:8000
+
+For CMake builds, enable it explicitly and point CMake at a Mongoose checkout
+when neither PC/mongoose nor Raspberry/mongoose exists:
+
+    cmake --preset desktop -DWITH_MENU_WEB=ON -DMONGOOSE_SOURCE_DIR=/path/to/mongoose
+    cmake --build --preset desktop
  
 Spotify:
 Spotify support uses https://github.com/devgianlu/go-librespot as the Spotify

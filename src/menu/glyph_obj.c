@@ -360,11 +360,18 @@ void glyph_obj_update_bumpmap_texture(SDL_Renderer *renderer, glyph_obj *glyph_o
     }
 
     if (!glyph_o->bumpmap_overlay) {
-        glyph_o->bumpmap_overlay = SDL_CreateTexture(renderer,DEFAULT_SDL_PIXELFORMAT,SDL_TEXTUREACCESS_STREAMING,glyph_o->surface->w,glyph_o->surface->h);
-        SDL_SetTextureBlendMode(glyph_o->bumpmap_overlay,SDL_BLENDMODE_BLEND);
+        glyph_o->bumpmap_overlay = SDL_CreateTexture(renderer, DEFAULT_SDL_PIXELFORMAT, SDL_TEXTUREACCESS_STREAMING, glyph_o->surface->w, glyph_o->surface->h);
+        if (!glyph_o->bumpmap_overlay) {
+            log_error(MENU_CTX, "Could not create bumpmap texture: %s\n", SDL_GetError());
+            return;
+        }
+        SDL_SetTextureBlendMode(glyph_o->bumpmap_overlay, SDL_BLENDMODE_BLEND);
     }
 
-    SDL_LockTexture(glyph_o->bumpmap_overlay,NULL,(void **) &bumpmap_pixels, &pitch);
+    if (SDL_LockTexture(glyph_o->bumpmap_overlay, NULL, (void **) &bumpmap_pixels, &pitch) != 0) {
+        log_error(MENU_CTX, "Could not lock bumpmap texture: %s\n", SDL_GetError());
+        return;
+    }
 
     double s, c;
 

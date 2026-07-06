@@ -36,6 +36,9 @@
 #include "menu_item_priv.h"
 #include "menu_menu_priv.h"
 #include "menu_ctrl_priv.h"
+#ifdef MENU_WEB
+#include "menu_web.h"
+#endif
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
 #define RMASK 0xff000000
@@ -100,6 +103,9 @@ void menu_item_warp_to(menu_item *item) {
     if (m != ctrl->current) {
         menu_fade_out(ctrl->current, m);
         ctrl->current = m;
+        if (m->transient) {
+            ctrl->current_transient = m;
+        }
         if (!m->transient) {
             ctrl->active = m;
         }
@@ -248,6 +254,9 @@ void menu_fade_out(menu *menu_frm, menu *menu_to) {
         ctrl->active = menu_to;
     }
     ctrl->current = menu_to;
+    if (menu_to->transient) {
+        ctrl->current_transient = menu_to;
+    }
 }
 
 void menu_fade_in(menu *menu_frm, menu *menu_to) {
@@ -295,6 +304,9 @@ int menu_open_sub_menu(menu_ctrl *ctrl, menu_item *item) {
     sub_menu->segment = 0;
     menu_fade_out(ctrl->current, sub_menu);
     ctrl->current = sub_menu;
+    if (sub_menu->transient) {
+        ctrl->current_transient = sub_menu;
+    }
     if (!sub_menu->transient) {
         ctrl->active = ctrl->current;
     }
@@ -307,6 +319,9 @@ int menu_open(menu *m) {
         m->segment = 0;
         menu_fade_out(ctrl->current, m);
         ctrl->current = m;
+        if (m->transient) {
+            ctrl->current_transient = m;
+        }
         if (!m->transient) {
             ctrl->active = ctrl->current;
         }
@@ -372,6 +387,9 @@ int open_parent_menu(void *ctrl_ptr) {
     if (current->parent) {
         menu_fade_in(current, current->parent);
         ctrl->current = current->parent;
+        if (current->parent->transient) {
+            ctrl->current_transient = current->parent;
+        }
         if (!current->transient) {
             ctrl->active = ctrl->current;
         }
@@ -565,6 +583,14 @@ menu *menu_ctrl_get_active(menu_ctrl *ctrl) {
     return ctrl->active;
 }
 
+menu *menu_ctrl_get_current(menu_ctrl *ctrl) {
+    return ctrl->current;
+}
+
+menu *menu_ctrl_get_current_transient(menu_ctrl *ctrl) {
+    return ctrl ? ctrl->current_transient : NULL;
+}
+
 int menu_ctrl_draw(menu_ctrl *ctrl) {
     if (ctrl->current) {
         return menu_draw(ctrl->current, 1, 1);
@@ -618,11 +644,14 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
         SDL_DestroyTexture(ctrl->bg_image);
         ctrl->bg_image = NULL;
     }
+    free_and_set_null((void **) &ctrl->bg_image_path);
 
     if (bgImagePath) {
+        ctrl->bg_image_path = my_copystr(bgImagePath);
         ctrl->bg_image = IMG_LoadTexture(ctrl->renderer,bgImagePath);
         if (!ctrl->bg_image) {
             log_error(MENU_CTX, "Could not load background image %s: %s\n", bgImagePath, SDL_GetError());
+            free_and_set_null((void **) &ctrl->bg_image_path);
         }
     } else {
         ctrl->bg_image = NULL;
@@ -727,6 +756,33 @@ item_action *menu_ctrl_get_item_action(menu_ctrl *ctrl) {
     return ctrl->action;
 }
 
+int menu_ctrl_get_root_count(menu_ctrl *ctrl) {
+    return ctrl ? ctrl->n_roots : 0;
+}
+
+menu *menu_ctrl_get_root_at(menu_ctrl *ctrl, int index) {
+    if (!ctrl || index < 0 || index >= ctrl->n_roots) {
+        return NULL;
+    }
+    return ctrl->root[index];
+}
+
+int menu_ctrl_dispatch_item_event(menu_ctrl *ctrl, menu_item *item, menu_event evt) {
+    if (!ctrl) {
+        return 0;
+    }
+    menu_item_action(evt, ctrl, item);
+    return 1;
+}
+
+int menu_ctrl_dispatch_event(menu_ctrl *ctrl, menu_event evt) {
+    if (!ctrl) {
+        return 0;
+    }
+    menu_action(evt, ctrl, ctrl->current);
+    return 1;
+}
+
 menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_labels, int draw_scales, int radius_scales_start, int radius_scales_end, double angle_offset, const char *font, int font_size, int font_size2,
         item_action *action, menu_callback *call_back) {
 
@@ -757,6 +813,8 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
 
     menu_ctrl_set_offset(ctrl,x_offset,y_offset);
 
+    ctrl->font_path = NULL;
+    ctrl->font2_path = NULL;
     ctrl->font_size = font_size;
     if (font_size2 > 0) {
         ctrl->font_size2 = font_size2;
@@ -774,6 +832,7 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
     ctrl->call_back = call_back;
     ctrl->action = action;
     ctrl->bg_image = NULL;
+    ctrl->bg_image_path = NULL;
     ctrl->sdl_event_callback = NULL;
 
     if (!init_SDL()) {
@@ -786,16 +845,38 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
         log_config(MENU_CTX, "Trying to open font %s\n", font);
         ctrl->font = my_OpenTTF_Font(font, font_size);
         ctrl->font2 = my_OpenTTF_Font(font, ctrl->font_size2);
+        if (ctrl->font) {
+            ctrl->font_path = my_copystr(font);
+        }
+        if (ctrl->font2) {
+            ctrl->font2_path = my_copystr(font);
+        }
     }
 
     if (!ctrl->font) {
         log_error(MENU_CTX, "Failed to load font %s: %s. Trying %s\n", font, SDL_GetError(), FONT_DEFAULT);
         ctrl->font = my_OpenTTF_Font(FONT_DEFAULT, font_size);
         ctrl->font2 = my_OpenTTF_Font(FONT_DEFAULT, ctrl->font_size2);
+        if (ctrl->font) {
+            free_and_set_null((void **) &ctrl->font_path);
+            ctrl->font_path = my_copystr(FONT_DEFAULT);
+        }
+        if (ctrl->font2) {
+            free_and_set_null((void **) &ctrl->font2_path);
+            ctrl->font2_path = my_copystr(FONT_DEFAULT);
+        }
         if (!ctrl->font) {
             log_error(MENU_CTX, "Failed to load font %s: %s. Trying /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf.\n", FONT_DEFAULT, SDL_GetError());
             ctrl->font = my_OpenTTF_Font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size);
             ctrl->font2 = my_OpenTTF_Font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", ctrl->font_size2);
+            if (ctrl->font) {
+                free_and_set_null((void **) &ctrl->font_path);
+                ctrl->font_path = my_copystr("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+            }
+            if (ctrl->font2) {
+                free_and_set_null((void **) &ctrl->font2_path);
+                ctrl->font2_path = my_copystr("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+            }
             if (!ctrl->font) {
                 log_error(MENU_CTX, "Failed to load font: %s\n", SDL_GetError());
             }
@@ -823,18 +904,13 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
                                             -1,
                                             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 #endif
+        if (!ctrl->renderer) {
+            log_warning(MENU_CTX,
+                        "Failed to create accelerated renderer: %s. Trying software renderer.\n",
+                        SDL_GetError());
+            ctrl->renderer = SDL_CreateRenderer(ctrl->display, -1, SDL_RENDERER_SOFTWARE);
+        }
         log_info(MENU_CTX, "Done\n");
-        SDL_RendererInfo rendererInfo;
-        log_info(MENU_CTX, "Getting renderer info...\n");
-        SDL_GetRendererInfo(ctrl->renderer, &rendererInfo);
-        log_info(MENU_CTX, "SDL chose the following renderer:\n");
-        log_info(MENU_CTX,
-                 "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
-                 rendererInfo.name,
-                 (rendererInfo.flags & SDL_RENDERER_SOFTWARE) != 0,
-                 (rendererInfo.flags & SDL_RENDERER_ACCELERATED) != 0,
-                 (rendererInfo.flags & SDL_RENDERER_PRESENTVSYNC) != 0,
-                 (rendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) != 0);
     }
 
     if (!ctrl->display) {
@@ -842,6 +918,24 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
         menu_ctrl_free(ctrl);
         return 0;
     }
+
+    if (!ctrl->renderer) {
+        log_error(MENU_CTX, "Failed to create renderer: %s\n", SDL_GetError());
+        menu_ctrl_free(ctrl);
+        return 0;
+    }
+
+    SDL_RendererInfo rendererInfo;
+    log_info(MENU_CTX, "Getting renderer info...\n");
+    SDL_GetRendererInfo(ctrl->renderer, &rendererInfo);
+    log_info(MENU_CTX, "SDL chose the following renderer:\n");
+    log_info(MENU_CTX,
+             "Renderer: %s software=%d accelerated=%d, presentvsync=%d targettexture=%d\n",
+             rendererInfo.name,
+             (rendererInfo.flags & SDL_RENDERER_SOFTWARE) != 0,
+             (rendererInfo.flags & SDL_RENDERER_ACCELERATED) != 0,
+             (rendererInfo.flags & SDL_RENDERER_PRESENTVSYNC) != 0,
+             (rendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) != 0);
 
 #ifdef RASPBERRY
     menu_ctrl_set_style (ctrl, "#08081e", "#c8c8c8", "#ff0000", "#525239", "#c8c864", "#c8c864", 0, 1, 0, 0, 0, NULL, 0, NULL, 0);
@@ -852,6 +946,10 @@ menu_ctrl *menu_ctrl_new(int w, int h, int x_offset, int y_offset, int radius_la
 #endif
 
     ctrl->loop = 0;
+
+#ifdef MENU_WEB
+    ctrl->web = menu_web_new(ctrl);
+#endif
 
     return ctrl;
 }
@@ -969,7 +1067,13 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
     if (ctrl) {
         log_info(MENU_CTX, "Freeing menu ctrl %p\n", ctrl);
 
+#ifdef MENU_WEB
+        menu_web_free(ctrl->web);
+        ctrl->web = NULL;
+#endif
+
         ctrl->current = NULL;
+        ctrl->current_transient = NULL;
 
         free_and_set_null((void **) &ctrl->activated_color);
         free_and_set_null((void **) &ctrl->background_color);
@@ -980,6 +1084,7 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
         free_and_set_null((void **) &ctrl->scale_color);
         free_and_set_null((void **) &ctrl->selected_color);
         free_and_set_null((void **) &ctrl->user_data);
+        free_and_set_null((void **) &ctrl->bg_image_path);
 
         if (ctrl->root) {
             for (int r = 0; r < ctrl->n_roots; r++) {
@@ -1008,6 +1113,9 @@ void menu_ctrl_free(menu_ctrl *ctrl) {
             TTF_CloseFont(ctrl->font2);
         }
 
+        free_and_set_null((void **) &ctrl->font_path);
+        free_and_set_null((void **) &ctrl->font2_path);
+
         log_info(MENU_CTX, "Closing TTF\n");
         TTF_Quit();
         log_info(MENU_CTX, "Closing IMG\n");
@@ -1035,6 +1143,9 @@ int menu_ctrl_loop(menu_ctrl *ctrl) {
 
     while (1) {
         int res = menu_ctrl_process_events(ctrl);
+#ifdef MENU_WEB
+        menu_web_poll(ctrl->web, 0);
+#endif
         log_trace(MENU_CTX, "events result: %d\n", res);
         if (res == -1) {
             break;

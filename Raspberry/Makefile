@@ -13,6 +13,7 @@ endif
 WITH_BLUETOOTH=1
 WITH_SPOTIFY=1
 WITH_ALSA=1
+WITH_MENU_WEB=1
 
 include ../Makefile
 #CC=arm-linux-gnueabihf-gcc-10
