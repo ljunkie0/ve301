@@ -4,7 +4,8 @@ other things.
 The display mimics the scale disk of a vintage radio like the ve301.
 It runs on a raspberry pi as well as on a normal desktop (though for
 the latter there are better mpd clients).
-The project was inspired by https://amrhein.eu/Radio2.
+The project was inspired by https://amrhein.eu/Radio2. The original page is no
+longer available.
 
 In addition to being an mpd client it can also display the current weather
 condition, browse Radio Browser stations, play configured podcast feeds, and
@@ -16,7 +17,8 @@ I use SDL is correct or optimal. On a Raspberry PI 3B (with SDL in framebuffer)
 it is reasonably fast. The performance heavily depends on the config, e.g.
 bump mapping slows down the most.
 
-Building:
+## Building
+
 Go into the appropriate build folder (PC for desktop, Raspberry for Raspberry PI)
 and type make.
 This will probably fail as there are some dependencies to be installed. For convenience,
@@ -76,7 +78,7 @@ libraries that the Docker image uses:
 WiringPi is required for Raspberry builds.
 
 If you use the existing Docker-based Raspberry build, nothing extra is needed for
-WiringPi. [Raspberry/Dockerfile](/home/chris/Dokumente/Development/ve301/Raspberry/Dockerfile)
+WiringPi. [Raspberry/Dockerfile](Raspberry/Dockerfile)
 already installs the ARM64 WiringPi package.
 
 If you build outside Docker, install the same ARM64 WiringPi package manually:
@@ -96,15 +98,17 @@ Now configure and build:
     cmake --preset raspberry
     cmake --build --preset raspberry
 
-Web UI:
+## Web UI
+
 The Makefile desktop and Raspberry builds enable the Mongoose-backed menu web
 service by default. The first Makefile build clones Mongoose into the build
 directory if it is missing. The service mirrors the menu tree in a browser.
-It shows the current transient menu, such as Infos, Volume, or Messages, as
-a status bar at the bottom of the page. Volume can be changed with the
-buttons in the top right corner; browsers that expose keyboard media keys
-can also use AudioVolumeUp and AudioVolumeDown. Open the configured listen
-URL, for example http://localhost:8000/ on the desktop host.
+It follows live menu and theme changes without reloading the full tree on every
+poll. The current transient menu, such as Infos, Volume, or Messages, appears
+in an adaptive panel at the bottom of the page. Volume can be changed with the
+buttons in the top right corner; browsers that expose keyboard media keys can
+also use `AudioVolumeUp` and `AudioVolumeDown`. Open the configured listen URL,
+for example `http://localhost:8000/` on the desktop host.
 
 The service is controlled by the VE301 config:
 
@@ -117,7 +121,8 @@ when neither PC/mongoose nor Raspberry/mongoose exists:
     cmake --preset desktop -DWITH_MENU_WEB=ON -DMONGOOSE_SOURCE_DIR=/path/to/mongoose
     cmake --build --preset desktop
  
-Spotify:
+## Spotify
+
 Spotify support uses https://github.com/devgianlu/go-librespot as the Spotify
 Connect client. VE301 does not play Spotify directly; it reads player state from
 go-librespot and sends control requests to the go-librespot API server.
@@ -143,7 +148,8 @@ Then set the VE301 config:
 If go-librespot runs on another host, set `spotify_host` to that host and make
 sure its API server is reachable from VE301.
 
-Bluetooth:
+## Bluetooth
+
 Bluetooth support uses the system DBus to observe BlueALSA and BlueZ state for
 devices that connect as an audio sink. VE301 does not provide the Bluetooth
 audio sink itself; BlueZ and BlueALSA must be installed, configured, and running
@@ -159,7 +165,8 @@ Set the VE301 config:
     check_bluetooth_seconds=1
     bluetooth_icon=bluetooth_logo_48.png
 
-Usage:
+## Usage
+
   Create a directory ~/.ve301
   Copy sample-config/config to ~/.ve301/config
   If you want the Podcasts menu, set podcast_enabled=1 in ~/.ve301/config,
