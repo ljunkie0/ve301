@@ -12,7 +12,7 @@
 #ifndef MENU_WEB_H
 #define MENU_WEB_H
 
-#include "menu_ctrl.h"
+#include "../menu_ctrl.h"
 
 #ifdef __cplusplus
 extern "C" {

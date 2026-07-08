@@ -167,16 +167,6 @@ void init_info_menu(
                                      NULL,
                                      -1);
     update_player_menu_item(app->radio_player);
-    app->title_item = menu_item_new(app->info_menu,
-                                    "VE 301",
-                                    NULL,
-                                    NULL,
-                                    UNKNOWN_OBJECT_TYPE,
-                                    config->info_font,
-                                    config->info_font_size,
-                                    NULL,
-                                    NULL,
-                                    -1);
     app->artist_item = menu_item_new(app->info_menu,
                                      "VE 301",
                                      NULL,
@@ -187,6 +177,16 @@ void init_info_menu(
                                      NULL,
                                      NULL,
                                      -1);
+    app->title_item = menu_item_new(app->info_menu,
+                                    "VE 301",
+                                    NULL,
+                                    NULL,
+                                    UNKNOWN_OBJECT_TYPE,
+                                    config->info_font,
+                                    config->info_font_size,
+                                    NULL,
+                                    NULL,
+                                    -1);
 
     time_t timer;
     time(&timer);

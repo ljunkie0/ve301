@@ -1,0 +1,613 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VE301</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      margin: 0;
+      font: 17px system-ui, sans-serif;
+      --menu-background: #101010;
+      --menu-default: #f2f2f2;
+      --menu-scale: #444;
+      --menu-selected: #ffe78a;
+      --menu-activated: #e0c45c;
+      background: var(--menu-background);
+      color: var(--menu-default);
+      box-sizing: border-box;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: minmax(260px, 34vw) 1fr;
+      grid-template-rows: minmax(0, 1fr) auto;
+      height: 100dvh;
+      min-height: 0;
+    }
+
+    nav {
+      border-right: 1px solid #333;
+      padding: 12px;
+      overflow: hidden;
+      grid-column: 1;
+      grid-row: 1;
+      min-height: 0;
+      box-sizing: border-box;
+      background: rgba(16, 16, 16, .68);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #content {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      min-width: 0;
+      max-height: 55dvh;
+      padding: 10px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px 18px;
+      align-content: start;
+      align-items: center;
+      background: rgba(16, 16, 16, .74);
+      border-top: 1px solid #333;
+      box-sizing: border-box;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      z-index: 9;
+    }
+
+    #content:empty {
+      display: none;
+    }
+
+    #controls {
+      position: fixed;
+      right: 16px;
+      top: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    #controls button {
+      width: 52px;
+      height: 52px;
+      border-radius: 26px;
+      text-align: center;
+      font-size: 24px;
+      padding: 0;
+      min-height: 52px;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      background: rgba(32, 32, 32, .68);
+      border: 1px solid var(--menu-scale);
+      padding: 14px 16px;
+      border-radius: 8px;
+      text-align: left;
+      cursor: pointer;
+      min-height: 56px;
+      box-sizing: border-box;
+      line-height: 1.2;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    button:hover {
+      background: rgba(45, 45, 45, .82);
+    }
+
+    .active {
+      border-color: var(--menu-activated);
+      color: var(--menu-selected);
+    }
+
+    .menu-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0 12px;
+      background: transparent;
+      z-index: 2;
+      flex: 0 0 auto;
+    }
+
+    .back {
+      width: 32px;
+      height: 32px;
+      min-height: 32px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #aaa;
+      text-align: center;
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .back:hover {
+      background: transparent;
+      color: var(--menu-default);
+    }
+
+    .back.hidden {
+      visibility: hidden;
+    }
+
+    .menu-title {
+      font-size: 20px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .menu-list {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 0 8px 12px 0;
+      scrollbar-gutter: stable;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 3.0em;
+      min-height: 0;
+      font-size: 19px;
+      overflow: hidden;
+      gap: 12px;
+      padding-right: 12px;
+    }
+
+    .menu-item span:first-child {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chevron {
+      flex: 0 0 auto;
+      color: #aaa;
+      font-size: 26px;
+      margin-left: 0;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      max-width: 100%;
+      min-height: min-content;
+      flex: 0 0 auto;
+      padding: 4px 0;
+    }
+
+    .label {
+      font-size: 22px;
+      min-width: 0;
+      max-width: none;
+      white-space: normal;
+      overflow: visible;
+      overflow-wrap: anywhere;
+      line-height: 1.2;
+    }
+
+    .weather {
+      font-family: ve301-weather;
+      font-size: 48px;
+      line-height: 1;
+    }
+
+    .icon {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      display: block;
+      flex: 0 0 auto;
+    }
+
+    .meta {
+      color: #aaa;
+      font-size: 13px;
+    }
+
+    .fa-icon {
+      width: 1em;
+      height: 1em;
+      fill: currentColor;
+      display: block;
+      flex: 0 0 auto;
+      pointer-events: none;
+    }
+
+    #controls .fa-icon,
+    .back .fa-icon {
+      margin: auto;
+    }
+
+    .chevron .fa-icon {
+      width: .72em;
+      height: .72em;
+    }
+
+    @media (max-width: 700px) {
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      nav {
+        border-right: 0;
+        border-bottom: 1px solid #333;
+        padding: 72px 12px 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <nav id="tree"></nav>
+    <main id="content"></main>
+  </div>
+
+  <div id="controls">
+    <button type="button" id="vol-down" title="Volume down" aria-label="Volume down"></button>
+    <button type="button" id="vol-up" title="Volume up" aria-label="Volume up"></button>
+  </div>
+
+  <script>
+    const loadedFonts = new Set();
+    const faIcons = {
+      "angle-left": { viewBox: "0 0 320 512", path: "M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z" },
+      "angle-right": { viewBox: "0 0 320 512", path: "M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" },
+      minus: { viewBox: "0 0 448 512", path: "M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32 14.3 32 32z" },
+      plus: { viewBox: "0 0 448 512", path: "M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z" }
+    };
+    let navPath = [];
+    let navScroll = {};
+    let lastStructureVersion = null;
+    let lastStyleVersion = null;
+    let statePollInFlight = false;
+
+    function createFaIcon(name) {
+      let icon = faIcons[name];
+      let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "fa-icon");
+      svg.setAttribute("viewBox", icon.viewBox);
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+
+      let path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", icon.path);
+      svg.appendChild(path);
+      return svg;
+    }
+
+    function setIcon(el, name) {
+      el.textContent = "";
+      el.appendChild(createFaIcon(name));
+    }
+
+    function fontFamily(url) {
+      let h = 0;
+      for (let i = 0; i < url.length; i++) {
+        h = (h * 31 + url.charCodeAt(i)) >>> 0;
+      }
+      return `ve301-${h}`;
+    }
+
+    function ensureFont(url) {
+      if (!url) return ``;
+
+      let f = fontFamily(url);
+      if (loadedFonts.has(url)) return f;
+
+      loadedFonts.add(url);
+      let s = document.createElement(`style`);
+      s.textContent = `@font-face{font-family:${f};src:url(${url}) format(truetype);font-display:block;}`;
+      document.head.appendChild(s);
+      return f;
+    }
+
+    async function post(u) {
+      await fetch(u, { method: `POST` });
+      load();
+    }
+
+    async function sendEvent(type) {
+      await post(`/api/menu/event?type=${type}`);
+    }
+
+    function topNodes(roots) {
+      let visibleRoots = roots.filter(x => !x.transient);
+      return visibleRoots.length === 1 ? (visibleRoots[0].children || []) : visibleRoots;
+    }
+
+    function navState(roots) {
+      let base = topNodes(roots);
+      let nodes = base;
+      let title = `Menu`;
+
+      for (let i = 0; i < navPath.length; i++) {
+        let n = nodes.find(x => x.path === navPath[i]);
+        if (!n) {
+          navPath = [];
+          return { nodes: base, title: `Menu` };
+        }
+
+        title = n.label || `Menu`;
+        nodes = n.children || [];
+      }
+
+      return { nodes, title };
+    }
+
+    function makeButton(n) {
+      let children = n.children || [];
+      let hasChildren = n.submenu || children.length > 0;
+      let b = document.createElement(`button`);
+      b.type = `button`;
+      b.className = `menu-item`;
+      b.dataset.path = n.path;
+
+      if (n.active || n.current) b.className += ` active`;
+      if (n.font) b.style.fontFamily = ensureFont(n.font);
+      if (n.color) b.style.color = n.color;
+
+      let label = document.createElement(`span`);
+      label.textContent = n.label || `(leer)`;
+      b.appendChild(label);
+
+      if (hasChildren) {
+        let ch = document.createElement(`span`);
+        ch.className = `chevron`;
+        ch.appendChild(createFaIcon(`angle-right`));
+        b.appendChild(ch);
+      }
+
+      b.onclick = () => {
+        if (hasChildren) {
+          navPath.push(n.path);
+          renderNav(window.lastRoots || []);
+        }
+        post(`/api/menu/activate?path=${n.path}`);
+      };
+
+      return b;
+    }
+
+    function renderNav(roots) {
+      window.lastRoots = roots;
+      let state = navState(roots);
+      let oldKey = window.navKey || ``;
+      let key = navPath.join();
+      window.navKey = key;
+
+      let t = document.getElementById(`tree`);
+      let old = t.querySelector(`.menu-list`);
+      if (old) navScroll[oldKey] = old.scrollTop;
+      t.textContent = ``;
+
+      let header = document.createElement(`div`);
+      header.className = `menu-header`;
+
+      let back = document.createElement(`button`);
+      back.type = `button`;
+      back.className = `back` + (navPath.length ? `` : ` hidden`);
+      back.title = `Back`;
+      back.setAttribute(`aria-label`, `Back`);
+      back.appendChild(createFaIcon(`angle-left`));
+      back.onclick = () => {
+        navPath.pop();
+        renderNav(window.lastRoots || []);
+      };
+
+      let title = document.createElement(`div`);
+      title.className = `menu-title`;
+      title.textContent = state.title;
+
+      header.appendChild(back);
+      header.appendChild(title);
+
+      let list = document.createElement(`div`);
+      list.className = `menu-list`;
+      state.nodes.forEach(x => list.appendChild(makeButton(x)));
+
+      t.appendChild(header);
+      t.appendChild(list);
+      list.scrollTop = navScroll[key] || 0;
+    }
+
+    function flatten(n, a) {
+      (n.children || []).forEach(c => {
+        a.push(c);
+        flatten(c, a);
+      });
+    }
+
+    async function load() {
+      let r = await fetch(`/api/menu/tree`);
+      let data = await r.json();
+      lastStructureVersion = data.structure_version;
+      lastStyleVersion = data.style_version;
+      let roots = data.roots || [];
+      let bg = (roots.find(x => x.current_transient && x.background)
+        || roots.find(x => !x.transient && x.background)
+        || roots.find(x => x.background)
+        || {}).background;
+
+      document.body.style.backgroundImage = bg ? `url(${bg})` : ``;
+      document.body.style.backgroundSize = `cover`;
+      document.body.style.backgroundPosition = `center`;
+      renderNav(roots);
+
+      let display = roots.find(x => x.current_transient);
+      let items = [];
+      if (display) flatten(display, items);
+
+      let c = document.getElementById(`content`);
+      c.textContent = ``;
+      items.forEach(i => {
+        let e = document.createElement(`section`);
+        e.className = `status-item`;
+        e.dataset.path = i.path;
+        e.innerHTML = i.icon
+          ? `<img class="icon" src=""><div class="label"></div>`
+          : `<div class="label"></div>`;
+
+        let label = e.querySelector(`.label`);
+        if (i.font) label.style.fontFamily = ensureFont(i.font);
+        if (i.color) label.style.color = i.color;
+        if (i.font_size) label.style.fontSize = Math.min(i.font_size, 42) + `px`;
+        if (i.icon) e.querySelector(`img`).src = i.icon;
+        label.textContent = i.label || ``;
+        c.appendChild(e);
+      });
+    }
+
+    function updateVisibleState(state) {
+      let navItems = state.nav || [];
+      let buttons = Array.from(document.querySelectorAll(`.menu-list .menu-item`));
+      if (buttons.length !== navItems.length) return false;
+
+      let title = document.querySelector(`.menu-title`);
+      if (title) title.textContent = state.title || `Menu`;
+
+      for (let i = 0; i < buttons.length; i++) {
+        let button = buttons[i];
+        let item = navItems[i];
+        if (button.dataset.path !== item.path) return false;
+
+        button.classList.toggle(`active`, !!(item.active || item.current));
+        button.style.fontFamily = item.font ? ensureFont(item.font) : ``;
+        button.style.color = item.color || ``;
+        let label = button.querySelector(`span:first-child`);
+        if (label) label.textContent = item.label || `(leer)`;
+      }
+
+      let statusItems = state.status || [];
+      let sections = Array.from(document.querySelectorAll(`#content .status-item`));
+      if (sections.length !== statusItems.length) return false;
+
+      for (let i = 0; i < sections.length; i++) {
+        let section = sections[i];
+        let item = statusItems[i];
+        if (section.dataset.path !== item.path) return false;
+
+        let label = section.querySelector(`.label`);
+        if (label) {
+          label.textContent = item.label || ``;
+          label.style.color = item.color || ``;
+          label.style.fontFamily = item.font ? ensureFont(item.font) : ``;
+          label.style.fontSize = item.font_size
+            ? Math.min(item.font_size, 42) + `px`
+            : ``;
+        }
+        let icon = section.querySelector(`img`);
+        if (icon && item.icon && icon.src !== new URL(item.icon, location.href).href) {
+          icon.src = item.icon;
+        }
+      }
+      return true;
+    }
+
+    function applyThemeState(state) {
+      let colors = state.colors || {};
+      let style = document.body.style;
+
+      if (colors.background) style.setProperty(`--menu-background`, colors.background);
+      if (colors.default) style.setProperty(`--menu-default`, colors.default);
+      if (colors.scale) style.setProperty(`--menu-scale`, colors.scale);
+      if (colors.selected) style.setProperty(`--menu-selected`, colors.selected);
+      if (colors.activated) style.setProperty(`--menu-activated`, colors.activated);
+
+      document.body.style.backgroundImage = state.background ? `url(${state.background})` : ``;
+      document.body.style.backgroundSize = `cover`;
+      document.body.style.backgroundPosition = `center`;
+    }
+
+    async function pollState() {
+      if (statePollInFlight) return;
+      statePollInFlight = true;
+      let viewPath = navPath.length ? navPath[navPath.length - 1] : ``;
+
+      try {
+        let r = await fetch(`/api/menu/state?path=${viewPath}`, { cache: `no-store` });
+        if (!r.ok) return;
+
+        let state = await r.json();
+        let structureChanged = lastStructureVersion !== null
+          && state.structure_version !== lastStructureVersion;
+        let styleChanged = lastStyleVersion !== null
+          && state.style_version !== lastStyleVersion;
+        applyThemeState(state);
+
+        if (structureChanged || styleChanged || !state.view_valid) {
+          await load();
+        } else {
+          let currentPath = navPath.length ? navPath[navPath.length - 1] : ``;
+          if (currentPath === viewPath && !updateVisibleState(state)) {
+            await load();
+          }
+          lastStructureVersion = state.structure_version;
+          lastStyleVersion = state.style_version;
+        }
+      } finally {
+        statePollInFlight = false;
+      }
+    }
+
+    async function init() {
+      await load();
+      await pollState();
+      setInterval(pollState, 2000);
+    }
+
+    setIcon(document.getElementById(`vol-up`), `plus`);
+    setIcon(document.getElementById(`vol-down`), `minus`);
+    document.getElementById(`vol-up`).onclick = () => sendEvent(`volume_up`);
+    document.getElementById(`vol-down`).onclick = () => sendEvent(`volume_down`);
+    document.addEventListener(`keydown`, e => {
+      if (e.repeat) return;
+
+      let k = e.key;
+      if (k === `AudioVolumeUp` || k === `VolumeUp`) {
+        e.preventDefault();
+        sendEvent(`volume_up`);
+      } else if (k === `AudioVolumeDown` || k === `VolumeDown`) {
+        e.preventDefault();
+        sendEvent(`volume_down`);
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

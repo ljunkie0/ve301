@@ -29,7 +29,7 @@ extern "C" {
 #include <SDL2/SDL_ttf.h>
 
 #ifdef MENU_WEB
-#include "menu_web.h"
+#include "web/menu_web.h"
 #endif
 
 struct menu_ctrl {
@@ -75,6 +75,7 @@ struct menu_ctrl {
     Uint8 indicator_alpha;
     SDL_Texture *bg_image;
     char *bg_image_path;
+    unsigned int style_version;
     double bg_segment;
     theme *theme;
     SDL_Texture *light_texture;

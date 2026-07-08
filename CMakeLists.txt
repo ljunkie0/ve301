@@ -184,8 +184,19 @@ if(WITH_ALSA)
 endif()
 
 if(WITH_MENU_WEB)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(MENU_WEB_INDEX_HTML "${CMAKE_SOURCE_DIR}/src/menu/web/index.html")
+    set(MENU_WEB_INDEX_HTML_INC "${CMAKE_CURRENT_BINARY_DIR}/menu/web/index_html.inc")
+    add_custom_command(
+        OUTPUT "${MENU_WEB_INDEX_HTML_INC}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/menu/web"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/embed_text.py" "${MENU_WEB_INDEX_HTML}" "${MENU_WEB_INDEX_HTML_INC}"
+        DEPENDS "${MENU_WEB_INDEX_HTML}" "${CMAKE_SOURCE_DIR}/tools/embed_text.py"
+        VERBATIM
+    )
     list(APPEND VE301_SOURCES
-        src/menu/menu_web.c
+        src/menu/web/menu_web.c
+        "${MENU_WEB_INDEX_HTML_INC}"
         "${MONGOOSE_SOURCE_DIR}/mongoose.c"
     )
 endif()
@@ -217,7 +228,7 @@ endif()
 
 if(WITH_MENU_WEB)
     target_compile_definitions(ve301 PRIVATE MENU_WEB)
-    target_include_directories(ve301 PRIVATE "${MONGOOSE_SOURCE_DIR}")
+    target_include_directories(ve301 PRIVATE "${MONGOOSE_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/menu/web")
 endif()
 
 if(VE301_RASPBERRY)

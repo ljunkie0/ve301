@@ -69,6 +69,26 @@ int menu_get_effective_font_size(menu *m) {
     return 0;
 }
 
+const SDL_Color *menu_get_effective_default_color(menu *m) {
+    return m && m->default_color ? m->default_color
+                                 : (m && m->ctrl ? m->ctrl->default_color : NULL);
+}
+
+const SDL_Color *menu_get_effective_selected_color(menu *m) {
+    return m && m->selected_color ? m->selected_color
+                                  : (m && m->ctrl ? m->ctrl->selected_color : NULL);
+}
+
+const SDL_Color *menu_get_effective_active_color(menu *m) {
+    return m && m->default_color ? m->default_color
+                                 : (m && m->ctrl ? m->ctrl->activated_color : NULL);
+}
+
+const SDL_Color *menu_get_effective_scale_color(menu *m) {
+    return m && m->scale_color ? m->scale_color
+                               : (m && m->ctrl ? m->ctrl->scale_color : NULL);
+}
+
 menu_item *menu_get_item(menu *m, int id) {
     return m->item[id];
 }
@@ -500,6 +520,9 @@ int menu_set_colors(menu *m, SDL_Color *default_color, SDL_Color *selected_color
     }
 
     menu_rebuild_glyphs(m);
+    if (m->ctrl) {
+        m->ctrl->style_version++;
+    }
 
     return 1;
 

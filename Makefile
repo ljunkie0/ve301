@@ -4,6 +4,7 @@ CFLAGS_DBUS=-I/usr/include/dbus-1.0 -I/usr/lib/$(ARCH)/dbus-1.0/include
 LDFLAGS_DBUS=-ldbus-1
 LDFLAGS=
 STRIP=$(ARCH)-strip
+PYTHON ?= python3
 
 BASE_OBJS=base/util.o base/logging.o base/log_contexts.o base/config.o
 MENU_OBJS=menu/glyph_obj.o menu/text_obj.o menu/menu_menu.o menu/menu_ctrl.o menu/menu_item.o
@@ -27,7 +28,7 @@ ifeq ($(WITH_MENU_WEB),1)
 	MONGOOSE_DIRECTORY=$(CURDIR)/mongoose
 	MONGOOSE_DIR ?= $(MONGOOSE_DIRECTORY)
 	ADD_CFLAGS += -DMENU_WEB -I$(MONGOOSE_DIR)
-	MENU_OBJS += menu/menu_web.o third_party/mongoose.o
+	MENU_OBJS += menu/web/menu_web.o third_party/mongoose.o
 endif
 
 ifeq ($(WITH_ALSA),1)
@@ -191,8 +192,14 @@ menu/%_obj.o: ../src/menu/%_obj.c ../src/menu/%_obj.h | menu
 menu/menu_%.o: ../src/menu/menu_%.c ../src/menu/menu_%.h ../src/menu/menu_%_priv.h | menu
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
 
-menu/menu_web.o: ../src/menu/menu_web.c ../src/menu/menu_web.h ../src/menu/menu_ctrl.h ../src/menu/menu_menu.h ../src/menu/menu_item.h $(MONGOOSE_DIR)/mongoose.h | menu
-	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$<"
+menu/web:
+	mkdir -p menu/web
+
+menu/web/index_html.inc: ../src/menu/web/index.html ../tools/embed_text.py | menu/web
+	$(PYTHON) ../tools/embed_text.py "$<" "$@"
+
+menu/web/menu_web.o: ../src/menu/web/menu_web.c ../src/menu/web/menu_web.h menu/web/index_html.inc ../src/menu/menu_ctrl.h ../src/menu/menu_menu.h ../src/menu/menu_item.h $(MONGOOSE_DIR)/mongoose.h | menu/web
+	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -Imenu/web -c -o $@ "$<"
 
 third_party/mongoose.o: $(MONGOOSE_DIR)/mongoose.c $(MONGOOSE_DIR)/mongoose.h | third_party
 	$(CC) $(CFLAGS) $(CFLAGS_ADDITIONAL) -c -o $@ "$(MONGOOSE_DIR)/mongoose.c"

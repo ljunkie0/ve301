@@ -37,7 +37,7 @@
 #include "menu_menu_priv.h"
 #include "menu_ctrl_priv.h"
 #ifdef MENU_WEB
-#include "menu_web.h"
+#include "web/menu_web.h"
 #endif
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
@@ -548,6 +548,7 @@ static int menu_ctrl_set_color_component(SDL_Color **target,
         menu_rebuild_glyphs(ctrl->root[root]);
     }
 
+    ctrl->style_version++;
     return menu_ctrl_draw(ctrl);
 }
 
@@ -678,6 +679,8 @@ int menu_ctrl_set_style(menu_ctrl *ctrl, char *background, char *scale, char *in
     if (ctrl->current) {
         ctrl->current->dirty = 1;
     }
+
+    ctrl->style_version++;
 
     log_config(MENU_CTX, "END: menu_ctrl_set_style\n");
     return 1;

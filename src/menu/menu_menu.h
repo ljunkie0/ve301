@@ -77,6 +77,10 @@ void menu_set_label(menu *m, const char *label);
 const char *menu_get_effective_background_path(menu *m);
 const char *menu_get_effective_font_path(menu *m);
 int menu_get_effective_font_size(menu *m);
+const SDL_Color *menu_get_effective_default_color(menu *m);
+const SDL_Color *menu_get_effective_selected_color(menu *m);
+const SDL_Color *menu_get_effective_active_color(menu *m);
+const SDL_Color *menu_get_effective_scale_color(menu *m);
 
 #ifdef __cplusplus
 }
